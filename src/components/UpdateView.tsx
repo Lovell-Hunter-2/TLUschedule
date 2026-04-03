@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
-import { Sparkles, Plus, Trash2, Save, FileText, Edit2 } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search } from 'lucide-react';
 import { parseScheduleText } from '../services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -18,6 +18,7 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
   const [isParsing, setIsParsing] = useState(false);
   const [editingSubjects, setEditingSubjects] = useState<Subject[]>(subjects);
   const [subjectToEdit, setSubjectToEdit] = useState<Subject | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleAiParse = async () => {
     if (!aiText.trim()) return;
@@ -47,6 +48,19 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
     onUpdate(editingSubjects);
     setMode('list');
   };
+
+  const groupedSubjects = useMemo(() => {
+    const filtered = editingSubjects.filter(s => 
+      s.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    const groups: Record<string, Subject[]> = {};
+    filtered.forEach(s => {
+      if (!groups[s.name]) groups[s.name] = [];
+      groups[s.name].push(s);
+    });
+    return groups;
+  }, [editingSubjects, searchTerm]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -123,39 +137,60 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
                 Lưu tất cả
               </Button>
             </div>
+
+            <div className="relative">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm tên môn học..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none transition-all text-sm shadow-sm"
+              />
+            </div>
             
-            {editingSubjects.length === 0 ? (
+            {Object.keys(groupedSubjects).length === 0 ? (
               <div className="py-12 text-center text-gray-400 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100">
-                Chưa có môn học nào
+                {searchTerm ? 'Không tìm thấy môn học nào' : 'Chưa có môn học nào'}
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
-                {editingSubjects.map((s) => (
-                  <Card key={s.id} className="flex items-center justify-between p-4">
-                    <div>
-                      <h4 className="font-bold text-gray-800">{s.name}</h4>
-                      <p className="text-xs text-gray-500">{s.room} • {s.lecturer}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => {
-                          setSubjectToEdit(s);
-                          setMode('edit');
-                        }}
-                        className="text-blue-400 hover:text-blue-600 hover:bg-blue-50"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => removeSubject(s.id)}
-                        className="text-red-400 hover:text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+              <div className="flex flex-col gap-4">
+                {Object.entries(groupedSubjects).map(([name, subs]) => (
+                  <Card key={name} className="p-4 flex flex-col gap-3 shadow-sm border-gray-100">
+                    <h4 className="font-bold text-gray-800 text-lg">{name}</h4>
+                    <div className="flex flex-col gap-2">
+                      {subs.map((s) => {
+                        const daysStr = s.daysOfWeek.map(d => d === 0 ? 'CN' : `T${d+1}`).join(', ');
+                        const periodsStr = `Tiết ${Math.min(...s.periods)}-${Math.max(...s.periods)}`;
+                        return (
+                          <div key={s.id} className="flex items-center justify-between bg-gray-50/80 p-3 rounded-xl border border-gray-100">
+                            <div className="text-sm text-gray-600 font-medium">
+                              {s.lecturer || 'Chưa có GV'} <span className="text-gray-300 mx-1">|</span> {daysStr}, {periodsStr} <span className="text-gray-300 mx-1">|</span> {s.room || 'Chưa có phòng'}
+                            </div>
+                            <div className="flex gap-1 shrink-0 ml-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => {
+                                  setSubjectToEdit(s);
+                                  setMode('edit');
+                                }}
+                                className="p-1.5 h-auto text-blue-400 hover:text-blue-600 hover:bg-blue-50"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => removeSubject(s.id)}
+                                className="p-1.5 h-auto text-red-400 hover:text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </Card>
                 ))}
