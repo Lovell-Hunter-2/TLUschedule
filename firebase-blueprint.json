@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["displayName", "email"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "A class or subject",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "room": { "type": "string" },
+        "lecturer": { "type": "string" },
+        "startDate": { "type": "string", "description": "YYYY-MM-DD" },
+        "endDate": { "type": "string", "description": "YYYY-MM-DD" },
+        "daysOfWeek": { "type": "array", "items": { "type": "number" } },
+        "periods": { "type": "array", "items": { "type": "number" } },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "name", "startDate", "endDate", "daysOfWeek", "periods", "color"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "A daily note",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "date", "content", "createdAt"]
+    },
+    "Workspace": {
+      "title": "Workspace",
+      "description": "A user workspace",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "password": { "type": "string" }
+      },
+      "required": ["id", "name", "password"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/users/{userId}/workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/Workspace" },
+      "description": "User workspaces"
+    },
+    "/users/{userId}/workspaces/{workspaceId}/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Workspace subjects"
+    },
+    "/users/{userId}/workspaces/{workspaceId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/Note" },
+      "description": "Workspace notes"
+    }
+  }
+}

@@ -1,0 +1,141 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: userId (from Firebase Auth)
+    // Fields:
+    //   - displayName: string (required)
+    //   - email: string (required)
+    //
+    // Subcollection: users/{userId}/workspaces
+    // Document ID: workspaceId
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - password: string (required)
+    //
+    // Subcollection: users/{userId}/workspaces/{workspaceId}/subjects
+    // Document ID: subjectId
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - room: string (optional)
+    //   - lecturer: string (optional)
+    //   - startDate: string YYYY-MM-DD (required)
+    //   - endDate: string YYYY-MM-DD (required)
+    //   - daysOfWeek: list of numbers (required)
+    //   - periods: list of numbers (required)
+    //   - color: string (required)
+    //
+    // Subcollection: users/{userId}/workspaces/{workspaceId}/notes
+    // Document ID: noteId
+    // Fields:
+    //   - id: string (required)
+    //   - date: string YYYY-MM-DD (required)
+    //   - content: string (required)
+    //   - createdAt: number (required)
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function hasRequiredFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser() {
+      return hasOnlyAllowedFields(['displayName', 'email']) &&
+             hasRequiredFields(['displayName', 'email']) &&
+             request.resource.data.displayName is string &&
+             request.resource.data.displayName.size() > 0 &&
+             request.resource.data.displayName.size() <= 100 &&
+             request.resource.data.email is string &&
+             request.resource.data.email.size() > 0 &&
+             request.resource.data.email.size() <= 200;
+    }
+
+    function isValidWorkspace() {
+      return hasOnlyAllowedFields(['id', 'name', 'password']) &&
+             hasRequiredFields(['id', 'name', 'password']) &&
+             request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 50 &&
+             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100 &&
+             request.resource.data.password is string && request.resource.data.password.size() > 0 && request.resource.data.password.size() <= 100;
+    }
+
+    function isValidSubject() {
+      return hasOnlyAllowedFields(['id', 'name', 'room', 'lecturer', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color']) &&
+             hasRequiredFields(['id', 'name', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color']) &&
+             request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 50 &&
+             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
+             (!('room' in request.resource.data) || (request.resource.data.room is string && request.resource.data.room.size() <= 100)) &&
+             (!('lecturer' in request.resource.data) || (request.resource.data.lecturer is string && request.resource.data.lecturer.size() <= 100)) &&
+             isValidDateString(request.resource.data.startDate) &&
+             isValidDateString(request.resource.data.endDate) &&
+             request.resource.data.daysOfWeek is list && request.resource.data.daysOfWeek.size() <= 7 &&
+             request.resource.data.periods is list && request.resource.data.periods.size() <= 20 &&
+             request.resource.data.color is string && request.resource.data.color.size() <= 50;
+    }
+
+    function isValidNote() {
+      return hasOnlyAllowedFields(['id', 'date', 'content', 'createdAt']) &&
+             hasRequiredFields(['id', 'date', 'content', 'createdAt']) &&
+             request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 50 &&
+             isValidDateString(request.resource.data.date) &&
+             request.resource.data.content is string && request.resource.data.content.size() <= 5000 &&
+             request.resource.data.createdAt is number;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser();
+      allow update: if isOwner(userId) && isValidUser();
+      
+      match /workspaces/{workspaceId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidWorkspace();
+        allow update: if isOwner(userId) && isValidWorkspace();
+        allow delete: if isOwner(userId);
+
+        match /subjects/{subjectId} {
+          allow read: if isOwner(userId);
+          allow create: if isOwner(userId) && isValidSubject();
+          allow update: if isOwner(userId) && isValidSubject();
+          allow delete: if isOwner(userId);
+        }
+        
+        match /notes/{noteId} {
+          allow read: if isOwner(userId);
+          allow create: if isOwner(userId) && isValidNote();
+          allow update: if isOwner(userId) && isValidNote();
+          allow delete: if isOwner(userId);
+        }
+      }
+    }
+  }
+}
