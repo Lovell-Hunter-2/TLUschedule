@@ -40,7 +40,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             <GraduationCap className="w-10 h-10 text-white -rotate-12" />
           </div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">TLU Schedule</h1>
-          <p className="text-gray-500 font-medium mt-2">Quản lý lịch học thông minh</p>
+          <p className="text-gray-500 font-medium mt-2">Quản lý lịch học thông minh \nMột web app do Lovell Tituss phát triển</p>
         </div>
 
         <Card className="p-8 shadow-2xl shadow-gray-200/50 border-white/50 backdrop-blur-sm bg-white/90">
