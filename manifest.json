@@ -1,0 +1,20 @@
+{
+  "name": "Lịch học TLU",
+  "short_name": "TLU Schedule",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/NMT x NPT (tết).png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/NMT x NPT (tết).png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
