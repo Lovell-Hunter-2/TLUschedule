@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useEffect } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { WorkspaceScreen } from './components/WorkspaceScreen';
@@ -14,7 +9,7 @@ import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users } from 'lucide-react';
+import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -82,6 +77,16 @@ export default function App() {
   const [noteDate, setNoteDate] = useState<Date | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -155,6 +160,18 @@ export default function App() {
     setNotes([]);
   };
 
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      alert('Android: Chọn "3 chấm" ==> "Cài đặt ứng dụng" \niOS: Chọn "Chia sẻ" ==> "Thêm vào màn hình chính"');
+    }
+  };
+
   const updateSubjects = async (newSubjects: Subject[]) => {
     if (!user || !workspace) return;
     
@@ -217,7 +234,7 @@ export default function App() {
   };
 
   if (!isAuthReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Bạn chờ App xíu nghen...🥹</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Đang tải...</div>;
   }
 
   if (!user) {
@@ -233,7 +250,14 @@ export default function App() {
       title={workspace.name} 
       subtitle="Sinh viên Đại học Thủy Lợi"
       headerAction={
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleInstallClick}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
+          >
+            <Download size={18} />
+            <span className="hidden sm:inline">Cài đặt app</span>
+          </button>
           <Button variant="ghost" size="sm" onClick={handleSwitchWorkspace} className="text-gray-500 hover:text-blue-600" title="Đổi lịch học">
             <Users className="w-5 h-5" />
           </Button>
