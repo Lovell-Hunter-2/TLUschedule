@@ -168,7 +168,7 @@ export default function App() {
         setDeferredPrompt(null);
       }
     } else {
-      alert('Android: Chọn "3 chấm" ==> "Cài đặt ứng dụng" \niOS: Chọn "Chia sẻ" ==> "Thêm vào màn hình chính"');
+      alert('Android: Chọn "3 chấm" ==> "Add to Home screen" \niOS: Chọn "Chia sẻ" ==> "Thêm vào màn hình chính"');
     }
   };
 
@@ -234,7 +234,7 @@ export default function App() {
   };
 
   if (!isAuthReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Đang tải...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Bạn chờ App xíu nghen...🥹</div>;
   }
 
   if (!user) {
@@ -256,7 +256,7 @@ export default function App() {
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
           >
             <Download size={18} />
-            <span className="hidden sm:inline">Cài đặt app</span>
+            <span className="hidden sm:inline">Cài đặt Web app</span>
           </button>
           <Button variant="ghost" size="sm" onClick={handleSwitchWorkspace} className="text-gray-500 hover:text-blue-600" title="Đổi lịch học">
             <Users className="w-5 h-5" />
