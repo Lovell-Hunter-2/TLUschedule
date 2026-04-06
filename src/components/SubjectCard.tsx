@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Subject, PERIODS } from '../types';
 import { Card } from './Card';
-import { MapPin, User, Clock, Map as MapIcon, X } from 'lucide-react';
+import { MapPin, User, Clock, Map as MapIcon, X, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 interface SubjectCardProps {
   subject: Subject;
@@ -76,9 +77,9 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-2xl bg-white rounded-2xl overflow-hidden shadow-2xl"
+              className="relative w-full max-w-2xl bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-red-500" />
                   Sơ đồ trường - Phòng {subject.room}
@@ -90,16 +91,44 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-2 overflow-auto max-h-[70vh] bg-gray-100 flex items-center justify-center">
-                <img 
-                  src="/map_tlu.jpg" 
-                  alt="Sơ đồ trường" 
-                  className="w-full h-auto object-contain rounded-lg"
-                  referrerPolicy="no-referrer"
-                />
+              
+              <div className="relative flex-1 bg-gray-100 overflow-hidden flex items-center justify-center min-h-[50vh]">
+                <TransformWrapper
+                  initialScale={1}
+                  minScale={0.5}
+                  maxScale={4}
+                  centerOnInit={true}
+                  wheel={{ step: 0.1 }}
+                >
+                  {({ zoomIn, zoomOut, resetTransform }) => (
+                    <>
+                      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-xl shadow-sm border border-gray-200">
+                        <button onClick={() => zoomIn()} className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Phóng to">
+                          <ZoomIn className="w-5 h-5" />
+                        </button>
+                        <button onClick={() => zoomOut()} className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Thu nhỏ">
+                          <ZoomOut className="w-5 h-5" />
+                        </button>
+                        <button onClick={() => resetTransform()} className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Khôi phục">
+                          <Maximize className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full flex items-center justify-center">
+                        <img 
+                          src="/map_tlu.jpg" 
+                          alt="Sơ đồ trường" 
+                          className="max-w-full max-h-full object-contain"
+                          referrerPolicy="no-referrer"
+                          draggable={false}
+                        />
+                      </TransformComponent>
+                    </>
+                  )}
+                </TransformWrapper>
               </div>
-              <div className="p-3 text-center text-xs text-gray-500 bg-gray-50 border-t border-gray-100">
-                Bạn có thể dùng 2 ngón tay để phóng to/thu nhỏ bản đồ
+
+              <div className="p-3 text-center text-xs text-gray-500 bg-gray-50 border-t border-gray-100 shrink-0">
+                Dùng 2 ngón tay, lăn chuột hoặc nút bấm để phóng to/thu nhỏ
               </div>
             </motion.div>
           </div>
