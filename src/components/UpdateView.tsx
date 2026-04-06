@@ -3,9 +3,8 @@ import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
-import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search } from 'lucide-react';
 import { parseScheduleText } from '../services/geminiService';
-import { syncToGoogleCalendar } from '../services/googleCalendarService';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface UpdateViewProps {
@@ -17,7 +16,6 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
   const [mode, setMode] = useState<'manual' | 'ai' | 'list' | 'edit'>('list');
   const [aiText, setAiText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [editingSubjects, setEditingSubjects] = useState<Subject[]>(subjects);
   const [subjectToEdit, setSubjectToEdit] = useState<Subject | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,38 +37,6 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
       alert('Lỗi khi phân tích lịch học. Vui lòng thử lại.');
     } finally {
       setIsParsing(false);
-    }
-  };
-
-const handleSyncCalendar = async () => {
-    if (editingSubjects.length === 0) {
-      alert('Không có môn học nào để đồng bộ!');
-      return;
-    }
-    
-    const proceed = window.confirm(
-      "LƯU Ý BẢO MẬT TỪ GOOGLE:\n\n" +
-      "Màn hình tiếp theo có thể hiện cảnh báo đỏ 'Google chưa xác minh ứng dụng này'.\n\n" +
-      "Cách xử lý để tiếp tục:\n" +
-      "1. Bấm vào chữ 'Nâng cao' (Advanced) ở góc dưới bên trái.\n" +
-      "2. Bấm 'Đi tới... (không an toàn)' (Go to... unsafe).\n\n" +
-      "Bấm OK để tiếp tục đồng bộ!"
-    );
-
-    if (!proceed) return;
-
-    setIsSyncing(true);
-    try {
-      const count = await syncToGoogleCalendar(editingSubjects);
-      alert(`Đã đồng bộ thành công ${count} lịch học/thi lên Google Calendar! Bạn sẽ nhận được thông báo trước 15 phút.`);
-    } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        alert('Bạn đã đóng cửa sổ đăng nhập. Vui lòng thử lại để cấp quyền cho Google Calendar.');
-      } else {
-        alert('Lỗi khi đồng bộ: ' + (error.message || 'Vui lòng thử lại sau.'));
-      }
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -164,24 +130,12 @@ const handleSyncCalendar = async () => {
             exit={{ opacity: 0, y: -10 }}
             className="flex flex-col gap-4"
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center justify-between">
               <h3 className="font-bold text-gray-700">Môn học đã thêm ({editingSubjects.length})</h3>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleSyncCalendar} 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
-                  disabled={isSyncing || editingSubjects.length === 0}
-                >
-                  <CalendarIcon className="w-4 h-4" />
-                  {isSyncing ? "Đang đồng bộ..." : "Đồng bộ Google Calendar"}
-                </Button>
-                <Button onClick={saveAll} variant="primary" size="sm" className="gap-2">
-                  <Save className="w-4 h-4" />
-                  Lưu tất cả
-                </Button>
-              </div>
+              <Button onClick={saveAll} variant="primary" size="sm" className="gap-2">
+                <Save className="w-4 h-4" />
+                Lưu tất cả
+              </Button>
             </div>
 
             <div className="relative">
