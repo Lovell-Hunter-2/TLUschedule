@@ -148,6 +148,8 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      localStorage.removeItem('savedWorkspaceId');
+      localStorage.removeItem('savedWorkspacePassword');
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
@@ -155,6 +157,8 @@ export default function App() {
   };
 
   const handleSwitchWorkspace = () => {
+    localStorage.removeItem('savedWorkspaceId');
+    localStorage.removeItem('savedWorkspacePassword');
     setWorkspace(null);
     setSubjects([]);
     setNotes([]);
