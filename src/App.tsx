@@ -248,7 +248,7 @@ export default function App() {
   return (
     <Layout 
       title={workspace.name} 
-      subtitle="Sinh viên Đại học Thủy lợi"
+      subtitle="Sinh viên Trường Đại học Thủy lợi"
       headerAction={
         <div className="flex items-center gap-2">
           <button
