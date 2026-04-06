@@ -30,6 +30,18 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         loadedWorkspaces.push(doc.data() as Workspace);
       });
       setWorkspaces(loadedWorkspaces);
+
+      const savedWorkspaceId = localStorage.getItem('savedWorkspaceId');
+      const savedWorkspacePassword = localStorage.getItem('savedWorkspacePassword');
+
+      if (savedWorkspaceId && savedWorkspacePassword) {
+        const savedWorkspace = loadedWorkspaces.find(w => w.id === savedWorkspaceId);
+        if (savedWorkspace && savedWorkspace.password === savedWorkspacePassword) {
+          onWorkspaceSelect(savedWorkspace);
+          return;
+        }
+      }
+
       if (loadedWorkspaces.length > 0 && !selectedWorkspaceId) {
         setSelectedWorkspaceId(loadedWorkspaces[0].id);
       } else if (loadedWorkspaces.length === 0) {
@@ -38,7 +50,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     });
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, selectedWorkspaceId, onWorkspaceSelect]);
 
   // Reset state when switching tabs
   useEffect(() => {
@@ -58,6 +70,8 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId);
       if (selectedWorkspace) {
         if (selectedWorkspace.password === btoa(encodeURIComponent(password))) {
+          localStorage.setItem('savedWorkspaceId', selectedWorkspace.id);
+          localStorage.setItem('savedWorkspacePassword', selectedWorkspace.password);
           onWorkspaceSelect(selectedWorkspace);
         } else {
           setError('Mật khẩu chưa chính xác.');
@@ -89,6 +103,8 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         password: btoa(encodeURIComponent(password))
       };
       await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace);
+      localStorage.setItem('savedWorkspaceId', newWorkspace.id);
+      localStorage.setItem('savedWorkspacePassword', newWorkspace.password);
       onWorkspaceSelect(newWorkspace);
     } catch (err) {
       setError('Có lỗi xảy ra. Vui lòng thử lại.');
