@@ -42,12 +42,23 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
     }
   };
 
-  const handleSyncCalendar = async () => {
+const handleSyncCalendar = async () => {
     if (editingSubjects.length === 0) {
       alert('Không có môn học nào để đồng bộ!');
       return;
     }
     
+    const proceed = window.confirm(
+      "LƯU Ý BẢO MẬT TỪ GOOGLE:\n\n" +
+      "Màn hình tiếp theo có thể hiện cảnh báo đỏ 'Google chưa xác minh ứng dụng này'.\n\n" +
+      "Cách xử lý để tiếp tục:\n" +
+      "1. Bấm vào chữ 'Nâng cao' (Advanced) ở góc dưới bên trái.\n" +
+      "2. Bấm 'Đi tới... (không an toàn)' (Go to... unsafe).\n\n" +
+      "Bấm OK để tiếp tục đồng bộ!"
+    );
+
+    if (!proceed) return;
+
     setIsSyncing(true);
     try {
       const count = await syncToGoogleCalendar(editingSubjects);
