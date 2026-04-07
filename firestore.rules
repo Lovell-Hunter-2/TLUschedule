@@ -111,6 +111,14 @@ service cloud.firestore {
     // ===============================================================
     // Rules
     // ===============================================================
+
+    // ---> THÊM ĐOẠN NÀY VÀO ĐÂY <---
+    match /app_settings/{document=**} {
+      allow read: if true; // Ai cũng xem được hình nền
+      allow write: if isAuthenticated() && request.auth.token.email == 'taikhoanphubg4@gmail.com'; // Chỉ bạn mới được đổi
+    }
+    // ---> KẾT THÚC PHẦN THÊM <---
+
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser();
