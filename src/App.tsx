@@ -9,7 +9,7 @@ import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download } from 'lucide-react';
+import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -78,6 +78,13 @@ export default function App() {
   const [noteContent, setNoteContent] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  
+  // Admin & Global Settings
+  const [globalBg, setGlobalBg] = useState<string>('');
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [bgInput, setBgInput] = useState('');
+
+  const isAdmin = user?.email === 'taikhoanphubg4@gmail.com';
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -86,6 +93,19 @@ export default function App() {
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  // Listen to global settings
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'app_settings', 'global'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setGlobalBg(data.backgroundImage || '');
+      }
+    }, (error) => {
+      console.error("Error fetching global settings:", error);
+    });
+    return () => unsub();
   }, []);
 
   useEffect(() => {
@@ -172,7 +192,7 @@ export default function App() {
         setDeferredPrompt(null);
       }
     } else {
-      alert('Android: Chọn "3 chấm" ==> "Add to Home screen" \niOS: Chọn "Chia sẻ" ==> "Thêm vào màn hình chính"');
+      alert('Android: Chọn "3 chấm" ==> "Cài đặt ứng dụng" \niOS: Chọn "Chia sẻ" ==> "Thêm vào màn hình chính"');
     }
   };
 
@@ -237,9 +257,23 @@ export default function App() {
     setIsNoteModalOpen(true);
   };
 
+  const saveGlobalSettings = async () => {
+    try {
+      await setDoc(doc(db, 'app_settings', 'global'), {
+        backgroundImage: bgInput
+      }, { merge: true });
+      setIsAdminModalOpen(false);
+    } catch (error) {
+      console.error("Failed to save global settings:", error);
+      alert("Lỗi khi lưu cài đặt. Bạn có chắc mình là admin không?");
+    }
+  };
+
   if (!isAuthReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Bạn chờ App xíu nghen...🥹</div>;
+    return 
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">Bạn chờ App xíu nghen...🥹</div>;
   }
+
 
   if (!user) {
     return <AuthScreen onLoginSuccess={() => {}} />;
@@ -252,15 +286,30 @@ export default function App() {
   return (
     <Layout 
       title={workspace.name} 
-      subtitle="Sinh viên Trường Đại học Thủy lợi"
+      subtitle="Sinh viên Đại học Thủy Lợi"
+      backgroundImage={globalBg}
       headerAction={
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => {
+                setBgInput(globalBg);
+                setIsAdminModalOpen(true);
+              }} 
+              className="text-purple-500 hover:text-purple-700 hover:bg-purple-50" 
+              title="Cài đặt Admin"
+            >
+              <ImageIcon className="w-5 h-5" />
+            </Button>
+          )}
           <button
             onClick={handleInstallClick}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
           >
             <Download size={18} />
-            <span className="hidden sm:inline">Cài đặt Web app</span>
+            <span className="hidden sm:inline">Cài đặt app</span>
           </button>
           <Button variant="ghost" size="sm" onClick={handleSwitchWorkspace} className="text-gray-500 hover:text-blue-600" title="Đổi lịch học">
             <Users className="w-5 h-5" />
@@ -332,6 +381,34 @@ export default function App() {
             onChange={(e) => setNoteContent(e.target.value)}
           />
           <Button onClick={addNote} className="w-full">Lưu ghi chú</Button>
+        </div>
+      </Modal>
+
+      {/* Admin Modal */}
+      <Modal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        title="Cài đặt Admin - Đổi hình nền"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-gray-600">
+            Dán link ảnh (URL) vào đây để đổi hình nền cho toàn bộ người dùng. Để trống nếu muốn xóa hình nền.
+          </p>
+          <input
+            type="text"
+            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none transition-all"
+            placeholder="https://example.com/image.jpg"
+            value={bgInput}
+            onChange={(e) => setBgInput(e.target.value)}
+          />
+          {bgInput && (
+            <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 h-32 relative">
+              <img src={bgInput} alt="Preview" className="w-full h-full object-cover" />
+            </div>
+          )}
+          <Button onClick={saveGlobalSettings} className="w-full bg-purple-600 hover:bg-purple-700">
+            Lưu hình nền
+          </Button>
         </div>
       </Modal>
 
