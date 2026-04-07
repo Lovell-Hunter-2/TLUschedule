@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, addDays, isSameDay, startOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { Subject, Note } from '../types';
+import { Subject, Note, PERIODS } from '../types';
 import { SubjectCard } from './SubjectCard';
 import { Card } from './Card';
-import { StickyNote, Plus, Edit2, Trash2 } from 'lucide-react';
+import { StickyNote, Plus, Edit2, Trash2, Timer, PlayCircle } from 'lucide-react';
 import { Button } from './Button';
 import { motion } from 'motion/react';
 
@@ -18,6 +18,13 @@ interface DailyViewProps {
 
 export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote }: DailyViewProps) {
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+  const [now, setNow] = useState(new Date());
+
+  // Cập nhật thời gian mỗi giây
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   
   const dates = useMemo(() => {
     return Array.from({ length: 14 }, (_, i) => addDays(startOfDay(new Date()), i - 2));
@@ -33,6 +40,54 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
       })
       .sort((a, b) => Math.min(...a.periods) - Math.min(...b.periods));
   }, [subjects, selectedDate]);
+
+  // Logic tính toán môn học tiếp theo và đếm ngược
+  const nextClassInfo = useMemo(() => {
+    if (!isSameDay(selectedDate, new Date())) return null;
+
+    for (const subject of daySchedule) {
+      const startPeriod = PERIODS.find(p => p.id === Math.min(...subject.periods));
+      const endPeriod = PERIODS.find(p => p.id === Math.max(...subject.periods));
+      
+      if (!startPeriod || !endPeriod) continue;
+
+      const [startHour, startMinute] = startPeriod.startTime.split(':').map(Number);
+      const [endHour, endMinute] = endPeriod.endTime.split(':').map(Number);
+
+      const startTime = new Date(now);
+      startTime.setHours(startHour, startMinute, 0, 0);
+
+      const endTime = new Date(now);
+      endTime.setHours(endHour, endMinute, 0, 0);
+
+      if (now < startTime) {
+        const diffMs = startTime.getTime() - now.getTime();
+        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+        
+        let timeString = '';
+        if (hours > 0) timeString += `${hours} giờ `;
+        if (minutes > 0 || hours > 0) timeString += `${minutes} phút `;
+        timeString += `${seconds} giây`;
+
+        return {
+          subject,
+          status: 'upcoming',
+          timeString,
+          room: subject.room
+        };
+      } else if (now >= startTime && now <= endTime) {
+        return {
+          subject,
+          status: 'ongoing',
+          timeString: 'Đang diễn ra',
+          room: subject.room
+        };
+      }
+    }
+    return null;
+  }, [daySchedule, now, selectedDate]);
 
   const dayNotes = useMemo(() => {
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -78,6 +133,43 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
             Note
           </Button>
         </div>
+
+        {/* Giao diện hiển thị đếm ngược */}
+        {nextClassInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card className={cn(
+              "p-4 border-l-4 shadow-md",
+              nextClassInfo.status === 'ongoing' 
+                ? "bg-green-50/50 border-l-green-500 border-green-100" 
+                : "bg-blue-50/50 border-l-blue-500 border-blue-100"
+            )}>
+              <div className="flex items-start gap-3">
+                {nextClassInfo.status === 'ongoing' ? (
+                  <PlayCircle className="w-6 h-6 text-green-500 shrink-0 mt-0.5 animate-pulse" />
+                ) : (
+                  <Timer className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1">
+                  <h4 className="font-bold text-gray-800">
+                    {nextClassInfo.status === 'ongoing' ? 'Đang học:' : 'Môn tiếp theo:'} {nextClassInfo.subject.name}
+                  </h4>
+                  <p className="text-sm font-medium text-gray-600 mt-1">
+                    {nextClassInfo.room && <span className="mr-2">Phòng: {nextClassInfo.room}</span>}
+                    <span className={cn(
+                      "font-bold",
+                      nextClassInfo.status === 'ongoing' ? "text-green-600" : "text-blue-600"
+                    )}>
+                      {nextClassInfo.status === 'ongoing' ? 'Đang diễn ra' : `Bắt đầu sau: ${nextClassInfo.timeString}`}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {daySchedule.length === 0 && dayNotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
