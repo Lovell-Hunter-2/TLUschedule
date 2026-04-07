@@ -6,29 +6,43 @@ interface LayoutProps {
   title?: string;
   subtitle?: string;
   headerAction?: ReactNode;
+  backgroundImage?: string;
 }
 
-export function Layout({ children, title, subtitle, headerAction }: LayoutProps) {
+export function Layout({ children, title, subtitle, headerAction, backgroundImage }: LayoutProps) {
   return (
-    <div className="min-h-screen bg-[#FDFCFE] text-gray-900 font-sans selection:bg-purple-100 selection:text-purple-900">
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            {title && <h1 className="text-2xl font-bold tracking-tight text-gray-900">{title}</h1>}
-            {subtitle && <p className="text-sm text-gray-500 font-medium">{subtitle}</p>}
+    <div 
+      className="min-h-screen bg-[#FDFCFE] text-gray-900 font-sans selection:bg-purple-100 selection:text-purple-900 relative"
+      style={backgroundImage ? {
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      } : {}}
+    >
+      {/* Lớp phủ mờ để chữ vẫn dễ đọc khi có hình nền */}
+      {backgroundImage && <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-0"></div>}
+      
+      <div className="relative z-10">
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4 shadow-sm">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div>
+              {title && <h1 className="text-2xl font-bold tracking-tight text-gray-900">{title}</h1>}
+              {subtitle && <p className="text-sm text-gray-500 font-medium">{subtitle}</p>}
+            </div>
+            {headerAction}
           </div>
-          {headerAction}
-        </div>
-      </header>
-      <main className="max-w-7xl mx-auto px-6 py-8 pb-32">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        >
-          {children}
-        </motion.div>
-      </main>
+        </header>
+        <main className="max-w-7xl mx-auto px-6 py-8 pb-32">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+          >
+            {children}
+          </motion.div>
+        </main>
+      </div>
     </div>
   );
 }
