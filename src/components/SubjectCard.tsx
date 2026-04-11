@@ -19,7 +19,7 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'A2': { top: '77.5%', left: '13%' },
   'T35': { top: '72.5%', left: '17.5%' },
   'A3': { top: '83%', left: '9%' },
-  'C5': { top: '79%', left: '75.3'},
+  'C5': { top: '77.5%', left: '75.3%'},
   'KTX4': { top: '73.5%', left: '52%' },
   'KTX3': { top: '79.5%', left: '52%' },
   'KTX2': { top: '85.5%', left: '52%' },
