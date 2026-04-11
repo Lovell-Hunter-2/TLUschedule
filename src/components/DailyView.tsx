@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { format, addDays, isSameDay, startOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
@@ -26,8 +26,25 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
     return () => clearInterval(timer);
   }, []);
   
+const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Tạo 120 ngày: từ 30 ngày trước đến 90 ngày sau (đủ cho 1 kỳ học)
   const dates = useMemo(() => {
-    return Array.from({ length: 14 }, (_, i) => addDays(startOfDay(new Date()), i - 2));
+    return Array.from({ length: 120 }, (_, i) => addDays(startOfDay(new Date()), i - 30));
+  }, []);
+
+  // Tự động cuộn đến ngày được chọn (Hôm nay) khi vừa mở trang
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      // Tìm thẻ ngày đang được chọn
+      const selectedElement = container.querySelector('[data-selected="true"]') as HTMLElement;
+      if (selectedElement) {
+        // Tính toán vị trí để cuộn thẻ đó ra giữa màn hình
+        const scrollLeft = selectedElement.offsetLeft - container.offsetWidth / 2 + selectedElement.offsetWidth / 2;
+        container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+      }
+    }
   }, []);
 
   const daySchedule = useMemo(() => {
@@ -96,11 +113,24 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2">
+<div 
+        ref={scrollContainerRef}
+        className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2 scroll-smooth"
+      >
         {dates.map((date) => (
           <button
             key={date.toString()}
-            onClick={() => setSelectedDate(date)}
+            data-selected={isSameDay(date, selectedDate)}
+            onClick={(e) => {
+              setSelectedDate(date);
+              // Tự động cuộn ngày vừa bấm ra giữa màn hình cho đẹp
+              const container = scrollContainerRef.current;
+              if (container) {
+                const element = e.currentTarget;
+                const scrollLeft = element.offsetLeft - container.offsetWidth / 2 + element.offsetWidth / 2;
+                container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+              }
+            }}
             className={cn(
               "flex flex-col items-center min-w-[64px] p-3 rounded-2xl transition-all border",
               isSameDay(date, selectedDate)
