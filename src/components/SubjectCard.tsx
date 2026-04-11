@@ -7,11 +7,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 const BUILDING_PINS: Record<string, { top: string, left: string }> = {
-  'A4': { top: '37%', left: '12%' },
-  'A1': { top: '55%', left: '39.5%' },
+  'A4': { top: '38.5%', left: '12%' },
+  'A1': { top: '55%', left: '25%' },
   'T45': { top: '43%', left: '32.5%' },
-  'THƯ VIỆN': { top: '46.5%', left: '51%' },
-  'K1': { top: '58%', left: '58%' },
+  'THƯ VIỆN': { top: '43%', left: '48%' },
+  'K1': { top: '58%', left: '68%' },
   'C1': { top: '60%', left: '51%' },
   'A5': { top: '79%', left: '46%' },
   'B1': { top: '80%', left: '39.5%' },
