@@ -146,7 +146,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                           <div className="line-clamp-2">{s.name}</div>
                           {s.room && (
                             <div className="text-[8px] font-medium opacity-80 mt-0.5 truncate">
-                              P: {s.room}
+                               {s.room}
                             </div>
                           )}
                         </div>
