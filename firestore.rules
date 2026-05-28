@@ -86,7 +86,7 @@ service cloud.firestore {
     }
 
     function isValidSubject() {
-      return hasOnlyAllowedFields(['id', 'name', 'room', 'lecturer', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'room', 'lecturer', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color', 'semesterId', 'semesterName']) &&
              hasRequiredFields(['id', 'name', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color']) &&
              request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 50 &&
              request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
@@ -96,7 +96,9 @@ service cloud.firestore {
              isValidDateString(request.resource.data.endDate) &&
              request.resource.data.daysOfWeek is list && request.resource.data.daysOfWeek.size() <= 7 &&
              request.resource.data.periods is list && request.resource.data.periods.size() <= 20 &&
-             request.resource.data.color is string && request.resource.data.color.size() <= 50;
+             request.resource.data.color is string && request.resource.data.color.size() <= 50 &&
+             (!('semesterId' in request.resource.data) || request.resource.data.semesterId is number) &&
+             (!('semesterName' in request.resource.data) || request.resource.data.semesterName is string);
     }
 
     function isValidNote() {
@@ -111,13 +113,10 @@ service cloud.firestore {
     // ===============================================================
     // Rules
     // ===============================================================
-
-    // ---> THÊM ĐOẠN NÀY VÀO ĐÂY <---
     match /app_settings/{document=**} {
-      allow read: if true; // Ai cũng xem được hình nền
-      allow write: if isAuthenticated() && request.auth.token.email == 'taikhoanphubg4@gmail.com'; // Chỉ bạn mới được đổi
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.token.email == 'taikhoanphubg4@gmail.com';
     }
-    // ---> KẾT THÚC PHẦN THÊM <---
 
     match /users/{userId} {
       allow read: if isOwner(userId);
