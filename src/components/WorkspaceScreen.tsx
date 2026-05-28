@@ -136,6 +136,42 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
           }
         });
       }
+
+      // Xử lý lịch thi
+      if (json.exams && Array.isArray(json.exams)) {
+        json.exams.forEach((item: any) => {
+          let eDate = new Date().toISOString().split('T')[0];
+          let dayIndex = 0; // default Sunday
+          try {
+            if (item.examDate) {
+               const d = new Date(item.examDate);
+               eDate = d.toISOString().split('T')[0];
+               dayIndex = d.getDay();
+            }
+          } catch (e) {}
+
+          // Phân tích examTime ví dụ "07:00-09:00" => chuyển thành tiết tạm (1, 2, 3) 
+          // Thi thường 2-3 tiếng, ta cho tạm chiếm tiết 1-3 hoặc 7-9 tuỳ thời gian
+          let periods = [1, 2, 3];
+          if (item.examTime && item.examTime.includes('13:') || String(item.examTime).startsWith('14:')) {
+             periods = [7, 8, 9];
+          }
+
+          results.push({
+            id: Math.random().toString(36).substr(2, 9),
+            name: `${item.subjectName} (THI)`,
+            room: item.roomName || '',
+            lecturer: 'Lịch Thi',
+            startDate: eDate,
+            endDate: eDate, // startDate = endDate để hiện duy nhất ngày đó
+            daysOfWeek: [dayIndex],
+            periods: periods,
+            color: 'border-l-red-500', // Đỏ cho lịch thi
+            semesterId: item.semesterId,
+            semesterName: item.semesterName
+          });
+        });
+      }
       
       if (results.length === 0) {
          throw new Error('Đăng nhập thành công nhưng không có dữ liệu lịch học.');
