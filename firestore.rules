@@ -80,24 +80,24 @@ service cloud.firestore {
     function isValidWorkspace() {
       return hasOnlyAllowedFields(['id', 'name', 'password']) &&
              hasRequiredFields(['id', 'name', 'password']) &&
-             request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 50 &&
-             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100 &&
-             request.resource.data.password is string && request.resource.data.password.size() > 0 && request.resource.data.password.size() <= 100;
+             request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 100 &&
+             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
+             request.resource.data.password is string && request.resource.data.password.size() > 0 && request.resource.data.password.size() <= 500;
     }
 
     function isValidSubject() {
       return hasOnlyAllowedFields(['id', 'name', 'room', 'lecturer', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color', 'semesterId', 'semesterName']) &&
              hasRequiredFields(['id', 'name', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color']) &&
-             request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 50 &&
-             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
-             (!('room' in request.resource.data) || (request.resource.data.room is string && request.resource.data.room.size() <= 100)) &&
-             (!('lecturer' in request.resource.data) || (request.resource.data.lecturer is string && request.resource.data.lecturer.size() <= 100)) &&
+             request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 500 &&
+             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 500 &&
+             (!('room' in request.resource.data) || (request.resource.data.room is string && request.resource.data.room.size() <= 500)) &&
+             (!('lecturer' in request.resource.data) || (request.resource.data.lecturer is string && request.resource.data.lecturer.size() <= 500)) &&
              isValidDateString(request.resource.data.startDate) &&
              isValidDateString(request.resource.data.endDate) &&
              request.resource.data.daysOfWeek is list && request.resource.data.daysOfWeek.size() <= 7 &&
              request.resource.data.periods is list && request.resource.data.periods.size() <= 20 &&
-             request.resource.data.color is string && request.resource.data.color.size() <= 50 &&
-             (!('semesterId' in request.resource.data) || request.resource.data.semesterId is number) &&
+             request.resource.data.color is string && request.resource.data.color.size() <= 200 &&
+             (!('semesterId' in request.resource.data) || request.resource.data.semesterId is number || request.resource.data.semesterId is string) &&
              (!('semesterName' in request.resource.data) || request.resource.data.semesterName is string);
     }
 
