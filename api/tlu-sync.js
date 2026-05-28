@@ -117,16 +117,54 @@ export default async function handler(req, res) {
     }
 
     // BƯỚC 2: TÌM ENDPOINT CHUẨN ĐỂ LẤY LỊCH HỌC
-    const endpointsToProbe = [
-      '/education/api/StudentCourseSubject/studentLoginUser', // Cũ
-      '/education/api/semester/current',
-      '/education/api/users/getCurrentUser',
-      '/education/api/studentCourseSubject/studentLoginUser'
-    ];
-
     let workingDataForSchedule = null;
-    let fallbackData = [];
     let probingResults = {};
+
+    // Đầu tiên lấy danh sách học kỳ
+    let latestSemesterId = null;
+    let allSemesterIds = [];
+    try {
+      const semRes = await httpsGet(UPSTREAM_HOST, '/education/api/semester', {
+        'Authorization': `Bearer ${token}`,
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': 'application/json'
+      });
+      probingResults['/education/api/semester'] = semRes.status;
+      if (semRes.status === 200) {
+        const data = JSON.parse(semRes.data);
+        const list = Array.isArray(data) ? data : (data.content || []);
+        if (list.length > 0) {
+           // Sắp xếp theo ID giảm dần (mới nhất)
+           list.sort((a, b) => (b.id || 0) - (a.id || 0));
+           allSemesterIds = list.map(s => s.id).filter(id => typeof id !== 'undefined');
+           
+           const currentSemi = list.find(s => s.isCurrent || s.isCurrentSemester);
+           if (currentSemi && currentSemi.id) {
+             latestSemesterId = currentSemi.id;
+           } else {
+             latestSemesterId = list[0].id;
+           }
+        }
+      }
+    } catch (e) {
+      console.log("Lỗi fetch semester", e);
+    }
+
+    // Các URL cần thử
+    let endpointsToProbe = [
+      '/education/api/StudentCourseSubject/studentLoginUser', // Không có tham số
+    ];
+    
+    // Thêm các URL có semesterId mới nhất
+    if (latestSemesterId) {
+        endpointsToProbe.unshift(`/education/api/StudentCourseSubject/studentLoginUser/${latestSemesterId}`);
+        // Nếu có nhiều học kỳ, thử thêm vài cái gần đây nhất
+        allSemesterIds.slice(0, 3).forEach(id => {
+            if (id !== latestSemesterId) {
+                endpointsToProbe.push(`/education/api/StudentCourseSubject/studentLoginUser/${id}`);
+            }
+        });
+    }
 
     for (let path of endpointsToProbe) {
       try {
@@ -141,17 +179,15 @@ export default async function handler(req, res) {
         
         if (res.status === 200) {
           const dt = JSON.parse(res.data);
-          // Kiểm tra xem có cấu trúc timetable không
           const list = Array.isArray(dt) ? dt : (dt.content || [dt]);
           
           let dtStr = JSON.stringify(dt);
-          // Simple heuristic
-          if (dtStr.includes('timetable') && dtStr.includes('courseSubject')) {
+          // Kiểm tra xem data có vẻ giống schedule không
+          if (dtStr.includes('subjectCode') || (dtStr.includes('timetable') && dtStr.includes('courseSubject'))) {
              workingDataForSchedule = dt;
              console.log(`Tìm thấy data lịch học tại: ${path}`);
              break; 
           }
-          fallbackData.push({ path, data: dt });
         }
       } catch (e) {
         probingResults[path] = 'Error: ' + e.message;
@@ -160,16 +196,10 @@ export default async function handler(req, res) {
 
     if (!workingDataForSchedule) {
       console.log("Không tìm thấy data lịch học. Kết quả probe:", probingResults);
-      // Nếu có fallback data (ví dụ trả về list học kỳ thay vì lỗi), thử tìm trong studentLoginUser với học kỳ đó?
-      // Chỗ này tạm thời dùng fallback data đầu tiên nếu là dạng list để map thử
-      if (fallbackData.find(f => JSON.stringify(f.data).includes('subjectCode'))) {
-          workingDataForSchedule = fallbackData.find(f => JSON.stringify(f.data).includes('subjectCode')).data;
-      } else {
-        return res.status(404).json({ 
-          error: 'Không tìm thấy API lịch học TLU khả dụng', 
-          details: { probes: probingResults }
-        });
-      }
+      return res.status(404).json({ 
+        error: 'Không tìm thấy API lịch học TLU khả dụng', 
+        details: { probes: probingResults }
+      });
     }
 
     let originalData = workingDataForSchedule;
