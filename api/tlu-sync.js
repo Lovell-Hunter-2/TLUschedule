@@ -225,8 +225,51 @@ export default async function handler(req, res) {
       }
     }
 
-    if (allSchedules.length === 0) {
-      console.log("Không tìm thấy data lịch học. Kết quả probe:", probingResults);
+    // --- NEW: FETCH EXAM SCHEDULES ---
+    let examEndpoints = [];
+    for (let semId of allSemesterIds.slice(0, 4)) {
+       try {
+           const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
+           const periodRes = await httpsGet(UPSTREAM_HOST, `/education/api/registerperiod/find/${semId}`, {
+               'Authorization': `Bearer ${token}`,
+               'Cookie': `token=${tokenPayload}`,
+               'User-Agent': 'Mozilla/5.0'
+           });
+           if (periodRes.status === 200) {
+               const periods = JSON.parse(periodRes.data);
+               const pList = Array.isArray(periods) ? periods : (periods.content || []);
+               pList.forEach(p => {
+                  if (p && p.id) {
+                      examEndpoints.push({ semId: semId, scheduleId: p.id, round: 1 });
+                      examEndpoints.push({ semId: semId, scheduleId: p.id, round: 2 });
+                  }
+               });
+           }
+       } catch (e) {}
+    }
+
+    let allExams = [];
+    for (let ex of examEndpoints) {
+       try {
+           const path = `/education/api/semestersubjectexamroom/getListRoomByStudentByLoginUser/${ex.semId}/${ex.scheduleId}/${ex.round}`;
+           const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
+           const exRes = await httpsGet(UPSTREAM_HOST, path, {
+               'Authorization': `Bearer ${token}`,
+               'Cookie': `token=${tokenPayload}`,
+               'User-Agent': 'Mozilla/5.0'
+           });
+           if (exRes.status === 200) {
+              const data = JSON.parse(exRes.data);
+              const list = Array.isArray(data) ? data : (data.content || []);
+              if (list.length > 0) {
+                  allExams = allExams.concat(list.map(item => ({...item, isExam: true, _semesterId: ex.semId, _semesterName: semesterMap[ex.semId]})));
+              }
+           }
+       } catch (e) {}
+    }
+
+    if (allSchedules.length === 0 && allExams.length === 0) {
+      console.log("Không tìm thấy data lịch học và lịch thi. Kết quả probe:", probingResults);
       return res.status(404).json({ 
         error: 'Không tìm thấy API lịch học TLU khả dụng hoặc không có dữ liệu.', 
         details: { probes: probingResults }
@@ -235,8 +278,8 @@ export default async function handler(req, res) {
 
     let originalData = allSchedules;
 
-    // BƯỚC 3: DỌN DẸP DỮ LIỆU
-    let list = Array.isArray(originalData) ? originalData : (originalData.content || [originalData]);
+    // BƯỚC 3: DỌN DẸP DỮ LIỆU LỊCH HỌC
+    let list = Array.isArray(allSchedules) ? allSchedules : (allSchedules.content || [allSchedules]);
     
     const cleanedList = list.map(item => {
       let rawCs = (item.studentCourseSubject && item.studentCourseSubject.courseSubject) || item.courseSubject;
@@ -249,9 +292,24 @@ export default async function handler(req, res) {
       };
     }).filter(s => s.subjectName);
 
+    // BƯỚC 4: DỌN DẸP DỮ LIỆU LỊCH THI
+    const cleanedExams = allExams.map(item => {
+      return {
+        id: item.id || Math.random().toString(36).substr(2, 9),
+        subjectName: item.subjectName || '',
+        subjectCode: item.examCode || '',
+        examDate: item.examRoom?.examDate || null,
+        examTime: (item.examRoom?.startHour?.startString) || (item.examRoom?.roomCode) || '',
+        roomName: item.examRoom?.room?.name || item.examRoom?.room?.code || '',
+        semesterId: item._semesterId,
+        semesterName: item._semesterName
+      };
+    }).filter(e => e.subjectName && e.examDate);
+
     return res.status(200).json({ 
       message: 'Đồng bộ thành công', 
       data: cleanedList,
+      exams: cleanedExams,
       studentName: studentName
     });
 
