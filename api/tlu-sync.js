@@ -300,6 +300,7 @@ export default async function handler(req, res) {
         subjectCode: item.examCode || '',
         examDate: item.examRoom?.examDate || null,
         examTime: (item.examRoom?.startHour?.startString) || (item.examRoom?.roomCode) || '',
+        examShift: item.examRoom?.examHour?.name || item.examRoom?.examHour?.startString || '',
         roomName: item.examRoom?.room?.name || item.examRoom?.room?.code || '',
         semesterId: item._semesterId,
         semesterName: item._semesterName
