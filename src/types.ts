@@ -44,6 +44,7 @@ export interface Note {
 
 export interface UserProfile {
   uid: string;
+  email?: string;
   displayName: string;
   studentId?: string;
 }
