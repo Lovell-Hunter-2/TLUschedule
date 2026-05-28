@@ -143,7 +143,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
 
           let periods = [1, 2, 3];
           const timeStr = String(item.examTime || '');
-          const shiftStr = String(item.examHour || item.shift || item.caThi || '');
+          const shiftStr = String(item.examShift || item.shift || item.caThi || '');
           let shiftMatch = shiftStr.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
           
           if (shiftMatch) {
