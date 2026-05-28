@@ -191,9 +191,20 @@ export default async function handler(req, res) {
         endpointsToProbe.push({ url: '/education/api/StudentCourseSubject/studentLoginUser', semId: null });
     }
 
+    // Helper to run promises in chunks to avoid overloading the TLU server
+    const runInChunks = async (items, chunkFn, chunkSize = 3) => {
+        let results = [];
+        for (let i = 0; i < items.length; i += chunkSize) {
+            const chunk = items.slice(i, i + chunkSize);
+            const chunkResults = await Promise.all(chunk.map(chunkFn));
+            results = results.concat(chunkResults);
+        }
+        return results;
+    };
+
     let allSchedules = [];
 
-    const schedulePromises = endpointsToProbe.map(async (target) => {
+    const scheduleResults = await runInChunks(endpointsToProbe, async (target) => {
       const path = target.url;
       try {
         const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
@@ -224,16 +235,15 @@ export default async function handler(req, res) {
         probingResults[path] = 'Error: ' + e.message;
       }
       return [];
-    });
+    }, 3);
 
-    const scheduleResults = await Promise.all(schedulePromises);
     scheduleResults.forEach(res => {
       allSchedules = allSchedules.concat(res);
     });
 
     // --- NEW: FETCH EXAM SCHEDULES ---
     let examEndpoints = [];
-    const periodPromises = allSemesterIds.slice(0, 4).map(async (semId) => {
+    const periodResults = await runInChunks(allSemesterIds.slice(0, 4), async (semId) => {
        try {
            const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
            const periodRes = await httpsGet(UPSTREAM_HOST, `/education/api/registerperiod/find/${semId}`, {
@@ -248,9 +258,8 @@ export default async function handler(req, res) {
            }
        } catch (e) {}
        return [];
-    });
+    }, 3);
     
-    const periodResults = await Promise.all(periodPromises);
     periodResults.forEach(periods => {
        periods.forEach(p => {
           if (p && p.scheduleId) {
@@ -261,7 +270,7 @@ export default async function handler(req, res) {
     });
 
     let allExams = [];
-    const examPromises = examEndpoints.map(async (ex) => {
+    const examResults = await runInChunks(examEndpoints, async (ex) => {
        try {
            const path = `/education/api/semestersubjectexamroom/getListRoomByStudentByLoginUser/${ex.semId}/${ex.scheduleId}/${ex.round}`;
            const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
@@ -279,9 +288,8 @@ export default async function handler(req, res) {
            }
        } catch (e) {}
        return [];
-    });
+    }, 4); // Chạy 4 request mỗi lần cho exams vì payload thường nhỏ
     
-    const examResults = await Promise.all(examPromises);
     examResults.forEach(res => {
        allExams = allExams.concat(res);
     });
