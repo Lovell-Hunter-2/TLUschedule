@@ -203,8 +203,29 @@ export default function App() {
             }
           } catch (e) {}
           let periods = [1, 2, 3];
-          if (item.examTime && item.examTime.includes('13:') || String(item.examTime).startsWith('14:')) {
-             periods = [7, 8, 9];
+          const timeStr = String(item.examTime || '');
+          const shiftStr = String(item.examHour || item.shift || item.caThi || '');
+          let shiftMatch = shiftStr.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+          
+          if (shiftMatch) {
+              const s = parseInt(shiftMatch[1]);
+              const e = parseInt(shiftMatch[2] || shiftMatch[1]);
+              periods = [];
+              for (let i = s; i <= e; i++) periods.push(i);
+          } else if (timeStr) {
+              const hsMatch = timeStr.match(/(\d+):/);
+              if (hsMatch) {
+                 const h = parseInt(hsMatch[1]);
+                 if (h === 7) periods = [1, 2, 3];
+                 else if (h === 8) periods = [3, 4];
+                 else if (h === 9) periods = [4, 5, 6];
+                 else if (h === 10) periods = [5, 6];
+                 else if (h === 12 || h === 13) periods = [7, 8, 9];
+                 else if (h === 14) periods = [9, 10];
+                 else if (h === 15) periods = [10, 11, 12];
+                 else if (h === 16) periods = [11, 12];
+                 else if (h >= 17) periods = [13, 14, 15];
+              }
           }
           results.push({
             name: `${item.subjectName} (THI)`,
