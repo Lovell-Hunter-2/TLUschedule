@@ -47,9 +47,9 @@ async function test() {
   console.log("Token: ", tokenResp.access_token ? "OK" : tokenResp);
   if (!tokenResp.access_token) return;
   const routes = [
-    '/education/api/semester/semester_info',
-    '/education/api/schoolyear/1/10000',
-    '/education/api/coursehour/1/1000'
+    '/education/api/semester',
+    '/education/api/semester/1/1000',
+    '/education/api/schoolyear/1/10000'
   ];
   for (const r of routes) {
     console.log(await get(r, tokenResp.access_token));
