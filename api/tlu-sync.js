@@ -116,28 +116,67 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Không lấy được Token từ TLU' });
     }
 
-    // BƯỚC 2: LẤY LỊCH HỌC BẰNG TOKEN VỪA CÓ
-    const scheduleResponse = await httpsGet(UPSTREAM_HOST, '/education/api/StudentCourseSubject/studentLoginUser', {
-      'Authorization': `Bearer ${token}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json, text/plain, */*'
-    });
+    // BƯỚC 2: TÌM ENDPOINT CHUẨN ĐỂ LẤY LỊCH HỌC
+    const endpointsToProbe = [
+      '/education/api/users/getCurrentUser',
+      '/education/api/semester/current',
+      '/education/api/StudentCourseSubject/studentLoginUser', // Cũ
+      '/education/api/studentCourseSubject/studentLoginUser',
+      '/education/api/studentCourseSubject/student/current',
+      '/education/api/StudentCourseSubject/studentLoginUser/1', // Thường phải truyền semester ID
+      '/education/api/StudentCourseSubject/timetable/student',
+      '/education/api/timetable/student/current',
+      '/education/api/timetable/studentLoginUser',
+      '/education/api/courseSubject/timetables',
+      '/education/api/semester'
+    ];
 
-    if (scheduleResponse.status !== 200) {
-      console.log("TLU Schedule Fetch Failed!", scheduleResponse.status, scheduleResponse.data);
-      return res.status(scheduleResponse.status >= 500 ? 502 : 400).json({ 
-        error: 'Không thể lấy dữ liệu lịch học từ TLU', 
-        details: scheduleResponse.data,
-        status: scheduleResponse.status
+    let workingDataForSchedule = null;
+    let fallbackData = [];
+    let probingResults = {};
+
+    for (let path of endpointsToProbe) {
+      try {
+        const res = await httpsGet(UPSTREAM_HOST, path, {
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*'
+        });
+        
+        probingResults[path] = res.status;
+        
+        if (res.status === 200) {
+          const dt = JSON.parse(res.data);
+          // Kiểm tra xem có cấu trúc timetable không
+          const list = Array.isArray(dt) ? dt : (dt.content || [dt]);
+          
+          let hasCourseSubject = false;
+          let hasTimetable = false;
+          let dtStr = JSON.stringify(dt);
+          // Simple heuristic
+          if (dtStr.includes('timetable') && dtStr.includes('courseSubject')) {
+             workingDataForSchedule = dt;
+             console.log(`Tìm thấy data lịch học tại: ${path}`);
+             break; 
+          }
+          if (dtStr.includes('semester')) {
+            fallbackData.push({ path, data: dt });
+          }
+        }
+      } catch (e) {
+        probingResults[path] = 'Error: ' + e.message;
+      }
+    }
+
+    if (!workingDataForSchedule) {
+      console.log("Không tìm thấy data lịch học. Kết quả probe:", probingResults);
+      return res.status(404).json({ 
+        error: 'Không tìm thấy API lịch học TLU khả dụng', 
+        details: { probes: probingResults, fallbacks: fallbackData }
       });
     }
 
-    let originalData;
-    try {
-      originalData = JSON.parse(scheduleResponse.data);
-    } catch (e) {
-      return res.status(500).json({ error: 'Lỗi parse dữ liệu lịch học từ TLU' });
-    }
+    let originalData = workingDataForSchedule;
 
     // BƯỚC 3: DỌN DẸP DỮ LIỆU
     let list = Array.isArray(originalData) ? originalData : (originalData.content || [originalData]);
