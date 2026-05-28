@@ -122,6 +122,7 @@ export default async function handler(req, res) {
 
     // Đầu tiên lấy danh sách học kỳ
     let allSemesterIds = [];
+    let semesterMap = {}; // mapping id -> name
     try {
       const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
       // Lấy danh sách school years chứa semesters
@@ -140,7 +141,10 @@ export default async function handler(req, res) {
         list.forEach(year => {
            if (year.semesters && Array.isArray(year.semesters)) {
               year.semesters.forEach(s => {
-                  if (s && s.id) foundIds.push(s.id);
+                  if (s && s.id) {
+                      foundIds.push(s.id);
+                      semesterMap[s.id] = s.semesterName;
+                  }
               });
            }
         });
@@ -155,6 +159,23 @@ export default async function handler(req, res) {
     } catch (e) {
       console.log("Lỗi fetch schoolyear", e);
     }
+    
+    // Lấy thông tin user
+    let studentName = null;
+    try {
+      const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
+      const userRes = await httpsGet(UPSTREAM_HOST, '/education/api/users/getCurrentUser', {
+        'Authorization': `Bearer ${token}`,
+        'Cookie': `token=${tokenPayload}`,
+        'User-Agent': 'Mozilla/5.0'
+      });
+      if (userRes.status === 200) {
+        const userData = JSON.parse(userRes.data);
+        studentName = userData.displayName;
+      }
+    } catch (e) {
+      console.log("Lỗi fetch user", e);
+    }
 
     // Các URL cần thử
     let endpointsToProbe = [];
@@ -163,16 +184,17 @@ export default async function handler(req, res) {
     if (allSemesterIds.length > 0) {
         // Chỉ lấy 8 học kỳ gần nhất để tránh fetch quá lâu (8 kỳ ~ 4 năm)
         allSemesterIds.slice(0, 8).forEach(id => {
-            endpointsToProbe.push(`/education/api/StudentCourseSubject/studentLoginUser/${id}`);
+            endpointsToProbe.push({ url: `/education/api/StudentCourseSubject/studentLoginUser/${id}`, semId: id });
         });
     } else {
         // Fallback
-        endpointsToProbe.push('/education/api/StudentCourseSubject/studentLoginUser');
+        endpointsToProbe.push({ url: '/education/api/StudentCourseSubject/studentLoginUser', semId: null });
     }
 
     let allSchedules = [];
 
-    for (let path of endpointsToProbe) {
+    for (let target of endpointsToProbe) {
+      const path = target.url;
       try {
         const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
         const res = await httpsGet(UPSTREAM_HOST, path, {
@@ -192,7 +214,9 @@ export default async function handler(req, res) {
           let dtStr = JSON.stringify(dt);
           // Kiểm tra xem data có vẻ giống schedule không
           if (dtStr.includes('subjectCode') || (dtStr.includes('timetable') && dtStr.includes('courseSubject'))) {
-             allSchedules = allSchedules.concat(list);
+             // Gắn thông tin semester
+             const listWithSem = list.map(item => ({...item, _semesterId: target.semId, _semesterName: semesterMap[target.semId]}));
+             allSchedules = allSchedules.concat(listWithSem);
              console.log(`Đã gom thêm data lịch học từ: ${path}`);
           }
         }
@@ -219,13 +243,16 @@ export default async function handler(req, res) {
       return {
         subjectName: item.subjectName || (rawCs && rawCs.name) || '',
         subjectCode: item.subjectCode || (rawCs && rawCs.classCode) || '',
-        timetables: rawCs ? rawCs.timetables : []
+        timetables: rawCs ? rawCs.timetables : [],
+        semesterId: item._semesterId,
+        semesterName: item._semesterName
       };
     }).filter(s => s.subjectName);
 
     return res.status(200).json({ 
       message: 'Đồng bộ thành công', 
-      data: cleanedList 
+      data: cleanedList,
+      studentName: studentName
     });
 
   } catch (error) {
