@@ -38,10 +38,15 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
         body: JSON.stringify({ studentCode: tluStudentCode, password: tluPassword })
       });
       
-      const json = await res.json();
+      let json;
+      try {
+        json = await res.json();
+      } catch (e) {
+        throw new Error(`Máy chủ Vercel phản hồi lỗi (Status: ${res.status}). Vui lòng deploy lại hoặc kiểm tra Logs trên Vercel.`);
+      }
       
       if (!res.ok) {
-        throw new Error(json.error || 'Lỗi khi đồng bộ kết quả');
+        throw new Error(json?.error || 'Lỗi khi đồng bộ kết quả');
       }
 
       const results: Subject[] = [];
