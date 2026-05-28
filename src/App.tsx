@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { WorkspaceScreen } from './components/WorkspaceScreen';
 import { Layout } from './components/Layout';
@@ -14,7 +14,7 @@ import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun } from 'lucide-react';
+import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -83,6 +83,7 @@ export default function App() {
   const [noteContent, setNoteContent] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | 'all'>('all');
   
   // Dark Mode
   // Admin & Global Settings
@@ -91,6 +92,30 @@ export default function App() {
   const [bgInput, setBgInput] = useState('');
 
   const isAdmin = user?.email === 'taikhoanphubg4@gmail.com';
+
+  const semestersList = useMemo(() => {
+    const map = new Map<number, string>();
+    subjects.forEach(s => {
+      if (s.semesterId && s.semesterName) {
+        map.set(s.semesterId, s.semesterName);
+      }
+    });
+    const arr = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+    arr.sort((a, b) => b.id - a.id); // Mới nhất lên đầu
+    return arr;
+  }, [subjects]);
+
+  // Tự động gán kỳ mới nhất nếu chưa chọn
+  useEffect(() => {
+    if (semestersList.length > 0 && selectedSemesterId === 'all') {
+      setSelectedSemesterId(semestersList[0].id);
+    }
+  }, [semestersList]);
+
+  const filteredSubjects = useMemo(() => {
+    if (selectedSemesterId === 'all') return subjects;
+    return subjects.filter(s => s.semesterId === selectedSemesterId);
+  }, [subjects, selectedSemesterId]);
 
   useEffect(() => {
     document.documentElement.classList.remove('dark');
@@ -335,21 +360,40 @@ export default function App() {
         </div>
       }
     >
-      <Tabs
-        activeTab={activeTab}
-        onChange={setActiveTab}
-        className="mb-8"
-        tabs={[
-          { id: 'daily', label: 'Ngày', icon: <Calendar className="w-4 h-4" /> },
-          { id: 'weekly', label: 'Tuần', icon: <LayoutGrid className="w-4 h-4" /> },
-          { id: 'update', label: 'Cập nhật', icon: <Settings className="w-4 h-4" /> },
-        ]}
-      />
+      <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+        <Tabs
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          tabs={[
+            { id: 'daily', label: 'Ngày', icon: <Calendar className="w-4 h-4" /> },
+            { id: 'weekly', label: 'Tuần', icon: <LayoutGrid className="w-4 h-4" /> },
+            { id: 'update', label: 'Cập nhật', icon: <Settings className="w-4 h-4" /> },
+          ]}
+        />
+        
+        {semestersList.length > 0 && activeTab !== 'update' && (
+          <div className="relative">
+            <select
+              value={selectedSemesterId}
+              onChange={(e) => setSelectedSemesterId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+              className="appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+            >
+              <option value="all">Tất cả kỳ học</option>
+              {semestersList.map(sem => (
+                <option key={sem.id} value={sem.id}>{sem.name}</option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+              <ChevronDown className="w-4 h-4" />
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="min-h-[60vh]">
         {activeTab === 'daily' && (
           <DailyView 
-            subjects={subjects} 
+            subjects={filteredSubjects} 
             notes={notes} 
             onAddNote={(date) => {
               setNoteDate(date);
@@ -363,7 +407,7 @@ export default function App() {
         )}
         {activeTab === 'weekly' && (
           <WeeklyView 
-            subjects={subjects} 
+            subjects={filteredSubjects} 
             notes={notes}
             onAddNote={(date) => {
               setNoteDate(date);
