@@ -124,26 +124,17 @@ export default async function handler(req, res) {
     let latestSemesterId = null;
     let allSemesterIds = [];
     try {
-      const semRes = await httpsGet(UPSTREAM_HOST, '/education/api/semester', {
+      const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
+      const semRes = await httpsGet(UPSTREAM_HOST, '/education/api/semester/semester_info', {
         'Authorization': `Bearer ${token}`,
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
+        'Cookie': `token=${tokenPayload}`,
+        'User-Agent': 'Mozilla/5.0'
       });
-      probingResults['/education/api/semester'] = semRes.status;
+      probingResults['/education/api/semester/semester_info'] = semRes.status;
       if (semRes.status === 200) {
-        const data = JSON.parse(semRes.data);
-        const list = Array.isArray(data) ? data : (data.content || []);
-        if (list.length > 0) {
-           // Sắp xếp theo ID giảm dần (mới nhất)
-           list.sort((a, b) => (b.id || 0) - (a.id || 0));
-           allSemesterIds = list.map(s => s.id).filter(id => typeof id !== 'undefined');
-           
-           const currentSemi = list.find(s => s.isCurrent || s.isCurrentSemester);
-           if (currentSemi && currentSemi.id) {
-             latestSemesterId = currentSemi.id;
-           } else {
-             latestSemesterId = list[0].id;
-           }
+        let data = JSON.parse(semRes.data);
+        if (data && data.id) {
+           latestSemesterId = data.id;
         }
       }
     } catch (e) {
@@ -168,8 +159,10 @@ export default async function handler(req, res) {
 
     for (let path of endpointsToProbe) {
       try {
+        const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
         const res = await httpsGet(UPSTREAM_HOST, path, {
           'Authorization': `Bearer ${token}`,
+          'Cookie': `token=${tokenPayload}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json, text/plain, */*',
           'Referer': `https://${UPSTREAM_HOST}/`
