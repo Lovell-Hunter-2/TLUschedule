@@ -8,13 +8,14 @@ function get(path: string, token: string) {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Referer': 'https://sinhvien1.tlu.edu.vn/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
       },
       rejectUnauthorized: false
     }, (res) => {
       let body = '';
       res.on('data', d => body += d);
-      res.on('end', () => resolve({ path, status: res.statusCode, body: body.substring(0, 200) }));
+      res.on('end', () => resolve({ path, status: res.statusCode, body: body }));
     });
   });
 }
@@ -46,7 +47,9 @@ async function test() {
   console.log("Token: ", tokenResp.access_token ? "OK" : tokenResp);
   if (!tokenResp.access_token) return;
   const routes = [
-    '/education/api/StudentCourseSubject/studentLoginUser',
+    '/education/api/semester/semester_info',
+    '/education/api/schoolyear/1/10000',
+    '/education/api/coursehour/1/1000'
   ];
   for (const r of routes) {
     console.log(await get(r, tokenResp.access_token));
