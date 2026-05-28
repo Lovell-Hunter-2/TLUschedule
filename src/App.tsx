@@ -119,10 +119,10 @@ export default function App() {
 
   // Background Auto-sync
   useEffect(() => {
-    if (!user || !currentWorkspace || !currentWorkspace.password || currentWorkspace.password === '') return;
+    if (!user || !workspace || !workspace.password || workspace.password === '') return;
 
     // Chỉ sync 1 lần mỗi 4 tiếng để tránh fetch liên tục
-    const lastSyncKey = `last_sync_tlu_${currentWorkspace.id}`;
+    const lastSyncKey = `last_sync_tlu_${workspace.id}`;
     const lastTime = localStorage.getItem(lastSyncKey);
     const now = Date.now();
     if (lastTime && now - parseInt(lastTime) < 4 * 60 * 60 * 1000) {
@@ -132,8 +132,8 @@ export default function App() {
     const runSync = async () => {
       try {
         console.log("Đang đồng bộ ngầm lịch học/thi...");
-        const rawPassword = decodeURIComponent(atob(currentWorkspace.password!));
-        const studentCode = currentWorkspace.id;
+        const rawPassword = decodeURIComponent(atob(workspace.password!));
+        const studentCode = workspace.id;
 
         const res = await fetch('/api/tlu-sync', {
           method: 'POST',
@@ -220,7 +220,7 @@ export default function App() {
           results.forEach(subject => {
              const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
              subject.id = deterministicId;
-             const docRef = doc(db, 'users', user.uid, 'workspaces', currentWorkspace.id, 'subjects', subject.id);
+             const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
              batch.set(docRef, subject);
           });
           await batch.commit();
@@ -233,7 +233,7 @@ export default function App() {
     };
 
     runSync();
-  }, [user, currentWorkspace]);
+  }, [user, workspace]);
 
   useEffect(() => {
     document.documentElement.classList.remove('dark');
