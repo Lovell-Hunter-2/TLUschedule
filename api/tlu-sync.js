@@ -118,17 +118,10 @@ export default async function handler(req, res) {
 
     // BƯỚC 2: TÌM ENDPOINT CHUẨN ĐỂ LẤY LỊCH HỌC
     const endpointsToProbe = [
-      '/education/api/users/getCurrentUser',
-      '/education/api/semester/current',
       '/education/api/StudentCourseSubject/studentLoginUser', // Cũ
-      '/education/api/studentCourseSubject/studentLoginUser',
-      '/education/api/studentCourseSubject/student/current',
-      '/education/api/StudentCourseSubject/studentLoginUser/1', // Thường phải truyền semester ID
-      '/education/api/StudentCourseSubject/timetable/student',
-      '/education/api/timetable/student/current',
-      '/education/api/timetable/studentLoginUser',
-      '/education/api/courseSubject/timetables',
-      '/education/api/semester'
+      '/education/api/semester/current',
+      '/education/api/users/getCurrentUser',
+      '/education/api/studentCourseSubject/studentLoginUser'
     ];
 
     let workingDataForSchedule = null;
@@ -140,18 +133,17 @@ export default async function handler(req, res) {
         const res = await httpsGet(UPSTREAM_HOST, path, {
           'Authorization': `Bearer ${token}`,
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*'
+          'Accept': 'application/json, text/plain, */*',
+          'Referer': `https://${UPSTREAM_HOST}/`
         });
         
-        probingResults[path] = res.status;
+        probingResults[path] = { status: res.status, data: res.data.substring(0, 100) };
         
         if (res.status === 200) {
           const dt = JSON.parse(res.data);
           // Kiểm tra xem có cấu trúc timetable không
           const list = Array.isArray(dt) ? dt : (dt.content || [dt]);
           
-          let hasCourseSubject = false;
-          let hasTimetable = false;
           let dtStr = JSON.stringify(dt);
           // Simple heuristic
           if (dtStr.includes('timetable') && dtStr.includes('courseSubject')) {
@@ -159,9 +151,7 @@ export default async function handler(req, res) {
              console.log(`Tìm thấy data lịch học tại: ${path}`);
              break; 
           }
-          if (dtStr.includes('semester')) {
-            fallbackData.push({ path, data: dt });
-          }
+          fallbackData.push({ path, data: dt });
         }
       } catch (e) {
         probingResults[path] = 'Error: ' + e.message;
@@ -170,10 +160,16 @@ export default async function handler(req, res) {
 
     if (!workingDataForSchedule) {
       console.log("Không tìm thấy data lịch học. Kết quả probe:", probingResults);
-      return res.status(404).json({ 
-        error: 'Không tìm thấy API lịch học TLU khả dụng', 
-        details: { probes: probingResults, fallbacks: fallbackData }
-      });
+      // Nếu có fallback data (ví dụ trả về list học kỳ thay vì lỗi), thử tìm trong studentLoginUser với học kỳ đó?
+      // Chỗ này tạm thời dùng fallback data đầu tiên nếu là dạng list để map thử
+      if (fallbackData.find(f => JSON.stringify(f.data).includes('subjectCode'))) {
+          workingDataForSchedule = fallbackData.find(f => JSON.stringify(f.data).includes('subjectCode')).data;
+      } else {
+        return res.status(404).json({ 
+          error: 'Không tìm thấy API lịch học TLU khả dụng', 
+          details: { probes: probingResults }
+        });
+      }
     }
 
     let originalData = workingDataForSchedule;
