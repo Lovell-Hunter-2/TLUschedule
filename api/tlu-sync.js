@@ -121,41 +121,56 @@ export default async function handler(req, res) {
     let probingResults = {};
 
     // Đầu tiên lấy danh sách học kỳ
-    let latestSemesterId = null;
     let allSemesterIds = [];
     try {
       const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
-      const semRes = await httpsGet(UPSTREAM_HOST, '/education/api/semester/semester_info', {
+      // Lấy danh sách school years chứa semesters
+      const semRes = await httpsGet(UPSTREAM_HOST, '/education/api/schoolyear/1/10000', {
         'Authorization': `Bearer ${token}`,
         'Cookie': `token=${tokenPayload}`,
         'User-Agent': 'Mozilla/5.0'
       });
-      probingResults['/education/api/semester/semester_info'] = semRes.status;
+      probingResults['/education/api/schoolyear'] = semRes.status;
       if (semRes.status === 200) {
         let data = JSON.parse(semRes.data);
-        if (data && data.id) {
-           latestSemesterId = data.id;
+        const list = Array.isArray(data) ? data : (data.content || []);
+        
+        // Trích xuất tất cả semester IDs từ các năm học
+        let foundIds = [];
+        list.forEach(year => {
+           if (year.semesters && Array.isArray(year.semesters)) {
+              year.semesters.forEach(s => {
+                  if (s && s.id) foundIds.push(s.id);
+              });
+           }
+        });
+        
+        if (foundIds.length > 0) {
+           // Sắp xếp ID giảm dần (mới nhất)
+           foundIds.sort((a, b) => b - a);
+           allSemesterIds = foundIds;
+           console.log("Tìm thấy các semester IDs:", allSemesterIds);
         }
       }
     } catch (e) {
-      console.log("Lỗi fetch semester", e);
+      console.log("Lỗi fetch schoolyear", e);
     }
 
     // Các URL cần thử
-    let endpointsToProbe = [
-      '/education/api/StudentCourseSubject/studentLoginUser', // Không có tham số
-    ];
+    let endpointsToProbe = [];
     
-    // Thêm các URL có semesterId mới nhất
-    if (latestSemesterId) {
-        endpointsToProbe.unshift(`/education/api/StudentCourseSubject/studentLoginUser/${latestSemesterId}`);
-        // Nếu có nhiều học kỳ, thử thêm vài cái gần đây nhất
-        allSemesterIds.slice(0, 3).forEach(id => {
-            if (id !== latestSemesterId) {
-                endpointsToProbe.push(`/education/api/StudentCourseSubject/studentLoginUser/${id}`);
-            }
+    // Thêm các URL cho TẤT CẢ học kỳ để gộp chung lại
+    if (allSemesterIds.length > 0) {
+        // Chỉ lấy 8 học kỳ gần nhất để tránh fetch quá lâu (8 kỳ ~ 4 năm)
+        allSemesterIds.slice(0, 8).forEach(id => {
+            endpointsToProbe.push(`/education/api/StudentCourseSubject/studentLoginUser/${id}`);
         });
+    } else {
+        // Fallback
+        endpointsToProbe.push('/education/api/StudentCourseSubject/studentLoginUser');
     }
+
+    let allSchedules = [];
 
     for (let path of endpointsToProbe) {
       try {
@@ -177,9 +192,8 @@ export default async function handler(req, res) {
           let dtStr = JSON.stringify(dt);
           // Kiểm tra xem data có vẻ giống schedule không
           if (dtStr.includes('subjectCode') || (dtStr.includes('timetable') && dtStr.includes('courseSubject'))) {
-             workingDataForSchedule = dt;
-             console.log(`Tìm thấy data lịch học tại: ${path}`);
-             break; 
+             allSchedules = allSchedules.concat(list);
+             console.log(`Đã gom thêm data lịch học từ: ${path}`);
           }
         }
       } catch (e) {
@@ -187,15 +201,15 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!workingDataForSchedule) {
+    if (allSchedules.length === 0) {
       console.log("Không tìm thấy data lịch học. Kết quả probe:", probingResults);
       return res.status(404).json({ 
-        error: 'Không tìm thấy API lịch học TLU khả dụng', 
+        error: 'Không tìm thấy API lịch học TLU khả dụng hoặc không có dữ liệu.', 
         details: { probes: probingResults }
       });
     }
 
-    let originalData = workingDataForSchedule;
+    let originalData = allSchedules;
 
     // BƯỚC 3: DỌN DẸP DỮ LIỆU
     let list = Array.isArray(originalData) ? originalData : (originalData.content || [originalData]);
