@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
-import { UserPlus, Users, Key, ChevronDown } from 'lucide-react';
+import { Users, Key, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, setDoc, doc, onSnapshot } from 'firebase/firestore';
+import { collection, setDoc, doc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Workspace } from '../types';
 
@@ -14,10 +14,11 @@ interface WorkspaceScreenProps {
 }
 
 export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenProps) {
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'select'>('login');
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
-  const [newName, setNewName] = useState('');
+  
+  const [studentCode, setStudentCode] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -32,11 +33,10 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       setWorkspaces(loadedWorkspaces);
 
       const savedWorkspaceId = localStorage.getItem('savedWorkspaceId');
-      const savedWorkspacePassword = localStorage.getItem('savedWorkspacePassword');
 
-      if (savedWorkspaceId && savedWorkspacePassword) {
+      if (savedWorkspaceId) {
         const savedWorkspace = loadedWorkspaces.find(w => w.id === savedWorkspaceId);
-        if (savedWorkspace && savedWorkspace.password === savedWorkspacePassword) {
+        if (savedWorkspace) {
           onWorkspaceSelect(savedWorkspace);
           return;
         }
@@ -44,114 +44,178 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
 
       if (loadedWorkspaces.length > 0 && !selectedWorkspaceId) {
         setSelectedWorkspaceId(loadedWorkspaces[0].id);
+        setActiveTab('select');
       } else if (loadedWorkspaces.length === 0) {
-        setActiveTab('register');
+        setActiveTab('login');
       }
     });
 
     return () => unsubscribe();
   }, [userId, selectedWorkspaceId, onWorkspaceSelect]);
 
-  // Reset state when switching tabs
   useEffect(() => {
     setError('');
-    setPassword('');
   }, [activeTab]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSelectWorkspace = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedWorkspaceId || !password) {
-      setError('Vui lòng chọn tên và nhập mật khẩu');
-      return;
-    }
-    setIsLoading(true);
-    setError('');
-    try {
-      const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId);
-      if (selectedWorkspace) {
-        if (selectedWorkspace.password === btoa(encodeURIComponent(password))) {
-          localStorage.setItem('savedWorkspaceId', selectedWorkspace.id);
-          localStorage.setItem('savedWorkspacePassword', selectedWorkspace.password);
-          onWorkspaceSelect(selectedWorkspace);
-        } else {
-          setError('Mật khẩu chưa chính xác.');
-        }
-      }
-    } catch (err) {
-      setError('Có lỗi xảy ra. Vui lòng thử lại.');
-    } finally {
-      setIsLoading(false);
+    if (!selectedWorkspaceId) return;
+    const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId);
+    if (selectedWorkspace) {
+      localStorage.setItem('savedWorkspaceId', selectedWorkspace.id);
+      onWorkspaceSelect(selectedWorkspace);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleTluLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName || !password) {
-      setError('Vui lòng nhập đầy đủ tên và mật khẩu');
-      return;
-    }
-    if (workspaces.some(w => w.name.toLowerCase() === newName.toLowerCase())) {
-      setError('Tên này đã tồn tại. Vui lòng chọn tên khác hoặc chuyển sang phần Đăng nhập.');
+    if (!studentCode || !password) {
+      setError('Vui lòng nhập mã sinh viên và mật khẩu TLU');
       return;
     }
     setIsLoading(true);
     setError('');
     try {
+      const res = await fetch('/api/tlu-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentCode, password })
+      });
+      
+      let json;
+      try {
+        json = await res.json();
+      } catch (e) {
+        throw new Error(`Máy chủ Vercel phản hồi lỗi (Status: ${res.status}). Vui lòng thử lại.`);
+      }
+      
+      if (!res.ok) {
+        let errorMsg = json?.error || 'Lỗi đăng nhập hoặc đồng bộ';
+        throw new Error(errorMsg);
+      }
+
+      const results: any[] = [];
+      if (json.data && Array.isArray(json.data)) {
+        json.data.forEach((item: any) => {
+          if (item.timetables && Array.isArray(item.timetables)) {
+            item.timetables.forEach((tb: any) => {
+               const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
+               const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
+               const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
+               const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
+               const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
+               const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
+               
+               const periods = [];
+               for(let i = sPeriod; i <= ePeriod; i++) periods.push(i);
+               
+               const weekIndex = tb?.weekIndex || 2;
+               const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; // 2(Monday)->1, 1(Sunday)->0
+               
+               let sDate = new Date().toISOString().split('T')[0];
+               let eDate = new Date().toISOString().split('T')[0];
+               try {
+                 if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
+                 if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
+               } catch (e) {}
+
+               results.push({
+                 id: Math.random().toString(36).substr(2, 9),
+                 name: item.subjectName,
+                 room,
+                 lecturer,
+                 startDate: sDate,
+                 endDate: eDate,
+                 daysOfWeek: [dayIndex],
+                 periods,
+                 color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
+                 semesterId: item.semesterId,
+                 semesterName: item.semesterName
+               });
+            });
+          }
+        });
+      }
+      
+      if (results.length === 0) {
+         throw new Error('Đăng nhập thành công nhưng không có dữ liệu lịch học.');
+      }
+
+      // Tạo Workspace
+      const name = json.studentName ? `${json.studentName} (${studentCode})` : `Sinh viên ${studentCode}`;
       const newWorkspace: Workspace = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: newName,
-        password: btoa(encodeURIComponent(password))
+        id: studentCode,
+        name: name,
+        password: btoa(encodeURIComponent(password)) // Giữ lại để tiện sync sau
       };
+
       await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace);
+      
+      // Batch update môn học
+      const batch = writeBatch(db);
+      // Thay vì xoá, ta cập nhật thêm, hoặc có thể fetch xoá rồi thêm. Tạm thời set đè. Thực ra môn học có id sinh ngẫu nhiên, nếu user sync 2 lần sẽ bị nhân đôi. 
+      // Để tránh nhân đôi, id môn học nên tạo ra từ `item.subjectCode + tb.weekIndex + d`. 
+      
+      results.forEach(subject => {
+         // Tính ID deterministic để không bị nhân đôi
+         const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+         subject.id = deterministicId;
+         const docRef = doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'subjects', subject.id);
+         batch.set(docRef, subject);
+      });
+      await batch.commit();
+
       localStorage.setItem('savedWorkspaceId', newWorkspace.id);
-      localStorage.setItem('savedWorkspacePassword', newWorkspace.password);
       onWorkspaceSelect(newWorkspace);
-    } catch (err) {
-      setError('Có lỗi xảy ra. Vui lòng thử lại.');
+
+    } catch (err: any) {
+      setError(err.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md"
       >
         <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 bg-blue-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 mb-6 rotate-12">
+          <div className="w-20 h-20 bg-blue-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 dark:shadow-none mb-6 rotate-12">
             <Users className="w-10 h-10 text-white -rotate-12" />
           </div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Lịch Học Của Bạn</h1>
-          <p className="text-gray-500 font-medium mt-2 text-center">
-            Quản lý nhiều lịch học khác nhau trên cùng một tài khoản
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Lịch Học Của Bạn</h1>
+          <p className="text-gray-500 dark:text-gray-400 font-medium mt-2 text-center">
+            Đăng nhập bằng tài khoản TLU để đồng bộ toàn bộ lịch học
           </p>
         </div>
 
-        <Card className="p-2 shadow-2xl shadow-gray-200/50 border-white/50 backdrop-blur-sm bg-white/90 mb-6">
-          <div className="flex bg-gray-100/50 p-1 rounded-xl">
+        <Card className="p-2 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 mb-6">
+          <div className="flex bg-gray-100/50 dark:bg-gray-900/50 p-1 rounded-xl">
             <button
               onClick={() => setActiveTab('login')}
               className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
                 activeTab === 'login' 
-                  ? 'bg-white text-blue-600 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm' 
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
-              Đăng nhập
+              Đăng nhập & Đồng bộ
             </button>
-            <button
-              onClick={() => setActiveTab('register')}
-              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
-                activeTab === 'register' 
-                  ? 'bg-white text-blue-600 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Tạo lịch mới
-            </button>
+            {workspaces.length > 0 && (
+              <button
+                onClick={() => setActiveTab('select')}
+                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                  activeTab === 'select' 
+                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm' 
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                Tài khoản đã lưu
+              </button>
+            )}
           </div>
         </Card>
 
@@ -164,33 +228,19 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.2 }}
             >
-              <Card className="p-8 shadow-2xl shadow-gray-200/50 border-white/50 backdrop-blur-sm bg-white/90">
-                <form onSubmit={handleLogin} className="flex flex-col gap-6">
-                  {workspaces.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-bold text-gray-700 ml-1">Chọn tên lịch học</label>
-                      <div className="relative">
-                        <select
-                          value={selectedWorkspaceId}
-                          onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                          className="w-full h-12 pl-11 pr-10 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none transition-all appearance-none font-medium text-gray-700"
-                        >
-                          {workspaces.map(w => (
-                            <option key={w.id} value={w.id}>{w.name}</option>
-                          ))}
-                        </select>
-                        <Users className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <ChevronDown className="w-5 h-5 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                      <p className="text-gray-500 text-sm">Bạn chưa có lịch học nào. Vui lòng tạo mới.</p>
-                    </div>
-                  )}
+              <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
+                <form onSubmit={handleTluLogin} className="flex flex-col gap-6">
                   
                   <Input
-                    label="Mật khẩu"
+                    label="Mã sinh viên"
+                    placeholder="Nhập mã sinh viên"
+                    value={studentCode}
+                    onChange={(e) => setStudentCode(e.target.value)}
+                    icon={<Users className="w-4 h-4" />}
+                  />
+                  
+                  <Input
+                    label="Mật khẩu TLU"
                     type="password"
                     placeholder="Nhập mật khẩu"
                     value={password}
@@ -198,52 +248,57 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
                     icon={<Key className="w-4 h-4" />}
                   />
 
-                  {error && <p className="text-sm text-red-500 font-medium text-center">{error}</p>}
+                  {error && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm font-medium">
+                      {error}
+                    </div>
+                  )}
 
-                  <Button 
-                    type="submit" 
-                    disabled={isLoading || workspaces.length === 0}
-                    className="w-full h-12 text-lg font-bold rounded-2xl shadow-lg shadow-blue-100"
-                  >
-                    {isLoading ? 'Đang xử lý...' : 'Vào lịch học'}
+                  <Button type="submit" disabled={isLoading} className="w-full h-12 text-lg shadow-lg font-bold">
+                    {isLoading ? 'Đang xử lý...' : 'Đăng nhập'}
                   </Button>
                 </form>
               </Card>
             </motion.div>
           ) : (
             <motion.div
-              key="register"
+              key="select"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <Card className="p-8 shadow-2xl shadow-gray-200/50 border-white/50 backdrop-blur-sm bg-white/90">
-                <form onSubmit={handleRegister} className="flex flex-col gap-6">
-                  <Input
-                    label="Tên lịch học mới"
-                    placeholder="Ví dụ: Ngô Minh Thuận"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    icon={<UserPlus className="w-4 h-4" />}
-                  />
-                  <Input
-                    label="Mật khẩu"
-                    type="password"
-                    placeholder="Tạo mật khẩu"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    icon={<Key className="w-4 h-4" />}
-                  />
+              <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
+                <form onSubmit={handleSelectWorkspace} className="flex flex-col gap-6">
+                  <div className="flex flex-col gap-3">
+                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">Chọn tài khoản</label>
+                    <div className="space-y-3">
+                      {workspaces.map(w => (
+                        <div 
+                          key={w.id}
+                          onClick={() => setSelectedWorkspaceId(w.id)}
+                          className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                            selectedWorkspaceId === w.id 
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
+                              : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-gray-200 dark:hover:border-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${selectedWorkspaceId === w.id ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}>
+                              <Users className="w-5 h-5" />
+                            </div>
+                            <span className="font-semibold text-gray-800 dark:text-gray-200">{w.name}</span>
+                          </div>
+                          {selectedWorkspaceId === w.id && (
+                            <CheckCircle2 className="w-6 h-6 text-blue-500" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-                  {error && <p className="text-sm text-red-500 font-medium text-center">{error}</p>}
-
-                  <Button 
-                    type="submit" 
-                    disabled={isLoading}
-                    className="w-full h-12 text-lg font-bold rounded-2xl shadow-lg shadow-blue-100"
-                  >
-                    {isLoading ? 'Đang xử lý...' : 'Tạo lịch mới'}
+                  <Button type="submit" disabled={!selectedWorkspaceId} className="w-full h-12 text-lg shadow-lg font-bold">
+                    Vào lịch học
                   </Button>
                 </form>
               </Card>
