@@ -193,7 +193,7 @@ export default async function handler(req, res) {
 
     let allSchedules = [];
 
-    for (let target of endpointsToProbe) {
+    const schedulePromises = endpointsToProbe.map(async (target) => {
       const path = target.url;
       try {
         const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
@@ -216,18 +216,24 @@ export default async function handler(req, res) {
           if (dtStr.includes('subjectCode') || (dtStr.includes('timetable') && dtStr.includes('courseSubject'))) {
              // Gắn thông tin semester
              const listWithSem = list.map(item => ({...item, _semesterId: target.semId, _semesterName: semesterMap[target.semId]}));
-             allSchedules = allSchedules.concat(listWithSem);
              console.log(`Đã gom thêm data lịch học từ: ${path}`);
+             return listWithSem;
           }
         }
       } catch (e) {
         probingResults[path] = 'Error: ' + e.message;
       }
-    }
+      return [];
+    });
+
+    const scheduleResults = await Promise.all(schedulePromises);
+    scheduleResults.forEach(res => {
+      allSchedules = allSchedules.concat(res);
+    });
 
     // --- NEW: FETCH EXAM SCHEDULES ---
     let examEndpoints = [];
-    for (let semId of allSemesterIds.slice(0, 4)) {
+    const periodPromises = allSemesterIds.slice(0, 4).map(async (semId) => {
        try {
            const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
            const periodRes = await httpsGet(UPSTREAM_HOST, `/education/api/registerperiod/find/${semId}`, {
@@ -238,18 +244,24 @@ export default async function handler(req, res) {
            if (periodRes.status === 200) {
                const periods = JSON.parse(periodRes.data);
                const pList = Array.isArray(periods) ? periods : (periods.content || []);
-               pList.forEach(p => {
-                  if (p && p.id) {
-                      examEndpoints.push({ semId: semId, scheduleId: p.id, round: 1 });
-                      examEndpoints.push({ semId: semId, scheduleId: p.id, round: 2 });
-                  }
-               });
+               return pList.map(p => ({semId: semId, scheduleId: p.id}));
            }
        } catch (e) {}
-    }
+       return [];
+    });
+    
+    const periodResults = await Promise.all(periodPromises);
+    periodResults.forEach(periods => {
+       periods.forEach(p => {
+          if (p && p.scheduleId) {
+              examEndpoints.push({ semId: p.semId, scheduleId: p.scheduleId, round: 1 });
+              examEndpoints.push({ semId: p.semId, scheduleId: p.scheduleId, round: 2 });
+          }
+       });
+    });
 
     let allExams = [];
-    for (let ex of examEndpoints) {
+    const examPromises = examEndpoints.map(async (ex) => {
        try {
            const path = `/education/api/semestersubjectexamroom/getListRoomByStudentByLoginUser/${ex.semId}/${ex.scheduleId}/${ex.round}`;
            const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
@@ -262,11 +274,17 @@ export default async function handler(req, res) {
               const data = JSON.parse(exRes.data);
               const list = Array.isArray(data) ? data : (data.content || []);
               if (list.length > 0) {
-                  allExams = allExams.concat(list.map(item => ({...item, isExam: true, _semesterId: ex.semId, _semesterName: semesterMap[ex.semId]})));
+                  return list.map(item => ({...item, isExam: true, _semesterId: ex.semId, _semesterName: semesterMap[ex.semId]}));
               }
            }
        } catch (e) {}
-    }
+       return [];
+    });
+    
+    const examResults = await Promise.all(examPromises);
+    examResults.forEach(res => {
+       allExams = allExams.concat(res);
+    });
 
     if (allSchedules.length === 0 && allExams.length === 0) {
       console.log("Không tìm thấy data lịch học và lịch thi. Kết quả probe:", probingResults);
