@@ -33,6 +33,8 @@ export interface Subject {
   daysOfWeek: number[]; // 0 (Sun) to 6 (Sat)
   periods: number[]; // Array of period IDs (1-15)
   color: string;
+  semesterId?: number;
+  semesterName?: string;
 }
 
 export interface Note {
