@@ -117,6 +117,124 @@ export default function App() {
     return subjects.filter(s => s.semesterId === selectedSemesterId);
   }, [subjects, selectedSemesterId]);
 
+  // Background Auto-sync
+  useEffect(() => {
+    if (!user || !currentWorkspace || !currentWorkspace.password || currentWorkspace.password === '') return;
+
+    // Chỉ sync 1 lần mỗi 4 tiếng để tránh fetch liên tục
+    const lastSyncKey = `last_sync_tlu_${currentWorkspace.id}`;
+    const lastTime = localStorage.getItem(lastSyncKey);
+    const now = Date.now();
+    if (lastTime && now - parseInt(lastTime) < 4 * 60 * 60 * 1000) {
+      return;
+    }
+
+    const runSync = async () => {
+      try {
+        console.log("Đang đồng bộ ngầm lịch học/thi...");
+        const rawPassword = decodeURIComponent(atob(currentWorkspace.password!));
+        const studentCode = currentWorkspace.id;
+
+        const res = await fetch('/api/tlu-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentCode, password: rawPassword })
+        });
+        
+        if (!res.ok) return;
+        const json = await res.json();
+        const results: any[] = [];
+        
+        // Map lịch học
+        if (json.data && Array.isArray(json.data)) {
+          json.data.forEach((item: any) => {
+            if (item.timetables && Array.isArray(item.timetables)) {
+              item.timetables.forEach((tb: any) => {
+                 const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
+                 const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
+                 const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
+                 const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
+                 const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
+                 const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
+                 const periods = [];
+                 for(let i = sPeriod; i <= ePeriod; i++) periods.push(i);
+                 const weekIndex = tb?.weekIndex || 2;
+                 const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
+                 let sDate = new Date().toISOString().split('T')[0];
+                 let eDate = new Date().toISOString().split('T')[0];
+                 try {
+                   if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
+                   if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
+                 } catch (e) {}
+
+                 results.push({
+                   name: item.subjectName,
+                   room,
+                   lecturer,
+                   startDate: sDate,
+                   endDate: eDate,
+                   daysOfWeek: [dayIndex],
+                   periods,
+                   color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
+                   semesterId: item.semesterId,
+                   semesterName: item.semesterName
+                 });
+              });
+            }
+          });
+        }
+        
+        // Map lịch thi
+        if (json.exams && Array.isArray(json.exams)) {
+          json.exams.forEach((item: any) => {
+            let eDate = new Date().toISOString().split('T')[0];
+            let dayIndex = 0;
+            try {
+              if (item.examDate) {
+                 const d = new Date(item.examDate);
+                 eDate = d.toISOString().split('T')[0];
+                 dayIndex = d.getDay();
+              }
+            } catch (e) {}
+            let periods = [1, 2, 3];
+            if (item.examTime && item.examTime.includes('13:') || String(item.examTime).startsWith('14:')) {
+               periods = [7, 8, 9];
+            }
+            results.push({
+              name: `${item.subjectName} (THI)`,
+              room: item.roomName || '',
+              lecturer: 'Lịch Thi',
+              startDate: eDate,
+              endDate: eDate, 
+              daysOfWeek: [dayIndex],
+              periods: periods,
+              color: 'border-l-red-500',
+              semesterId: item.semesterId,
+              semesterName: item.semesterName
+            });
+          });
+        }
+
+        if (results.length > 0) {
+          const batch = writeBatch(db);
+          results.forEach(subject => {
+             const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+             subject.id = deterministicId;
+             const docRef = doc(db, 'users', user.uid, 'workspaces', currentWorkspace.id, 'subjects', subject.id);
+             batch.set(docRef, subject);
+          });
+          await batch.commit();
+          localStorage.setItem(lastSyncKey, Date.now().toString());
+          console.log("Đã đồng bộ thành công!");
+        }
+      } catch (err) {
+        console.log("Auto sync failed:", err);
+      }
+    };
+
+    runSync();
+  }, [user, currentWorkspace]);
+
   useEffect(() => {
     document.documentElement.classList.remove('dark');
     localStorage.setItem('theme', 'light');
