@@ -14,9 +14,7 @@ interface WorkspaceScreenProps {
 }
 
 export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenProps) {
-  const [activeTab, setActiveTab] = useState<'login' | 'select'>('login');
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   
   const [studentCode, setStudentCode] = useState('');
   const [password, setPassword] = useState('');
@@ -41,31 +39,10 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
           return;
         }
       }
-
-      if (loadedWorkspaces.length > 0 && !selectedWorkspaceId) {
-        setSelectedWorkspaceId(loadedWorkspaces[0].id);
-        setActiveTab('select');
-      } else if (loadedWorkspaces.length === 0) {
-        setActiveTab('login');
-      }
     });
 
     return () => unsubscribe();
-  }, [userId, selectedWorkspaceId, onWorkspaceSelect]);
-
-  useEffect(() => {
-    setError('');
-  }, [activeTab]);
-
-  const handleSelectWorkspace = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedWorkspaceId) return;
-    const selectedWorkspace = workspaces.find(w => w.id === selectedWorkspaceId);
-    if (selectedWorkspace) {
-      localStorage.setItem('savedWorkspaceId', selectedWorkspace.id);
-      onWorkspaceSelect(selectedWorkspace);
-    }
-  };
+  }, [userId, onWorkspaceSelect]);
 
   const handleTluLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,119 +205,37 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
           </p>
         </div>
 
-        <Card className="p-2 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 mb-6">
-          <div className="flex bg-gray-100/50 dark:bg-gray-900/50 p-1 rounded-xl">
-            <button
-              onClick={() => setActiveTab('login')}
-              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
-                activeTab === 'login' 
-                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm' 
-                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              Đăng nhập & Đồng bộ
-            </button>
-            {workspaces.length > 0 && (
-              <button
-                onClick={() => setActiveTab('select')}
-                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
-                  activeTab === 'select' 
-                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm' 
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                }`}
-              >
-                Tài khoản đã lưu
-              </button>
+        <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
+          <form onSubmit={handleTluLogin} className="flex flex-col gap-6">
+            
+            <Input
+              label="Mã sinh viên"
+              placeholder="Nhập mã sinh viên"
+              value={studentCode}
+              onChange={(e) => setStudentCode(e.target.value)}
+              icon={<Users className="w-4 h-4" />}
+            />
+            
+            <Input
+              label="Mật khẩu TLU"
+              type="password"
+              placeholder="Nhập mật khẩu"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              icon={<Key className="w-4 h-4" />}
+            />
+
+            {error && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm font-medium">
+                {error}
+              </div>
             )}
-          </div>
+
+            <Button type="submit" disabled={isLoading} className="w-full h-12 text-lg shadow-lg font-bold">
+              {isLoading ? 'Đang xử lý...' : 'Đăng nhập'}
+            </Button>
+          </form>
         </Card>
-
-        <AnimatePresence mode="wait">
-          {activeTab === 'login' ? (
-            <motion.div
-              key="login"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
-                <form onSubmit={handleTluLogin} className="flex flex-col gap-6">
-                  
-                  <Input
-                    label="Mã sinh viên"
-                    placeholder="Nhập mã sinh viên"
-                    value={studentCode}
-                    onChange={(e) => setStudentCode(e.target.value)}
-                    icon={<Users className="w-4 h-4" />}
-                  />
-                  
-                  <Input
-                    label="Mật khẩu TLU"
-                    type="password"
-                    placeholder="Nhập mật khẩu"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    icon={<Key className="w-4 h-4" />}
-                  />
-
-                  {error && (
-                    <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm font-medium">
-                      {error}
-                    </div>
-                  )}
-
-                  <Button type="submit" disabled={isLoading} className="w-full h-12 text-lg shadow-lg font-bold">
-                    {isLoading ? 'Đang xử lý...' : 'Đăng nhập'}
-                  </Button>
-                </form>
-              </Card>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="select"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
-                <form onSubmit={handleSelectWorkspace} className="flex flex-col gap-6">
-                  <div className="flex flex-col gap-3">
-                    <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">Chọn tài khoản</label>
-                    <div className="space-y-3">
-                      {workspaces.map(w => (
-                        <div 
-                          key={w.id}
-                          onClick={() => setSelectedWorkspaceId(w.id)}
-                          className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${
-                            selectedWorkspaceId === w.id 
-                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                              : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 hover:border-gray-200 dark:hover:border-gray-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl ${selectedWorkspaceId === w.id ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' : 'bg-gray-200 dark:bg-gray-800 text-gray-500'}`}>
-                              <Users className="w-5 h-5" />
-                            </div>
-                            <span className="font-semibold text-gray-800 dark:text-gray-200">{w.name}</span>
-                          </div>
-                          {selectedWorkspaceId === w.id && (
-                            <CheckCircle2 className="w-6 h-6 text-blue-500" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Button type="submit" disabled={!selectedWorkspaceId} className="w-full h-12 text-lg shadow-lg font-bold">
-                    Vào lịch học
-                  </Button>
-                </form>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
     </div>
   );
