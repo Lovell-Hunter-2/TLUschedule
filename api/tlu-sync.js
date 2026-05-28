@@ -1,32 +1,65 @@
-// Dùng cờ này để vượt rào lỗi chặn kết nối "chứng chỉ lạ" (SSL) của server trường
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+import https from 'https';
 
-const UPSTREAM_HOST = 'https://sinhvien1.tlu.edu.vn';
+const UPSTREAM_HOST = 'sinhvien1.tlu.edu.vn';
 const AUTH_CONFIG = {
   client_id: 'education_client',
   client_secret: 'password',
   grant_type: 'password',
 };
 
-// Cỗ máy tự động retry nếu tải thất bại
-async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
-  try {
-    const res = await fetch(url, options); // NodeJS 18+ đã có sẵn fetch tự nhiên
-    if (!res.ok && res.status >= 500) {
-      throw new Error(`Server trường lỗi: ${res.status}`);
-    }
-    return res;
-  } catch (err) {
-    if (retries > 0) {
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return fetchWithRetry(url, options, retries - 1, delay + 500);
-    }
-    throw err;
-  }
+async function httpsPost(hostname, path, data, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const postData = (typeof data === 'string' || data instanceof URLSearchParams) ? data.toString() : JSON.stringify(data);
+    
+    const options = {
+      hostname,
+      port: 443,
+      path,
+      method: 'POST',
+      rejectUnauthorized: false, // Bỏ qua lỗi chứng chỉ SSL
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        ...headers
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, data: body }));
+    });
+
+    req.on('error', (e) => reject(e));
+    req.write(postData);
+    req.end();
+  });
 }
 
-module.exports = async function handler(req, res) {
-  // Cài đặt Headers & Bật đường (CORS) cho App
+async function httpsGet(hostname, path, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname,
+      port: 443,
+      path,
+      method: 'GET',
+      rejectUnauthorized: false,
+      headers
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, data: body }));
+    });
+
+    req.on('error', (e) => reject(e));
+    req.end();
+  });
+}
+
+export default async function handler(req, res) {
+  // CORS Setup
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -47,56 +80,61 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // ----------------------------------------------------
-    // BƯỚC 1: ĐĂNG NHẬP VÀO TRƯỜNG ĐỂ LẤY TOKEN BẢO MẬT
-    // ----------------------------------------------------
+    // BƯỚC 1: ĐĂNG NHẬP LẤY TOKEN
     const params = new URLSearchParams();
     params.append('client_id', AUTH_CONFIG.client_id);
     params.append('client_secret', AUTH_CONFIG.client_secret);
     params.append('grant_type', AUTH_CONFIG.grant_type);
     params.append('username', studentCode);
     params.append('password', password);
+
+    console.log(`Đang đăng nhập cho: ${studentCode}`);
     
     let loginResponse;
     try {
-      loginResponse = await fetchWithRetry(`${UPSTREAM_HOST}/education/oauth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params
+      loginResponse = await httpsPost(UPSTREAM_HOST, '/education/oauth/token', params, {
+        'Content-Type': 'application/x-www-form-urlencoded'
       });
     } catch (e) {
-      return res.status(502).json({ error: 'Lỗi nghẽn đường truyền, máy chủ TLU từ chối kết nối (Network Error).', details: e.message });
+      return res.status(502).json({ error: 'Không thể kết nối đến máy chủ TLU (LỖI MẠNG)', details: e.message });
     }
 
-    if (!loginResponse.ok) {
-      return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại mã sinh viên và mật khẩu chính xác!' });
+    if (loginResponse.status !== 200) {
+      return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản TLU mật khẩu!' });
     }
 
-    const authData = await loginResponse.json();
+    let authData;
+    try {
+      authData = JSON.parse(loginResponse.data);
+    } catch (e) {
+      return res.status(500).json({ error: 'Lỗi đọc dữ liệu đăng nhập từ TLU' });
+    }
+
     const token = authData.access_token;
     
-    if (!token) return res.status(401).json({ error: 'Không lấy được Token chứng thực từ hệ thống trường.' });
-
-    // ----------------------------------------------------
-    // BƯỚC 2: CẦM TOKEN LỂN TIẾN VÀO KHO LẤY LỊCH HỌC
-    // ----------------------------------------------------
-    const scheduleResponse = await fetchWithRetry(`${UPSTREAM_HOST}/education/api/StudentCourseSubject/studentLoginUser`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Accept': 'application/json'
-      }
-    });
-
-    if (!scheduleResponse.ok) {
-      return res.status(scheduleResponse.status).json({ error: 'Truy cập dữ liệu thời khoá biểu thất bại.' });
+    if (!token) {
+      return res.status(401).json({ error: 'Không lấy được Token từ TLU' });
     }
 
-    // ----------------------------------------------------
-    // BƯỚC 3: DỌN DẸP DỮ LIỆU ĐỂ TRẢ VỀ APP CHÚNG TA
-    // ----------------------------------------------------
-    const originalData = await scheduleResponse.json();
+    // BƯỚC 2: LẤY LỊCH HỌC BẰNG TOKEN VỪA CÓ
+    const scheduleResponse = await httpsGet(UPSTREAM_HOST, '/education/api/StudentCourseSubject/studentLoginUser', {
+      'Authorization': `Bearer ${token}`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      'Accept': 'application/json'
+    });
+
+    if (scheduleResponse.status !== 200) {
+      return res.status(scheduleResponse.status).json({ error: 'Không thể lấy dữ liệu lịch học từ TLU' });
+    }
+
+    let originalData;
+    try {
+      originalData = JSON.parse(scheduleResponse.data);
+    } catch (e) {
+      return res.status(500).json({ error: 'Lỗi parse dữ liệu lịch học từ TLU' });
+    }
+
+    // BƯỚC 3: DỌN DẸP DỮ LIỆU
     let list = Array.isArray(originalData) ? originalData : (originalData.content || [originalData]);
     
     const cleanedList = list.map(item => {
@@ -106,7 +144,7 @@ module.exports = async function handler(req, res) {
         subjectCode: item.subjectCode || (rawCs && rawCs.classCode) || '',
         timetables: rawCs ? rawCs.timetables : []
       };
-    }).filter(s => s.subjectName); // Bỏ qua nếu ko có tên môn
+    }).filter(s => s.subjectName);
 
     return res.status(200).json({ 
       message: 'Đồng bộ thành công', 
@@ -114,9 +152,10 @@ module.exports = async function handler(req, res) {
     });
 
   } catch (error) {
-    return res.status(500).json({ 
-      error: 'Vercel API Exception (Internal Server Error)', 
-      details: error.message 
+    console.error("Critical Sync Error:", error);
+    return res.status(500).json({
+      error: 'Proxy Error - Đã xảy ra lỗi hệ thống nghiêm trọng',
+      details: error.message
     });
   }
-};
+}
