@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useState, useEffect } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { WorkspaceScreen } from './components/WorkspaceScreen';
@@ -9,7 +14,7 @@ import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon } from 'lucide-react';
+import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun } from 'lucide-react';
 import { format } from 'date-fns';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -79,12 +84,18 @@ export default function App() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   
+  // Dark Mode
   // Admin & Global Settings
   const [globalBg, setGlobalBg] = useState<string>('');
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [bgInput, setBgInput] = useState('');
 
   const isAdmin = user?.email === 'taikhoanphubg4@gmail.com';
+
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('theme', 'light');
+  }, []);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -270,9 +281,14 @@ export default function App() {
   };
 
   if (!isAuthReady) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50">Bạn chờ App xíu nghen...🥹</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6 shadow-lg"></div>
+        <h2 className="text-2xl font-black text-gray-800 tracking-tight animate-pulse">Đang tải dữ liệu...</h2>
+        <p className="text-gray-500 mt-2 font-medium">Vui lòng đợi một chút nhé</p>
+      </div>
+    );
   }
-
 
   if (!user) {
     return <AuthScreen onLoginSuccess={() => {}} />;
@@ -297,7 +313,7 @@ export default function App() {
                 setBgInput(globalBg);
                 setIsAdminModalOpen(true);
               }} 
-              className="text-purple-500 hover:text-purple-700 hover:bg-purple-50" 
+              className="text-purple-500 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-gray-800" 
               title="Cài đặt Admin"
             >
               <ImageIcon className="w-5 h-5" />
@@ -305,15 +321,15 @@ export default function App() {
           )}
           <button
             onClick={handleInstallClick}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 dark:shadow-none"
           >
             <Download size={18} />
             <span className="hidden sm:inline">Cài đặt app</span>
           </button>
-          <Button variant="ghost" size="sm" onClick={handleSwitchWorkspace} className="text-gray-500 hover:text-blue-600" title="Đổi lịch học">
+          <Button variant="ghost" size="sm" onClick={handleSwitchWorkspace} className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400" title="Đổi lịch học">
             <Users className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-400 hover:text-red-500" title="Đăng xuất">
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400" title="Đăng xuất">
             <LogOut className="w-5 h-5" />
           </Button>
         </div>
@@ -374,7 +390,7 @@ export default function App() {
       >
         <div className="flex flex-col gap-4">
           <textarea
-            className="w-full h-32 p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none transition-all"
+            className="w-full h-32 p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900 focus:border-blue-400 dark:focus:border-blue-600 outline-none transition-all dark:text-gray-100"
             placeholder="Nhập nội dung ghi chú..."
             value={noteContent}
             onChange={(e) => setNoteContent(e.target.value)}
@@ -390,22 +406,22 @@ export default function App() {
         title="Cài đặt Admin - Đổi hình nền"
       >
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             Dán link ảnh (URL) vào đây để đổi hình nền cho toàn bộ người dùng. Để trống nếu muốn xóa hình nền.
           </p>
           <input
             type="text"
-            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none transition-all"
+            className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-900 focus:border-purple-400 dark:focus:border-purple-600 outline-none transition-all dark:text-gray-100"
             placeholder="https://example.com/image.jpg"
             value={bgInput}
             onChange={(e) => setBgInput(e.target.value)}
           />
           {bgInput && (
-            <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 h-32 relative">
+            <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 h-32 relative">
               <img src={bgInput} alt="Preview" className="w-full h-full object-cover" />
             </div>
           )}
-          <Button onClick={saveGlobalSettings} className="w-full bg-purple-600 hover:bg-purple-700">
+          <Button onClick={saveGlobalSettings} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
             Lưu hình nền
           </Button>
         </div>
@@ -420,7 +436,7 @@ export default function App() {
             setEditingNoteId(null);
             setIsNoteModalOpen(true);
           }}
-          className="fixed bottom-8 right-8 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40"
+          className="fixed bottom-8 right-8 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 dark:shadow-none flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40"
         >
           <Plus className="w-8 h-8" />
         </button>
