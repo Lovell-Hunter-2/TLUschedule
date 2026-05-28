@@ -1,7 +1,7 @@
 const https = require('https');
 const fetch = require('node-fetch');
 
-// Cấu hình vượt rào SSL củ chuối của các server trường học
+// Cấu hình vượt rào SSL của web trường
 const sslAgent = new https.Agent({
   rejectUnauthorized: false,
   keepAlive: false,
@@ -38,19 +38,11 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Chỉ hỗ trợ POST' });
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Chỉ hỗ trợ phương thức POST' });
-  }
-
-  const { studentCode, password, semester } = req.body;
-
-  if (!studentCode || !password) {
-    return res.status(400).json({ error: 'Thiếu mã sinh viên hoặc mật khẩu' });
-  }
+  const { studentCode, password } = req.body;
+  if (!studentCode || !password) return res.status(400).json({ error: 'Thiếu mã sinh viên hoặc mật khẩu' });
 
   try {
     // BƯỚC 1: ĐĂNG NHẬP LẤY TOKEN
@@ -61,8 +53,6 @@ export default async function handler(req, res) {
     params.append('username', studentCode);
     params.append('password', password);
 
-    console.log(`Đang đăng nhập cho: ${studentCode}`);
-    
     let loginResponse;
     try {
       loginResponse = await fetchWithRetry(`${UPSTREAM_HOST}/education/oauth/token`, {
@@ -75,30 +65,16 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'Không thể kết nối đến máy chủ TLU (LỖI MẠNG)', details: e.message });
     }
 
-    if (!loginResponse.ok) {
-      return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản TLU mật khẩu!' });
-    }
+    if (!loginResponse.ok) return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản TLU!' });
 
     const authData = await loginResponse.json();
     const token = authData.access_token;
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Không lấy được Token từ TLU' });
-    }
+    if (!token) return res.status(401).json({ error: 'Không lấy được Token từ TLU' });
 
     // BƯỚC 2: LẤY LỊCH HỌC BẰNG TOKEN VỪA CÓ
-    // Theo API điển hình, endpoint sẽ là lấy thông tin kỳ học hiện tại hoặc gọi API studentLoginUser
-    // Đường dẫn này dựa theo code proxy cũ của bạn
-    // Chú ý: Ở TLU thực tế, URL có thể /education/api/StudentCourseSubject/studentLoginUser hoặc cần thêm parameter.
-    // Mình sẽ lấy URL phổ biến nhất cho trang sinhvien1.tlu
     const SCHEDULE_URL = `${UPSTREAM_HOST}/education/api/StudentCourseSubject/studentLoginUser`;
     
-    // Lưu ý: Nếu web TLU cần parameter học kỳ, thì semester parameter sẽ cần được truyền vào URL.
-    // Ví dụ: ?semesterId=.... Ở đây mình cứ wrap lại theo URL cơ bản nhất. 
-    // Chúng ta thử fetch toàn bộ list nếu API hỗ trợ.
-    let scheduleUrlWithParams = SCHEDULE_URL;
-    
-    const scheduleResponse = await fetchWithRetry(scheduleUrlWithParams, {
+    const scheduleResponse = await fetchWithRetry(SCHEDULE_URL, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -108,16 +84,11 @@ export default async function handler(req, res) {
       agent: sslAgent
     });
 
-    if (!scheduleResponse.ok) {
-      return res.status(scheduleResponse.status).json({ error: 'Không thể lấy dữ liệu lịch học từ TLU' });
-    }
-
+    if (!scheduleResponse.ok) return res.status(scheduleResponse.status).json({ error: 'Không thể lấy dữ liệu lịch học từ TLU' });
     const originalData = await scheduleResponse.json();
 
-    // BƯỚC 3: DỌN DẸP DỮ LIỆU
-    // Trích xuất raw timetables và map về định dạng app của chúng ta
+    // BƯỚC 3: DỌN DẸP DỮ LIỆU CHUẨN HOÁ CHO APP
     let list = Array.isArray(originalData) ? originalData : (originalData.content || [originalData]);
-    
     const cleanedList = list.map(item => {
       let rawCs = (item.studentCourseSubject && item.studentCourseSubject.courseSubject) || item.courseSubject;
       return {
@@ -127,16 +98,10 @@ export default async function handler(req, res) {
       };
     }).filter(s => s.subjectName);
 
-    return res.status(200).json({ 
-      message: 'Đồng bộ thành công', 
-      data: cleanedList 
-    });
+    return res.status(200).json({ message: 'Đồng bộ thành công', data: cleanedList });
 
   } catch (error) {
     console.error("Critical Sync Error:", error);
-    return res.status(500).json({
-      error: 'Proxy Error - Đã xảy ra lỗi hệ thống nghiêm trọng',
-      details: error.message
-    });
+    return res.status(500).json({ error: 'Proxy Error - Đã xảy ra lỗi hệ thống nghiêm trọng', details: error.message });
   }
 }
