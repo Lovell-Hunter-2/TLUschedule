@@ -46,7 +46,13 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
       }
       
       if (!res.ok) {
-        throw new Error(json?.error || 'Lỗi khi đồng bộ kết quả');
+        let errorMsg = json?.error || 'Lỗi khi đồng bộ kết quả';
+        if (json?.status) errorMsg += ` (Mã lỗi TLU: ${json.status})`;
+        if (json?.details) {
+          const detailStr = typeof json.details === 'string' ? json.details.substring(0, 500) : JSON.stringify(json.details);
+          errorMsg += `\nChi tiết: ${detailStr}`;
+        }
+        throw new Error(errorMsg);
       }
 
       const results: Subject[] = [];
