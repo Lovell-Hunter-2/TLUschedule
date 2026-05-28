@@ -23,7 +23,9 @@
         "endDate": { "type": "string", "description": "YYYY-MM-DD" },
         "daysOfWeek": { "type": "array", "items": { "type": "number" } },
         "periods": { "type": "array", "items": { "type": "number" } },
-        "color": { "type": "string" }
+        "color": { "type": "string" },
+        "semesterId": { "type": "number" },
+        "semesterName": { "type": "string" }
       },
       "required": ["id", "name", "startDate", "endDate", "daysOfWeek", "periods", "color"]
     },
