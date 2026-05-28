@@ -117,122 +117,135 @@ export default function App() {
     return subjects.filter(s => s.semesterId === selectedSemesterId);
   }, [subjects, selectedSemesterId]);
 
-  // Background Auto-sync
-  useEffect(() => {
-    if (!user || !workspace || !workspace.password || workspace.password === '') return;
+  const [isSyncing, setIsSyncing] = useState(false);
 
-    // Chỉ sync 1 lần mỗi 4 tiếng để tránh fetch liên tục
+  // Background Auto-sync
+  const runSync = async (force: boolean = false) => {
+    if (!user || !workspace || !workspace.password || workspace.password === '') return;
+    
     const lastSyncKey = `last_sync_tlu_${workspace.id}`;
-    const lastTime = localStorage.getItem(lastSyncKey);
-    const now = Date.now();
-    if (lastTime && now - parseInt(lastTime) < 4 * 60 * 60 * 1000) {
-      return;
+    if (!force) {
+      const lastTime = localStorage.getItem(lastSyncKey);
+      const now = Date.now();
+      if (lastTime && now - parseInt(lastTime) < 4 * 60 * 60 * 1000) {
+        return;
+      }
     }
 
-    const runSync = async () => {
-      try {
-        console.log("Đang đồng bộ ngầm lịch học/thi...");
-        const rawPassword = decodeURIComponent(atob(workspace.password!));
-        const studentCode = workspace.id;
+    try {
+      setIsSyncing(true);
+      console.log("Đang đồng bộ ngầm lịch học/thi...");
+      const rawPassword = decodeURIComponent(atob(workspace.password!));
+      const studentCode = workspace.id;
 
-        const res = await fetch('/api/tlu-sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentCode, password: rawPassword })
-        });
-        
-        if (!res.ok) return;
-        const json = await res.json();
-        const results: any[] = [];
-        
-        // Map lịch học
-        if (json.data && Array.isArray(json.data)) {
-          json.data.forEach((item: any) => {
-            if (item.timetables && Array.isArray(item.timetables)) {
-              item.timetables.forEach((tb: any) => {
-                 const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
-                 const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
-                 const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
-                 const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
-                 const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
-                 const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
-                 const periods = [];
-                 for(let i = sPeriod; i <= ePeriod; i++) periods.push(i);
-                 const weekIndex = tb?.weekIndex || 2;
-                 const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
-                 let sDate = new Date().toISOString().split('T')[0];
-                 let eDate = new Date().toISOString().split('T')[0];
-                 try {
-                   if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
-                   if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
-                 } catch (e) {}
-
-                 results.push({
-                   name: item.subjectName,
-                   room,
-                   lecturer,
-                   startDate: sDate,
-                   endDate: eDate,
-                   daysOfWeek: [dayIndex],
-                   periods,
-                   color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
-                   semesterId: item.semesterId,
-                   semesterName: item.semesterName
-                 });
-              });
-            }
-          });
-        }
-        
-        // Map lịch thi
-        if (json.exams && Array.isArray(json.exams)) {
-          json.exams.forEach((item: any) => {
-            let eDate = new Date().toISOString().split('T')[0];
-            let dayIndex = 0;
-            try {
-              if (item.examDate) {
-                 const d = new Date(item.examDate);
-                 eDate = d.toISOString().split('T')[0];
-                 dayIndex = d.getDay();
-              }
-            } catch (e) {}
-            let periods = [1, 2, 3];
-            if (item.examTime && item.examTime.includes('13:') || String(item.examTime).startsWith('14:')) {
-               periods = [7, 8, 9];
-            }
-            results.push({
-              name: `${item.subjectName} (THI)`,
-              room: item.roomName || '',
-              lecturer: 'Lịch Thi',
-              startDate: eDate,
-              endDate: eDate, 
-              daysOfWeek: [dayIndex],
-              periods: periods,
-              color: 'border-l-red-500',
-              semesterId: item.semesterId,
-              semesterName: item.semesterName
-            });
-          });
-        }
-
-        if (results.length > 0) {
-          const batch = writeBatch(db);
-          results.forEach(subject => {
-             const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
-             subject.id = deterministicId;
-             const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
-             batch.set(docRef, subject);
-          });
-          await batch.commit();
-          localStorage.setItem(lastSyncKey, Date.now().toString());
-          console.log("Đã đồng bộ thành công!");
-        }
-      } catch (err) {
-        console.log("Auto sync failed:", err);
+      const res = await fetch('/api/tlu-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentCode, password: rawPassword })
+      });
+      
+      if (!res.ok) {
+        if (force) alert("Có lỗi khi đồng bộ. Vui lòng thử lại sau.");
+        return;
       }
-    };
+      const json = await res.json();
+      const results: any[] = [];
+      
+      // Map lịch học
+      if (json.data && Array.isArray(json.data)) {
+        json.data.forEach((item: any) => {
+          if (item.timetables && Array.isArray(item.timetables)) {
+            item.timetables.forEach((tb: any) => {
+               const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
+               const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
+               const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
+               const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
+               const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
+               const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
+               const periods = [];
+               for(let i = sPeriod; i <= ePeriod; i++) periods.push(i);
+               const weekIndex = tb?.weekIndex || 2;
+               const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
+               let sDate = new Date().toISOString().split('T')[0];
+               let eDate = new Date().toISOString().split('T')[0];
+               try {
+                 if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
+                 if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
+               } catch (e) {}
 
-    runSync();
+               results.push({
+                 name: item.subjectName,
+                 room,
+                 lecturer,
+                 startDate: sDate,
+                 endDate: eDate,
+                 daysOfWeek: [dayIndex],
+                 periods,
+                 color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
+                 semesterId: item.semesterId,
+                 semesterName: item.semesterName
+               });
+            });
+          }
+        });
+      }
+      
+      // Map lịch thi
+      if (json.exams && Array.isArray(json.exams)) {
+        json.exams.forEach((item: any) => {
+          let eDate = new Date().toISOString().split('T')[0];
+          let dayIndex = 0;
+          try {
+            if (item.examDate) {
+               const d = new Date(item.examDate);
+               eDate = d.toISOString().split('T')[0];
+               dayIndex = d.getDay();
+            }
+          } catch (e) {}
+          let periods = [1, 2, 3];
+          if (item.examTime && item.examTime.includes('13:') || String(item.examTime).startsWith('14:')) {
+             periods = [7, 8, 9];
+          }
+          results.push({
+            name: `${item.subjectName} (THI)`,
+            room: item.roomName || '',
+            lecturer: 'Lịch Thi',
+            startDate: eDate,
+            endDate: eDate, 
+            daysOfWeek: [dayIndex],
+            periods: periods,
+            color: 'border-l-red-500',
+            semesterId: item.semesterId,
+            semesterName: item.semesterName
+          });
+        });
+      }
+
+      if (results.length > 0) {
+        const batch = writeBatch(db);
+        results.forEach(subject => {
+           const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+           subject.id = deterministicId;
+           const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
+           batch.set(docRef, subject);
+        });
+        await batch.commit();
+        localStorage.setItem(lastSyncKey, Date.now().toString());
+        console.log("Đã đồng bộ thành công!");
+        if (force) alert("Đồng bộ lịch học và lịch thi thành công!");
+      } else {
+        if (force) alert("Không tìm thấy môn học nào.");
+      }
+    } catch (err) {
+      console.log("Auto sync failed:", err);
+      if (force) alert("Có lỗi khi đồng bộ.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    runSync(false);
   }, [user, workspace]);
 
   useEffect(() => {
@@ -462,6 +475,16 @@ export default function App() {
               <ImageIcon className="w-5 h-5" />
             </Button>
           )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => runSync(true)} 
+            disabled={isSyncing}
+            className="text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 font-medium hidden sm:flex" 
+            title="Đồng bộ lại"
+          >
+            {isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại"}
+          </Button>
           <button
             onClick={handleInstallClick}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 dark:shadow-none"
@@ -478,8 +501,9 @@ export default function App() {
         </div>
       }
     >
-      <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-8 gap-4">
         <Tabs
+          className="w-full sm:w-auto"
           activeTab={activeTab}
           onChange={setActiveTab}
           tabs={[
@@ -489,23 +513,36 @@ export default function App() {
           ]}
         />
         
-        {semestersList.length > 0 && activeTab !== 'update' && (
-          <div className="relative">
-            <select
-              value={selectedSemesterId}
-              onChange={(e) => setSelectedSemesterId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              className="appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-            >
-              <option value="all">Tất cả kỳ học</option>
-              {semestersList.map(sem => (
-                <option key={sem.id} value={sem.id}>{sem.name}</option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-              <ChevronDown className="w-4 h-4" />
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => runSync(true)} 
+            disabled={isSyncing}
+            className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 sm:hidden w-full flex-1" 
+            title="Đồng bộ lại"
+          >
+            {isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại TLU"}
+          </Button>
+
+          {semestersList.length > 0 && activeTab !== 'update' && (
+            <div className="relative flex-1 sm:flex-none">
+              <select
+                value={selectedSemesterId}
+                onChange={(e) => setSelectedSemesterId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                className="w-full sm:w-auto appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+              >
+                <option value="all">Tất cả kỳ học</option>
+                {semestersList.map(sem => (
+                  <option key={sem.id} value={sem.id}>{sem.name}</option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                <ChevronDown className="w-4 h-4" />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="min-h-[60vh]">
