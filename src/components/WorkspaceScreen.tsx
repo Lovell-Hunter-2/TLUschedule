@@ -50,6 +50,20 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       setError('Vui lòng nhập mã sinh viên và mật khẩu TLU');
       return;
     }
+
+    // Auto-login (skip sync) if workspace exists and password matches
+    const existingWorkspace = workspaces.find(w => w.id === studentCode);
+    if (existingWorkspace && existingWorkspace.password) {
+      try {
+        const decodedRaw = decodeURIComponent(atob(existingWorkspace.password));
+        if (decodedRaw === password) {
+          localStorage.setItem('savedWorkspaceId', existingWorkspace.id);
+          onWorkspaceSelect(existingWorkspace);
+          return;
+        }
+      } catch (e) {}
+    }
+
     setIsLoading(true);
     setError('');
     try {
@@ -127,11 +141,30 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
             }
           } catch (e) {}
 
-          // Phân tích examTime ví dụ "07:00-09:00" => chuyển thành tiết tạm (1, 2, 3) 
-          // Thi thường 2-3 tiếng, ta cho tạm chiếm tiết 1-3 hoặc 7-9 tuỳ thời gian
           let periods = [1, 2, 3];
-          if (item.examTime && item.examTime.includes('13:') || String(item.examTime).startsWith('14:')) {
-             periods = [7, 8, 9];
+          const timeStr = String(item.examTime || '');
+          const shiftStr = String(item.examHour || item.shift || item.caThi || '');
+          let shiftMatch = shiftStr.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+          
+          if (shiftMatch) {
+              const s = parseInt(shiftMatch[1]);
+              const e = parseInt(shiftMatch[2] || shiftMatch[1]);
+              periods = [];
+              for (let i = s; i <= e; i++) periods.push(i);
+          } else if (timeStr) {
+              const hsMatch = timeStr.match(/(\d+):/);
+              if (hsMatch) {
+                 const h = parseInt(hsMatch[1]);
+                 if (h === 7) periods = [1, 2, 3];
+                 else if (h === 8) periods = [3, 4];
+                 else if (h === 9) periods = [4, 5, 6];
+                 else if (h === 10) periods = [5, 6];
+                 else if (h === 12 || h === 13) periods = [7, 8, 9];
+                 else if (h === 14) periods = [9, 10];
+                 else if (h === 15) periods = [10, 11, 12];
+                 else if (h === 16) periods = [11, 12];
+                 else if (h >= 17) periods = [13, 14, 15];
+              }
           }
 
           results.push({
