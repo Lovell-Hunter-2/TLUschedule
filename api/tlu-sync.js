@@ -143,7 +143,7 @@ export default async function handler(req, res) {
               year.semesters.forEach(s => {
                   if (s && s.id) {
                       foundIds.push(s.id);
-                      semesterMap[s.id] = s.semesterName;
+                      semesterMap[s.id] = s.semesterName || s.name || s.code || ('Kỳ ' + s.id);
                   }
               });
            }
