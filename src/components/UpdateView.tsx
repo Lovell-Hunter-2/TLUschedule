@@ -90,7 +90,9 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
                  endDate: eDate,
                  daysOfWeek: [dayIndex],
                  periods,
-                 color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`
+                 color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
+                 semesterId: item.semesterId,
+                 semesterName: item.semesterName
                });
             });
           }
