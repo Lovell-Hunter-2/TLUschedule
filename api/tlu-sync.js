@@ -119,12 +119,17 @@ export default async function handler(req, res) {
     // BƯỚC 2: LẤY LỊCH HỌC BẰNG TOKEN VỪA CÓ
     const scheduleResponse = await httpsGet(UPSTREAM_HOST, '/education/api/StudentCourseSubject/studentLoginUser', {
       'Authorization': `Bearer ${token}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      'Accept': 'application/json'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json, text/plain, */*'
     });
 
     if (scheduleResponse.status !== 200) {
-      return res.status(scheduleResponse.status).json({ error: 'Không thể lấy dữ liệu lịch học từ TLU' });
+      console.log("TLU Schedule Fetch Failed!", scheduleResponse.status, scheduleResponse.data);
+      return res.status(scheduleResponse.status >= 500 ? 502 : 400).json({ 
+        error: 'Không thể lấy dữ liệu lịch học từ TLU', 
+        details: scheduleResponse.data,
+        status: scheduleResponse.status
+      });
     }
 
     let originalData;
