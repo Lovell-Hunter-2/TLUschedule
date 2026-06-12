@@ -3,7 +3,7 @@ import { Button } from './Button';
 import { Card } from './Card';
 import { GraduationCap } from 'lucide-react';
 import { motion } from 'motion/react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
 interface AuthScreenProps {
@@ -18,35 +18,44 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     try {
       setIsLoading(true);
       setError('');
-      await signInWithPopup(auth, googleProvider);
-      onLoginSuccess();
+      
+      // Kiểm tra xem có phải Webview (Zalo, FB, IG) không
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+      const isWebview = (userAgent.indexOf('FBAV') > -1) || (userAgent.indexOf('Instagram') > -1) || (userAgent.indexOf('Zalo') > -1);
+
+      if (isWebview) {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+        onLoginSuccess();
+      }
     } catch (err: any) {
       console.error(err);
-      setError('Đăng nhập thất bại. Vui lòng thử lại.');
+      setError('Đăng nhập thất bại. Vui lòng mở bằng trình duyệt (Safari/Chrome) để đăng nhập Google.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md"
       >
         <div className="flex flex-col items-center mb-10">
-          <div className="w-20 h-20 bg-blue-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 mb-6 rotate-12">
+          <div className="w-20 h-20 bg-blue-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 dark:shadow-none mb-6 rotate-12">
             <GraduationCap className="w-10 h-10 text-white -rotate-12" />
           </div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">TLU Schedule</h1>
-          <p className="text-gray-500 font-medium mt-2">Quản lý lịch học thông minh</p>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">TLU Schedule</h1>
+          <p className="text-gray-500 dark:text-gray-400 font-medium mt-2">Quản lý lịch học thông minh</p>
         </div>
 
-        <Card className="p-8 shadow-2xl shadow-gray-200/50 border-white/50 backdrop-blur-sm bg-white/90">
+        <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
           <div className="flex flex-col gap-6">
             <div className="text-center">
-              <p className="text-gray-600 font-medium mb-6">
+              <p className="text-gray-600 dark:text-gray-300 font-medium mb-6">
                 Đăng nhập bằng tài khoản Google để đồng bộ lịch học của bạn trên mọi thiết bị.
               </p>
             </div>
@@ -56,7 +65,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             <Button 
               onClick={handleGoogleLogin} 
               disabled={isLoading}
-              className="w-full h-12 text-lg font-bold rounded-2xl shadow-lg shadow-blue-100 flex items-center justify-center gap-3 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+              className="w-full h-12 text-lg font-bold rounded-2xl shadow-lg shadow-blue-100 dark:shadow-none flex items-center justify-center gap-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
