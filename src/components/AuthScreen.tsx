@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Button } from './Button';
 import { Card } from './Card';
-import { GraduationCap } from 'lucide-react';
+import { GraduationCap, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
-import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
 interface AuthScreenProps {
@@ -13,13 +13,13 @@ interface AuthScreenProps {
 export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [view, setView] = useState<'auth' | 'privacy' | 'terms'>('auth');
 
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
       setError('');
       
-      // Kiểm tra xem có phải Webview (Zalo, FB, IG) không
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
       const isWebview = (userAgent.indexOf('FBAV') > -1) || (userAgent.indexOf('Instagram') > -1) || (userAgent.indexOf('Zalo') > -1);
 
@@ -37,12 +37,60 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     }
   };
 
+  if (view === 'privacy') {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 md:p-12 text-gray-800 dark:text-gray-200">
+        <div className="max-w-3xl mx-auto">
+          <Button variant="ghost" onClick={() => setView('auth')} className="mb-6 -ml-4">
+            <ArrowLeft className="w-5 h-5 mr-2" /> Quay lại
+          </Button>
+          <h1 className="text-3xl font-bold mb-6">Chính sách bảo mật (Privacy Policy)</h1>
+          <div className="space-y-4 leading-relaxed">
+            <p>Chào mừng bạn đến với TLU Schedule. Việc bảo vệ dữ liệu cá nhân của bạn là ưu tiên hàng đầu của chúng tôi.</p>
+            <h2 className="text-xl font-semibold mt-6">1. Dữ liệu chúng tôi thu thập</h2>
+            <p>Chúng tôi chỉ thu thập các thông tin cần thiết để ứng dụng hoạt động, bao gồm email đăng nhập Google, mã sinh viên và mật khẩu TLU của bạn (được mã hóa để sử dụng cho mục đích lấy thời khóa biểu), và dữ liệu lịch học được tải về.</p>
+            <h2 className="text-xl font-semibold mt-6">2. Cách chúng tôi sử dụng dữ liệu</h2>
+            <p>Dữ liệu của bạn chỉ được sử dụng để đồng bộ và hiển thị thời khóa biểu, lịch thi cho cá nhân bạn. Chúng tôi cam kết KHÔNG chia sẻ, bán hoặc sử dụng dữ liệu của bạn cho bất kỳ mục đích nào khác.</p>
+            <h2 className="text-xl font-semibold mt-6">3. Bảo mật thông tin</h2>
+            <p>Dữ liệu được lưu trữ an toàn trên nền tảng Firebase của Google. Mật khẩu TLU của bạn được mã hóa hai chiều và chỉ hệ thống mới có thể giải mã để lấy dữ liệu từ trường.</p>
+            <h2 className="text-xl font-semibold mt-6">4. Quyền của người dùng</h2>
+            <p>Bạn có toàn quyền xóa tài khoản và mọi dữ liệu liên quan bất kỳ lúc nào bằng cách đăng xuất và liên hệ với chúng tôi, hoặc dữ liệu sẽ tự động bị xóa nếu không hoạt động trong một thời gian dài.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'terms') {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 md:p-12 text-gray-800 dark:text-gray-200">
+        <div className="max-w-3xl mx-auto">
+          <Button variant="ghost" onClick={() => setView('auth')} className="mb-6 -ml-4">
+            <ArrowLeft className="w-5 h-5 mr-2" /> Quay lại
+          </Button>
+          <h1 className="text-3xl font-bold mb-6">Điều khoản dịch vụ (Terms of Service)</h1>
+          <div className="space-y-4 leading-relaxed">
+            <p>Bằng việc đăng nhập và sử dụng TLU Schedule, bạn đồng ý với các điều khoản sau:</p>
+            <h2 className="text-xl font-semibold mt-6">1. Chấp nhận điều khoản</h2>
+            <p>Người dùng phải tuân thủ các quy định hiện hành và không sử dụng ứng dụng vào mục đích phá hoại, spam hoặc vi phạm pháp luật.</p>
+            <h2 className="text-xl font-semibold mt-6">2. Trách nhiệm của người dùng</h2>
+            <p>Bạn chịu trách nhiệm về thông tin đăng nhập của mình. Ứng dụng cung cấp công cụ lấy dữ liệu từ hệ thống của trường để tiện theo dõi, nhưng không chịu trách nhiệm nếu có sai sót từ nguồn dữ liệu gốc của TLU.</p>
+            <h2 className="text-xl font-semibold mt-6">3. Tính khả dụng của dịch vụ</h2>
+            <p>Chúng tôi nỗ lực duy trì ứng dụng hoạt động ổn định, tuy nhiên dịch vụ có thể bị gián đoạn do bảo trì, lỗi hệ thống mạng, hoặc thay đổi hệ thống từ phía trường đại học.</p>
+            <h2 className="text-xl font-semibold mt-6">4. Từ chối trách nhiệm</h2>
+            <p>TLU Schedule là một ứng dụng hỗ trợ tiện ích dành cho sinh viên, không phải là sản phẩm chính thức của Đại học Thủy Lợi. Bạn tự chịu rủi ro khi sử dụng công cụ đồng bộ dữ liệu này.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col items-center justify-center p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md flex-1 flex flex-col justify-center"
       >
         <div className="flex flex-col items-center mb-10">
           <div className="w-20 h-20 bg-blue-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 dark:shadow-none mb-6 rotate-12">
@@ -52,7 +100,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           <p className="text-gray-500 dark:text-gray-400 font-medium mt-2">Quản lý lịch học thông minh</p>
         </div>
 
-        <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
+        <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 mb-8">
           <div className="flex flex-col gap-6">
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-300 font-medium mb-6">
@@ -90,6 +138,14 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           </div>
         </Card>
       </motion.div>
+      
+      <div className="mt-auto text-center text-sm text-gray-500 pb-4">
+        Bằng việc đăng nhập, bạn đồng ý với{' '}
+        <button onClick={() => setView('terms')} className="text-blue-600 hover:underline">Điều khoản dịch vụ</button>
+        {' '}và{' '}
+        <button onClick={() => setView('privacy')} className="text-blue-600 hover:underline">Chính sách bảo mật</button>
+      </div>
     </div>
   );
 }
+
