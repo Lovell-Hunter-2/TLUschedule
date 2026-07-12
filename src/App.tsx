@@ -579,6 +579,8 @@ export default function App() {
             }} 
             onEditNote={editNote}
             onDeleteNote={deleteNote}
+            isSyncing={isSyncing}
+            onForceSync={() => runSync(true)}
           />
         )}
         {activeTab === 'weekly' && (
@@ -593,6 +595,8 @@ export default function App() {
             }} 
             onEditNote={editNote}
             onDeleteNote={deleteNote}
+            isSyncing={isSyncing}
+            onForceSync={() => runSync(true)}
           />
         )}
         {activeTab === 'update' && (
