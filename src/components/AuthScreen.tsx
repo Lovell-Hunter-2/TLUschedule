@@ -5,7 +5,6 @@ import { GraduationCap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
-import { Link } from 'react-router-dom';
 
 interface AuthScreenProps {
   onLoginSuccess: () => void;
@@ -93,9 +92,9 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       
       <div className="mt-auto text-center text-sm text-gray-500 pb-4">
         Bằng việc đăng nhập, bạn đồng ý với{' '}
-        <Link to="/terms" className="text-blue-600 hover:underline">Điều khoản dịch vụ</Link>
+        <a href="/terms" className="text-blue-600 hover:underline">Điều khoản dịch vụ</a>
         {' '}và{' '}
-        <Link to="/privacy" className="text-blue-600 hover:underline">Chính sách bảo mật</Link>
+        <a href="/privacy" className="text-blue-600 hover:underline">Chính sách bảo mật</a>
       </div>
     </div>
   );
