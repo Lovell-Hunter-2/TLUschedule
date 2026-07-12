@@ -39,6 +39,12 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
           onWorkspaceSelect(savedWorkspace);
           return;
         }
+      } else if (loadedWorkspaces.length === 1) {
+        // Auto select if there's exactly 1 workspace and no saved workspace ID
+        const onlyWorkspace = loadedWorkspaces[0];
+        localStorage.setItem('savedWorkspaceId', onlyWorkspace.id);
+        onWorkspaceSelect(onlyWorkspace);
+        return;
       }
     });
 
