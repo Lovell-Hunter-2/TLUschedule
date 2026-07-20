@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -11,13 +11,16 @@ import { motion, AnimatePresence } from 'motion/react';
 interface UpdateViewProps {
   subjects: Subject[];
   onUpdate: (subjects: Subject[]) => void;
+  setHasUnsavedChanges?: (hasUnsaved: boolean) => void;
 }
 
-export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
+export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateViewProps) {
   const [mode, setMode] = useState<'manual' | 'ai' | 'list' | 'edit' | 'sync'>('list');
   const [aiText, setAiText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showSuccessIndicator, setShowSuccessIndicator] = useState(false);
+
   
   // TLU Sync states
   const [tluStudentCode, setTluStudentCode] = useState('');
@@ -119,6 +122,12 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
   const [subjectToEdit, setSubjectToEdit] = useState<Subject | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  useEffect(() => {
+    if (setHasUnsavedChanges) {
+      setHasUnsavedChanges(JSON.stringify(editingSubjects) !== JSON.stringify(subjects));
+    }
+  }, [editingSubjects, subjects, setHasUnsavedChanges]);
+
   const handleAiParse = async () => {
     if (!aiText.trim()) return;
     setIsParsing(true);
@@ -178,6 +187,8 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
   const saveAll = () => {
     onUpdate(editingSubjects);
     setMode('list');
+    setShowSuccessIndicator(true);
+    setTimeout(() => setShowSuccessIndicator(false), 2000);
   };
 
   const groupedSubjects = useMemo(() => {
@@ -195,6 +206,26 @@ export function UpdateView({ subjects, onUpdate }: UpdateViewProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <AnimatePresence>
+        {showSuccessIndicator && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+          >
+            <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-8 rounded-3xl shadow-2xl flex flex-col items-center">
+              <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-green-200 dark:shadow-none">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-xl font-bold text-gray-800 dark:text-gray-100 tracking-tight">Lưu thành công!</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex gap-2 flex-wrap">
         <Button 
           variant={mode === 'list' ? 'primary' : 'outline'} 
