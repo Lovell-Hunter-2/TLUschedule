@@ -84,6 +84,18 @@ export default function App() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [selectedSemesterId, setSelectedSemesterId] = useState<number | 'all'>('all');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
   
   // Dark Mode
   // Admin & Global Settings
@@ -457,6 +469,16 @@ export default function App() {
     }
   };
 
+  const handleTabChange = (newTab: string) => {
+    if (hasUnsavedChanges && activeTab === 'update' && newTab !== 'update') {
+      if (!window.confirm('Bạn có môn học chưa lưu. Bạn có chắc chắn muốn rời khỏi trang này?')) {
+        return;
+      }
+      setHasUnsavedChanges(false);
+    }
+    setActiveTab(newTab);
+  };
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -526,7 +548,7 @@ export default function App() {
         <Tabs
           className="w-full sm:w-auto"
           activeTab={activeTab}
-          onChange={setActiveTab}
+          onChange={handleTabChange}
           tabs={[
             { id: 'daily', label: 'Ngày', icon: <Calendar className="w-4 h-4" /> },
             { id: 'weekly', label: 'Tuần', icon: <LayoutGrid className="w-4 h-4" /> },
@@ -600,7 +622,11 @@ export default function App() {
           />
         )}
         {activeTab === 'update' && (
-          <UpdateView subjects={subjects} onUpdate={updateSubjects} />
+          <UpdateView 
+            subjects={subjects} 
+            onUpdate={updateSubjects} 
+            setHasUnsavedChanges={setHasUnsavedChanges}
+          />
         )}
       </div>
 
