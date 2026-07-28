@@ -23,6 +23,40 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
   const [now, setNow] = useState(new Date());
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragDistanceRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollRef.current) return;
+    setIsDragging(true);
+    dragDistanceRef.current = 0;
+    setStartX(e.pageX - scrollRef.current.offsetLeft);
+    setScrollLeft(scrollRef.current.scrollLeft);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startX) * 2;
+    dragDistanceRef.current = Math.abs(x - startX);
+    scrollRef.current.scrollLeft = scrollLeft - walk;
+  };
+
+  const handleDateClick = (date: Date) => {
+    if (dragDistanceRef.current > 5) return;
+    setSelectedDate(date);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -109,12 +143,22 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2" ref={scrollRef}>
+      <div 
+        className={cn(
+          "flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2 select-none",
+          isDragging ? "cursor-grabbing" : "cursor-grab"
+        )}
+        ref={scrollRef}
+        onMouseDown={handleMouseDown}
+        onMouseLeave={handleMouseLeave}
+        onMouseUp={handleMouseUp}
+        onMouseMove={handleMouseMove}
+      >
         {dates.map((date) => (
           <button
             key={date.toString()}
             data-today={isSameDay(date, new Date())}
-            onClick={() => setSelectedDate(date)}
+            onClick={() => handleDateClick(date)}
             className={cn(
               "flex flex-col items-center min-w-[64px] p-3 rounded-2xl transition-all border",
               isSameDay(date, selectedDate)
