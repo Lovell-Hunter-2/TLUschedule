@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { format, addDays, isSameDay, startOfDay } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
@@ -22,13 +22,26 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [now, setNow] = useState(new Date());
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   const dates = useMemo(() => {
-    return Array.from({ length: 14 }, (_, i) => addDays(startOfDay(new Date()), i - 2));
+    // Generate dates from 30 days ago to 60 days in the future
+    return Array.from({ length: 90 }, (_, i) => addDays(startOfDay(new Date()), i - 30));
+  }, []);
+
+  useEffect(() => {
+    // Scroll to today's date on initial load
+    if (scrollRef.current) {
+      const todayElement = scrollRef.current.querySelector('[data-today="true"]');
+      if (todayElement) {
+        todayElement.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+      }
+    }
   }, []);
 
   const daySchedule = useMemo(() => {
@@ -96,10 +109,11 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2">
+      <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2" ref={scrollRef}>
         {dates.map((date) => (
           <button
             key={date.toString()}
+            data-today={isSameDay(date, new Date())}
             onClick={() => setSelectedDate(date)}
             className={cn(
               "flex flex-col items-center min-w-[64px] p-3 rounded-2xl transition-all border",
