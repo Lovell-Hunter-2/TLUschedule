@@ -12,7 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.png', 'map_tlu.jpg', 'apple-touch-icon.png'],
+        includeAssets: ['icon.png', 'map_tlu.jpg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
           name: 'Lịch học TLU',
           short_name: 'TLU Schedule',
@@ -22,17 +22,17 @@ export default defineConfig(({mode}) => {
           display: 'standalone',
           icons: [
             {
-              src: 'icon.png',
+              src: 'pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png'
             },
             {
-              src: 'icon.png',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png'
             },
             {
-              src: 'icon.png',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable'
