@@ -71,6 +71,12 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+let globalDeferredPrompt: any = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  globalDeferredPrompt = e;
+});
+
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -287,9 +293,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (globalDeferredPrompt) {
+      setDeferredPrompt(globalDeferredPrompt);
+    }
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      globalDeferredPrompt = e;
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
