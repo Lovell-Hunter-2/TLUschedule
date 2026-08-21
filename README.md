@@ -1,20 +1,74 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+  <img src="./public/icon.png" alt="TLUschedule Logo" width="150" height="150" style="border-radius: 24px;" />
+  <h1>TLUschedule 📅</h1>
+  <p><strong>Đồng bộ, quản lý và theo dõi lịch học/thi Đại học Thăng Long (TLU) một cách thông minh, hiện đại.</strong></p>
+
+  <p>
+    <a href="https://ais-pre-ngy5rklt43nalmbkkghye5-804916433595.asia-southeast1.run.app"><img src="https://img.shields.io/badge/Live_Demo-TLUschedule-blue?style=for-the-badge&logo=vercel" alt="Live Demo" /></a>
+    <img src="https://img.shields.io/badge/React-19.0-blue?style=for-the-badge&logo=react" alt="React" />
+    <img src="https://img.shields.io/badge/Vite-6.0-purple?style=for-the-badge&logo=vite" alt="Vite" />
+    <img src="https://img.shields.io/badge/Tailwind-4.0-38B2AC?style=for-the-badge&logo=tailwind-css" alt="TailwindCSS" />
+    <img src="https://img.shields.io/badge/Firebase-12.0-FFCA28?style=for-the-badge&logo=firebase" alt="Firebase" />
+  </p>
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+## ✨ Tính năng nổi bật
 
-View your app in AI Studio: https://ai.studio/apps/cea2153d-8217-48bb-be5d-6759729fa4c2
+- 🔄 **Đồng bộ tự động**: Đăng nhập bằng mã sinh viên TLU để tự động tải lịch học, lịch thi mới nhất.
+- 📅 **Chế độ xem đa dạng**: Hỗ trợ xem lịch theo **Ngày** (Daily View) hoặc theo **Tuần** (Weekly View) trực quan.
+- 📝 **Ghi chú thông minh**: Thêm ghi chú dễ dàng vào từng ngày học.
+- 📱 **Hỗ trợ PWA**: Có thể cài đặt ứng dụng trực tiếp lên màn hình chính của điện thoại hoặc máy tính, mang lại trải nghiệm như một ứng dụng Native thực thụ.
+- 🌙 **Giao diện sáng / tối**: Trải nghiệm UI hiện đại, tùy biến với Dark/Light theme.
+- 🗓️ **Đồng bộ Google Calendar**: Đẩy lịch học trực tiếp lên Google Calendar chỉ với một chạm.
+- ⚡ **Hoạt động ngoại tuyến**: Tích hợp Workbox và caching, hỗ trợ lưu trữ dữ liệu với Firebase & Local Storage.
+- 🗺️ **Sơ đồ tòa nhà**: Hiển thị sơ đồ vị trí các tòa nhà trong trường TLU trực quan giúp tân sinh viên dễ dàng tìm lớp học.
 
-## Run Locally
+## 🚀 Hướng dẫn cài đặt (Chạy ở môi trường Local)
 
-**Prerequisites:**  Node.js
+### Yêu cầu hệ thống
+- Node.js (phiên bản 18 trở lên)
+- NPM hoặc Yarn
 
+### Các bước thực hiện
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. **Clone repository về máy:**
+   ```bash
+   git clone https://github.com/Lovell-Hunter-2/TLUschedule.git
+   cd TLUschedule
+   ```
+
+2. **Cài đặt các gói phụ thuộc:**
+   ```bash
+   npm install
+   ```
+
+3. **Khởi chạy môi trường phát triển (Dev server):**
+   ```bash
+   npm run dev
+   ```
+   *Ứng dụng sẽ chạy tại địa chỉ `http://localhost:3000`*
+
+4. **Xây dựng bản Production:**
+   ```bash
+   npm run build
+   ```
+
+## 🛠️ Công nghệ sử dụng
+
+- **Frontend Framework**: [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Backend / Database**: [Firebase Firestore & Auth](https://firebase.google.com/)
+- **Animations**: [Motion (Framer)](https://motion.dev/)
+- **Tiện ích**: `date-fns`, `clsx`, `tailwind-merge`
+
+## 🤝 Đóng góp (Contributing)
+Mọi đóng góp, báo lỗi (issues) hay yêu cầu tính năng (pull requests) đều được chào đón! Vui lòng tạo issue trước khi submit PR lớn để tiện trao đổi.
+
+---
+
+<div align="center">
+  <i>Được xây dựng dành riêng cho sinh viên Thăng Long. Chúc các bạn học tập thật tốt! 🚀</i>
+</div>
