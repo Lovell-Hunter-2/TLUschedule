@@ -58,11 +58,13 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
     setSelectedDate(date);
     
     // Smooth scroll the clicked element to center
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const element = document.getElementById(`date-btn-${dateStr}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-    }
+    setTimeout(() => {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const element = document.getElementById(`date-btn-${dateStr}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }, 50);
   };
 
   useEffect(() => {
@@ -77,12 +79,15 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
 
   useEffect(() => {
     // Scroll to today's date on initial load
-    if (scrollRef.current) {
-      const todayElement = scrollRef.current.querySelector('[data-today="true"]');
-      if (todayElement) {
-        todayElement.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+    const timer = setTimeout(() => {
+      if (scrollRef.current) {
+        const todayElement = scrollRef.current.querySelector('[data-today="true"]');
+        if (todayElement) {
+          todayElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
       }
-    }
+    }, 200);
+    return () => clearTimeout(timer);
   }, []);
 
   const daySchedule = useMemo(() => {
@@ -152,7 +157,7 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
     <div className="flex flex-col gap-6">
       <div 
         className={cn(
-          "flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2 select-none",
+          "flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2 select-none scroll-smooth",
           isDragging ? "cursor-grabbing" : "cursor-grab"
         )}
         ref={scrollRef}
