@@ -71,12 +71,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-let globalDeferredPrompt: any = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  globalDeferredPrompt = e;
-});
-
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -293,13 +287,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (globalDeferredPrompt) {
-      setDeferredPrompt(globalDeferredPrompt);
+    if ((window as any).globalDeferredPrompt) {
+      setDeferredPrompt((window as any).globalDeferredPrompt);
     }
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      globalDeferredPrompt = e;
+      (window as any).globalDeferredPrompt = e;
     };
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
@@ -395,6 +389,14 @@ export default function App() {
   };
 
   const handleInstallClick = async () => {
+    // Check if already in standalone mode
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone || document.referrer.includes('android-app://');
+    
+    if (isStandalone) {
+      alert('Ứng dụng đã được cài đặt và đang chạy ở chế độ App!');
+      return;
+    }
+
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
@@ -402,7 +404,7 @@ export default function App() {
         setDeferredPrompt(null);
       }
     } else {
-      alert('Android: Chọn "3 chấm" ==> "Cài đặt ứng dụng" \niOS: Chọn "Chia sẻ" ==> "Thêm vào màn hình chính"');
+      alert('Để cài đặt ứng dụng:\n\n- PC (Chrome/Edge): Nhấn biểu tượng cài đặt (màn hình có mũi tên xuống) ở góc phải thanh địa chỉ (URL).\n- Android: Chọn "3 chấm" ==> "Cài đặt ứng dụng"\n- iOS (Safari): Chọn "Chia sẻ" ==> "Thêm vào màn hình chính"');
     }
   };
 
