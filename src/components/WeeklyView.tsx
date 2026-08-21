@@ -4,6 +4,7 @@ import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
 import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2 } from 'lucide-react';
 import { Button } from './Button';
+import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface WeeklyViewProps {
@@ -175,6 +176,3 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
   );
 }
 
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
-}
