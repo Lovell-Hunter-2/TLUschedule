@@ -12,7 +12,7 @@ interface LayoutProps {
 export function Layout({ children, title, subtitle, headerAction, backgroundImage }: LayoutProps) {
   return (
     <div 
-      className="min-h-screen bg-[#FDFCFE] text-gray-900 font-sans selection:bg-purple-100 selection:text-purple-900 relative"
+      className="min-h-screen bg-[#FDFCFE] dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans selection:bg-purple-100 selection:text-purple-900 dark:selection:bg-purple-900 dark:selection:text-purple-100 relative transition-colors duration-300"
       style={backgroundImage ? {
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
@@ -20,17 +20,18 @@ export function Layout({ children, title, subtitle, headerAction, backgroundImag
         backgroundAttachment: 'fixed'
       } : {}}
     >
-      {/* Lớp phủ mờ để chữ vẫn dễ đọc khi có hình nền */}
-      {backgroundImage && <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-0"></div>}
+      {backgroundImage && <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/70 backdrop-blur-sm z-0 transition-colors duration-300"></div>}
       
       <div className="relative z-10">
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4 shadow-sm">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div>
-              {title && <h1 className="text-2xl font-bold tracking-tight text-gray-900">{title}</h1>}
-              {subtitle && <p className="text-sm text-gray-500 font-medium">{subtitle}</p>}
+        <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800 px-6 py-4 shadow-sm transition-colors duration-300">
+          <div className="max-w-7xl mx-auto flex flex-row items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              {title && <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 truncate">{title}</h1>}
+              {subtitle && <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-medium truncate">{subtitle}</p>}
             </div>
-            {headerAction}
+            <div className="shrink-0 flex items-center">
+              {headerAction}
+            </div>
           </div>
         </header>
         <main className="max-w-7xl mx-auto px-6 py-8 pb-32">
