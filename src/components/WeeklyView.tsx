@@ -175,4 +175,3 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
     </div>
   );
 }
-
