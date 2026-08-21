@@ -7,19 +7,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 const BUILDING_PINS: Record<string, { top: string, left: string }> = {
-  'A4': { top: '38.5%', left: '12%' },
-  'A1': { top: '55%', left: '22.5%' },
-  'T45': { top: '43%', left: '32.5%' },
-  'THƯ VIỆN': { top: '43%', left: '48%' },
-  'K1': { top: '57%', left: '61%' },
-  'C1': { top: '54.5%', left: '50.5%' },
-  'A5': { top: '79%', left: '42%' },
-  'B1': { top: '83%', left: '22.5%' },
-  'B5': { top: '83%', left: '33%' },
-  'A2': { top: '77.5%', left: '13%' },
-  'T35': { top: '72.5%', left: '17.5%' },
-  'A3': { top: '83%', left: '9%' },
-  'C5': { top: '77.5%', left: '75.3%'},
+  'A4': { top: '45%', left: '35%' },
+  'A1': { top: '55%', left: '39.5%' },
+  'T45': { top: '46.5%', left: '44.5%' },
+  'THƯ VIỆN': { top: '46.5%', left: '51%' },
+  'K1': { top: '58%', left: '58%' },
+  'C1': { top: '60%', left: '51%' },
+  'A5': { top: '79%', left: '46%' },
+  'B1': { top: '80%', left: '39.5%' },
+  'B5': { top: '80%', left: '43%' },
+  'A2': { top: '70%', left: '39.5%' },
+  'T35': { top: '70%', left: '35.5%' },
+  'A3': { top: '80%', left: '34%' },
   'KTX4': { top: '73.5%', left: '52%' },
   'KTX3': { top: '79.5%', left: '52%' },
   'KTX2': { top: '85.5%', left: '52%' },
@@ -28,7 +27,7 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
 const getBuildingFromRoom = (room?: string) => {
   if (!room) return null;
   const upperRoom = room.toUpperCase();
-  const buildings = ['A4', 'A1', 'T45', 'THƯ VIỆN', 'K1', 'C1', 'A5', 'B1', 'B5', 'A2', 'T35', 'A3', 'C5'];
+  const buildings = ['A4', 'A1', 'T45', 'THƯ VIỆN', 'K1', 'C1', 'A5', 'B1', 'B5', 'A2', 'T35', 'A3'];
   for (const b of buildings) {
     if (upperRoom.includes(b)) return b;
   }
@@ -72,8 +71,8 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
       >
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-start">
-            <h4 className="font-bold text-lg text-gray-800 leading-tight">{subject.name}</h4>
-            <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-gray-100 rounded-full text-gray-500">
+            <h4 className="font-bold text-lg text-gray-800 dark:text-gray-100 leading-tight">{subject.name}</h4>
+            <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-300">
               <Clock className="w-3 h-3" />
               {startPeriod?.startTime} - {endPeriod?.endTime}
             </div>
@@ -81,24 +80,24 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
           
           <div className="grid grid-cols-2 gap-2 mt-1">
             {subject.room && (
-              <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                <MapPin className="w-4 h-4 text-red-300" />
+              <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                <MapPin className="w-4 h-4 text-red-300 dark:text-red-400" />
                 <span className="truncate">{subject.room}</span>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowMap(true);
                   }}
-                  className="ml-auto p-1 bg-blue-50 text-blue-500 rounded-md hover:bg-blue-100 transition-colors shrink-0"
+                  className="ml-auto p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0"
                   title="Xem bản đồ"
                 >
-                  <MapIcon className="w-3.5 h-3.5" />
+                  <MapIcon className="w-4 h-4" />
                 </button>
               </div>
             )}
             {subject.lecturer && (
-              <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                <User className="w-4 h-4 text-blue-300" />
+              <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+                <User className="w-4 h-4 text-blue-300 dark:text-blue-400" />
                 <span className="truncate">{subject.lecturer}</span>
               </div>
             )}
@@ -106,7 +105,7 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
 
           <div className="flex gap-1 mt-1">
             {subject.periods.map(p => (
-              <span key={p} className="text-[10px] px-1.5 py-0.5 bg-gray-50 border border-gray-100 rounded text-gray-400 font-mono">
+              <span key={p} className="text-[10px] px-1.5 py-0.5 bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 rounded text-gray-400 dark:text-gray-300 font-mono">
                 T{p}
               </span>
             ))}
@@ -122,22 +121,22 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-2xl bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-2xl bg-white dark:bg-gray-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
             >
-              <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
-                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+              <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 shrink-0">
+                <h3 className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-red-500" />
                   Sơ đồ trường - Phòng {subject.room} {targetBuilding ? `(Tòa ${targetBuilding})` : ''}
                 </h3>
                 <button 
                   onClick={() => setShowMap(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
-              <div className="relative flex-1 bg-gray-100 overflow-hidden flex items-center justify-center min-h-[50vh]">
+              <div className="relative flex-1 bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center min-h-[50vh]">
                 <TransformWrapper
                   ref={transformRef}
                   initialScale={1}
@@ -148,14 +147,14 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
                 >
                   {({ zoomIn, zoomOut, resetTransform }) => (
                     <>
-                      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-xl shadow-sm border border-gray-200">
-                        <button onClick={() => zoomIn()} className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Phóng to">
+                      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm p-1.5 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+                        <button onClick={() => zoomIn()} className="p-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors" title="Phóng to">
                           <ZoomIn className="w-5 h-5" />
                         </button>
-                        <button onClick={() => zoomOut()} className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Thu nhỏ">
+                        <button onClick={() => zoomOut()} className="p-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors" title="Thu nhỏ">
                           <ZoomOut className="w-5 h-5" />
                         </button>
-                        <button onClick={() => resetTransform()} className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Khôi phục">
+                        <button onClick={() => resetTransform()} className="p-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors" title="Khôi phục">
                           <Maximize className="w-5 h-5" />
                         </button>
                       </div>
@@ -191,7 +190,7 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
                 </TransformWrapper>
               </div>
 
-              <div className="p-3 text-center text-xs text-gray-500 bg-gray-50 border-t border-gray-100 shrink-0">
+              <div className="p-3 text-center text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 shrink-0">
                 Dùng 2 ngón tay, lăn chuột hoặc nút bấm để phóng to/thu nhỏ
               </div>
             </motion.div>
