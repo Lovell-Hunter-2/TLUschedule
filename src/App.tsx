@@ -14,7 +14,7 @@ import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown } from 'lucide-react';
+import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -113,16 +113,35 @@ export default function App() {
       }
     });
     const arr = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-    arr.sort((a, b) => b.id - a.id); // Mới nhất lên đầu
+    arr.sort((a, b) => {
+      // Parse semester name format like "1_2026_2027" -> year: 2026, sem: 1 -> 20261
+      const parseSem = (name: string) => {
+        const match = name.match(/^(\d)_(\d{4})/);
+        if (match) {
+          return parseInt(match[2]) * 10 + parseInt(match[1]);
+        }
+        return b.id - a.id;
+      };
+      const valA = parseSem(a.name);
+      const valB = parseSem(b.name);
+      if (valA !== valB) return valB - valA;
+      return b.id - a.id;
+    }); // Mới nhất lên đầu
     return arr;
   }, [subjects]);
 
-  // Tự động gán kỳ mới nhất nếu chưa chọn
+  // Tự động gán kỳ mới nhất nếu chưa chọn hoặc cập nhật khi có kỳ mới hơn
   useEffect(() => {
-    if (semestersList.length > 0 && selectedSemesterId === 'all') {
-      setSelectedSemesterId(semestersList[0].id);
+    if (semestersList.length > 0) {
+      if (selectedSemesterId === 'all') {
+        setSelectedSemesterId(semestersList[0].id);
+      } else {
+        // Option: If you want to force latest semester when subject syncs a new latest
+        // const isCurrentExist = semestersList.some(s => s.id === selectedSemesterId);
+        // We probably only need to auto-set if it's 'all'
+      }
     }
-  }, [semestersList]);
+  }, [semestersList, selectedSemesterId]);
 
   const filteredSubjects = useMemo(() => {
     if (selectedSemesterId === 'all') return subjects;
@@ -535,14 +554,16 @@ export default function App() {
             size="sm" 
             onClick={() => runSync(true)} 
             disabled={isSyncing}
-            className="text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 font-medium hidden sm:flex" 
+            className="text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 font-medium flex items-center justify-center p-2 sm:px-3 sm:py-2" 
             title="Đồng bộ lại"
           >
-            {isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại"}
+            <RefreshCw className={cn("w-5 h-5 sm:hidden", isSyncing && "animate-spin")} />
+            <span className="hidden sm:inline">{isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại"}</span>
           </Button>
           <button
             onClick={handleInstallClick}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 dark:shadow-none"
+            className="flex items-center justify-center gap-2 p-2 sm:px-4 sm:py-2 bg-indigo-600 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all active:scale-95 dark:shadow-none"
+            title="Cài đặt app"
           >
             <Download size={18} />
             <span className="hidden sm:inline">Cài đặt app</span>
@@ -569,19 +590,8 @@ export default function App() {
         />
         
         <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => runSync(true)} 
-            disabled={isSyncing}
-            className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 sm:hidden w-full flex-1" 
-            title="Đồng bộ lại"
-          >
-            {isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại TLU"}
-          </Button>
-
           {semestersList.length > 0 && activeTab !== 'update' && (
-            <div className="relative flex-1 sm:flex-none">
+            <div className="relative w-full sm:w-auto">
               <select
                 value={selectedSemesterId}
                 onChange={(e) => setSelectedSemesterId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
