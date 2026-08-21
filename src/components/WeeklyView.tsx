@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2 } from 'lucide-rea
 import { Button } from './Button';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 interface WeeklyViewProps {
   subjects: Subject[];
@@ -86,7 +87,17 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-        <div className="min-w-[800px]">
+        <TransformWrapper
+          initialScale={1}
+          minScale={0.5}
+          maxScale={3}
+          centerOnInit={false}
+          wheel={{ step: 0.1 }}
+          doubleClick={{ disabled: true }}
+          panning={{ velocityDisabled: true }}
+        >
+          <TransformComponent wrapperClass="w-full" contentClass="w-full min-w-[800px]">
+            <div className="w-full">
           <div className="grid grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
             <div className="p-3 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">Tiết</div>
             {weekDays.map(day => {
@@ -170,7 +181,9 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
               </div>
             ))}
           </div>
-        </div>
+            </div>
+          </TransformComponent>
+        </TransformWrapper>
       </div>
     </div>
   );
