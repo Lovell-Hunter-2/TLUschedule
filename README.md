@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./public/icon.png" alt="TLUschedule Logo" width="150" height="150" style="border-radius: 24px;" />
   <h1>TLUschedule 📅</h1>
-  <p><strong>Đồng bộ, quản lý và theo dõi lịch học/thi Đại học Thăng Long (TLU) một cách thông minh, hiện đại.</strong></p>
+  <p><strong>Đồng bộ, quản lý và theo dõi lịch học/thi Trường Đại học Thủy lợi (TLU) một cách thông minh, hiện đại.</strong></p>
 
   <p>
     <a href="https://ais-pre-ngy5rklt43nalmbkkghye5-804916433595.asia-southeast1.run.app"><img src="https://img.shields.io/badge/Live_Demo-TLUschedule-blue?style=for-the-badge&logo=vercel" alt="Live Demo" /></a>
