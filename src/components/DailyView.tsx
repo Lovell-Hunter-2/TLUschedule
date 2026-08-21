@@ -7,6 +7,7 @@ import { Card } from './Card';
 import { StickyNote, Plus, Edit2, Trash2, Timer, PlayCircle } from 'lucide-react';
 import { Button } from './Button';
 import { motion } from 'motion/react';
+import { cn } from '../lib/utils';
 
 interface DailyViewProps {
   subjects: Subject[];
@@ -299,6 +300,3 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
   );
 }
 
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
-}
