@@ -56,6 +56,13 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
   const handleDateClick = (date: Date) => {
     if (dragDistanceRef.current > 5) return;
     setSelectedDate(date);
+    
+    // Smooth scroll the clicked element to center
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const element = document.getElementById(`date-btn-${dateStr}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
   };
 
   useEffect(() => {
@@ -157,6 +164,7 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
         {dates.map((date) => (
           <button
             key={date.toString()}
+            id={`date-btn-${format(date, 'yyyy-MM-dd')}`}
             data-today={isSameDay(date, new Date())}
             onClick={() => handleDateClick(date)}
             className={cn(
