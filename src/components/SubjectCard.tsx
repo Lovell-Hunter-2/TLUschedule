@@ -88,10 +88,10 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
                     e.stopPropagation();
                     setShowMap(true);
                   }}
-                  className="ml-auto p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0"
+                  className="ml-auto p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0"
                   title="Xem bản đồ"
                 >
-                  <MapIcon className="w-4 h-4" />
+                  <MapIcon className="w-5 h-5" />
                 </button>
               </div>
             )}
