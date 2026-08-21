@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
+import { cn } from '../lib/utils';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
 import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
@@ -563,6 +564,3 @@ function ManualAddForm({ onAdd, initialData, onCancel }: { onAdd: (s: Subject) =
   );
 }
 
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
-}
