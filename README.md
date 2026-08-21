@@ -70,5 +70,5 @@ Mọi đóng góp, báo lỗi (issues) hay yêu cầu tính năng (pull requests
 ---
 
 <div align="center">
-  <i>Được xây dựng dành riêng cho sinh viên Thăng Long. Chúc các bạn học tập thật tốt! 🚀</i>
+  <i>Được xây dựng dành riêng cho sinh viên Trường Đại học Thủy lợi. Chúc các bạn học tập thật tốt! 🚀</i>
 </div>
