@@ -23,7 +23,7 @@
 - 🌙 **Giao diện sáng / tối**: Trải nghiệm UI hiện đại, tùy biến với Dark/Light theme.
 - 🗓️ **Đồng bộ Google Calendar**: Đẩy lịch học trực tiếp lên Google Calendar chỉ với một chạm.
 - ⚡ **Hoạt động ngoại tuyến**: Tích hợp Workbox và caching, hỗ trợ lưu trữ dữ liệu với Firebase & Local Storage.
-- 🗺️ **Sơ đồ tòa nhà**: Hiển thị sơ đồ vị trí các tòa nhà trong trường TLU trực quan giúp tân sinh viên dễ dàng tìm lớp học.
+- 🗺️ **Map phòng học**: Hiển thị sơ đồ vị trí các phòng học, tòa nhà trong trường trực quan giúp tân sinh viên dễ dàng tìm lớp học.
 
 ## 🚀 Hướng dẫn cài đặt (Chạy ở môi trường Local)
 
