@@ -14,9 +14,11 @@ import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw } from 'lucide-react';
+import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
 import { cn } from './lib/utils';
 import { format } from 'date-fns';
+import { Toaster } from 'react-hot-toast';
+import { useClassNotifications } from './hooks/useClassNotifications';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch } from 'firebase/firestore';
@@ -86,6 +88,7 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [selectedSemesterId, setSelectedSemesterId] = useState<number | 'all'>('all');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const { permission, requestPermission } = useClassNotifications(subjects);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -530,6 +533,8 @@ export default function App() {
   }
 
   return (
+    <>
+    <Toaster position="top-center" />
     <Layout 
       title={workspace.name} 
       subtitle="Sinh viên Đại học Thủy Lợi"
@@ -560,6 +565,15 @@ export default function App() {
           >
             <RefreshCw className={cn("w-5 h-5 sm:hidden", isSyncing && "animate-spin")} />
             <span className="hidden sm:inline">{isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại"}</span>
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={requestPermission} 
+            className="text-gray-500 hover:text-yellow-600 dark:text-gray-400 dark:hover:text-yellow-400 font-medium p-2" 
+            title={permission === 'granted' ? "Thông báo đang bật" : "Bật thông báo"}
+          >
+            {permission === 'granted' ? <BellRing className="w-5 h-5 text-yellow-500" /> : <Bell className="w-5 h-5" />}
           </Button>
           <button
             onClick={handleInstallClick}
@@ -715,5 +729,6 @@ export default function App() {
         </button>
       )}
     </Layout>
+    </>
   );
 }
