@@ -17,8 +17,8 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'A5': { top: '80%', left: '42.5%' },
   'B1': { top: '82%', left: '22.5%' },
   'B5': { top: '82%', left: '33%' },
-  'A2': { top: '77%', left: '9.2%' },
-  'T35': { top: '77%', left: '16.5%' },
+  'A2': { top: '72%', left: '9.2%' },
+  'T35': { top: '72%', left: '15.5%' },
   'A3': { top: '82%', left: '9.2%' },
   'KTX4': { top: '73.5%', left: '52%' },
   'KTX3': { top: '79.5%', left: '52%' },
@@ -28,7 +28,8 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'SÂN BÓNG RỔ': { top: '60%', left: '90%' },
   'SÂN PICKLEBALL': { top: '80%', left: '85%' },
   'SÂN TENNIS': { top: '95%', left: '83%' },
-  'BỂ BƠI': { top: '95%', left: '88%' }
+  'BỂ BƠI': { top: '95%', left: '88%' },
+  'NHÀ GDTC': { top: '90%', left: '95%' }
 };
 
 const getBuildingFromRoom = (room?: string) => {
@@ -42,6 +43,7 @@ const getBuildingFromRoom = (room?: string) => {
   if (upperRoom.includes('PICKLEBALL')) return 'SÂN PICKLEBALL';
   if (upperRoom.includes('TENNIS')) return 'SÂN TENNIS';
   if (upperRoom.includes('BỂ BƠI') || upperRoom.includes('BE BOI')) return 'BỂ BƠI';
+  if (upperRoom.includes('GDTC') || upperRoom.includes('GIÁO DỤC THỂ CHẤT') || upperRoom.includes('GIAO DUC THE CHAT')) return 'NHÀ GDTC';
 
   if (upperRoom.includes('KTX NHÀ 4') || upperRoom.includes('KTX NHA 4')) return 'KTX4';
   if (upperRoom.includes('KTX NHÀ 3') || upperRoom.includes('KTX NHA 3')) return 'KTX3';
