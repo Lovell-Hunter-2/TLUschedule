@@ -13,6 +13,7 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'THƯ VIỆN': { top: '37%', left: '48%' },
   'K1': { top: '60%', left: '62%' },
   'C1': { top: '60%', left: '51%' },
+  'C5': { top: '80%', left: '76.5%' },
   'A5': { top: '80%', left: '42.5%' },
   'B1': { top: '82%', left: '22.5%' },
   'B5': { top: '82%', left: '33%' },
@@ -22,18 +23,45 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'KTX4': { top: '73.5%', left: '52%' },
   'KTX3': { top: '79.5%', left: '52%' },
   'KTX2': { top: '85.5%', left: '52%' },
+  'SÂN BÓNG ĐÁ': { top: '60%', left: '79%' },
+  'SÂN BÓNG CHUYỀN': { top: '60%', left: '75%' },
+  'SÂN BÓNG RỔ': { top: '60%', left: '90%' },
+  'SÂN PICKLEBALL': { top: '80%', left: '85%' },
+  'SÂN TENNIS': { top: '95%', left: '77.5%' },
+  'BỂ BƠI': { top: '95%', left: '88%' }
 };
 
 const getBuildingFromRoom = (room?: string) => {
   if (!room) return null;
   const upperRoom = room.toUpperCase();
-  const buildings = ['A4', 'A1', 'T45', 'THƯ VIỆN', 'K1', 'C1', 'A5', 'B1', 'B5', 'A2', 'T35', 'A3'];
-  for (const b of buildings) {
-    if (upperRoom.includes(b)) return b;
-  }
+
+  // Khớp các địa điểm thể thao, KTX (kiểm tra trước để ưu tiên)
+  if (upperRoom.includes('SÂN BÓNG ĐÁ') || upperRoom.includes('SAN BONG DA') || upperRoom === 'SÂN BÓNG') return 'SÂN BÓNG ĐÁ';
+  if (upperRoom.includes('BÓNG CHUYỀN') || upperRoom.includes('BONG CHUYEN')) return 'SÂN BÓNG CHUYỀN';
+  if (upperRoom.includes('BÓNG RỔ') || upperRoom.includes('BONG RO')) return 'SÂN BÓNG RỔ';
+  if (upperRoom.includes('PICKLEBALL')) return 'SÂN PICKLEBALL';
+  if (upperRoom.includes('TENNIS')) return 'SÂN TENNIS';
+  if (upperRoom.includes('BỂ BƠI') || upperRoom.includes('BE BOI')) return 'BỂ BƠI';
+
   if (upperRoom.includes('KTX NHÀ 4') || upperRoom.includes('KTX NHA 4')) return 'KTX4';
   if (upperRoom.includes('KTX NHÀ 3') || upperRoom.includes('KTX NHA 3')) return 'KTX3';
   if (upperRoom.includes('KTX NHÀ 2') || upperRoom.includes('KTX NHA 2')) return 'KTX2';
+
+  // Khớp các tòa nhà chính
+  const buildings = ['A4', 'A1', 'T45', 'THƯ VIỆN', 'K1', 'C1', 'C5', 'A5', 'B1', 'B5', 'A2', 'T35', 'A3'];
+  
+  // Pass 1: Tìm bằng RegEx để bóc tách chính xác (VD: "305-A4", "P. A4") 
+  // Tránh việc "B15" bị nhận nhầm thành "B1"
+  for (const b of buildings) {
+    const regex = new RegExp(`(?:^|[^A-Z0-9])${b}(?:[^A-Z0-9]|$)`);
+    if (regex.test(upperRoom)) return b;
+  }
+  
+  // Pass 2: Fallback cho các trường hợp viết dính liền ("305A4")
+  for (const b of buildings) {
+    if (upperRoom.includes(b)) return b;
+  }
+
   return null;
 };
 
