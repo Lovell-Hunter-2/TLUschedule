@@ -27,7 +27,7 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'SÂN BÓNG CHUYỀN': { top: '60%', left: '75%' },
   'SÂN BÓNG RỔ': { top: '60%', left: '90%' },
   'SÂN PICKLEBALL': { top: '80%', left: '85%' },
-  'SÂN TENNIS': { top: '95%', left: '79%' },
+  'SÂN TENNIS': { top: '95%', left: '83%' },
   'BỂ BƠI': { top: '95%', left: '88%' }
 };
 
