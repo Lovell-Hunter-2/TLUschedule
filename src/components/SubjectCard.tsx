@@ -17,8 +17,8 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'A5': { top: '80%', left: '42.5%' },
   'B1': { top: '82%', left: '22.5%' },
   'B5': { top: '82%', left: '33%' },
-  'A2': { top: '80.9%', left: '9.2%' },
-  'T35': { top: '80%', left: '16.5%' },
+  'A2': { top: '77%', left: '9.2%' },
+  'T35': { top: '77%', left: '16.5%' },
   'A3': { top: '82%', left: '9.2%' },
   'KTX4': { top: '73.5%', left: '52%' },
   'KTX3': { top: '79.5%', left: '52%' },
@@ -27,7 +27,7 @@ const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'SÂN BÓNG CHUYỀN': { top: '60%', left: '75%' },
   'SÂN BÓNG RỔ': { top: '60%', left: '90%' },
   'SÂN PICKLEBALL': { top: '80%', left: '85%' },
-  'SÂN TENNIS': { top: '95%', left: '77.5%' },
+  'SÂN TENNIS': { top: '95%', left: '79%' },
   'BỂ BƠI': { top: '95%', left: '88%' }
 };
 
