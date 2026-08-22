@@ -7,18 +7,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 const BUILDING_PINS: Record<string, { top: string, left: string }> = {
-  'A4': { top: '45%', left: '35%' },
-  'A1': { top: '55%', left: '39.5%' },
-  'T45': { top: '46.5%', left: '44.5%' },
+  'A4': { top: '39%', left: '12.3%' },
+  'A1': { top: '55%', left: '22%' },
+  'T45': { top: '42%', left: '44.5%' },
   'THƯ VIỆN': { top: '46.5%', left: '51%' },
   'K1': { top: '58%', left: '58%' },
   'C1': { top: '60%', left: '51%' },
   'A5': { top: '80%', left: '42.5%' },
-  'B1': { top: '80%', left: '39.5%' },
+  'B1': { top: '85%', left: '39.5%' },
   'B5': { top: '82%', left: '33%' },
   'A2': { top: '70%', left: '39.5%' },
   'T35': { top: '70%', left: '35.5%' },
-  'A3': { top: '80%', left: '34%' },
+  'A3': { top: '85%', left: '9.2%' },
   'KTX4': { top: '73.5%', left: '52%' },
   'KTX3': { top: '79.5%', left: '52%' },
   'KTX2': { top: '85.5%', left: '52%' },
