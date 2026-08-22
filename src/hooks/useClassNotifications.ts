@@ -76,10 +76,18 @@ export function useClassNotifications(subjects: Subject[]) {
 
               // 2. Show System Notification (if granted)
               if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                new Notification(title, {
-                  body: body,
-                  icon: '/icon.png',
-                });
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.ready.then(registration => {
+                    registration.showNotification(title, {
+                      body: body,
+                      icon: '/icon.png',
+                    });
+                  }).catch(() => {
+                    try { new Notification(title, { body: body, icon: '/icon.png' }); } catch (e) {}
+                  });
+                } else {
+                  try { new Notification(title, { body: body, icon: '/icon.png' }); } catch (e) {}
+                }
               }
             }
           }
