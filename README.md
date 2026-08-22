@@ -17,13 +17,14 @@
 ## ✨ Tính năng nổi bật
 
 - 🔄 **Đồng bộ tự động**: Đăng nhập bằng mã sinh viên TLU để tự động tải lịch học, lịch thi mới nhất.
+- 🔔 **Thông báo lịch học**: Hệ thống tự động gửi thông báo (Push Notification & In-app Toast) nhắc nhở trước 15 phút khi đến giờ học.
 - 📅 **Chế độ xem đa dạng**: Hỗ trợ xem lịch theo **Ngày** (Daily View) hoặc theo **Tuần** (Weekly View) trực quan.
 - 📝 **Ghi chú thông minh**: Thêm ghi chú dễ dàng vào từng ngày học.
 - 📱 **Hỗ trợ PWA**: Có thể cài đặt ứng dụng trực tiếp lên màn hình chính của điện thoại hoặc máy tính, mang lại trải nghiệm như một ứng dụng Native thực thụ.
 - 🌙 **Giao diện sáng / tối**: Trải nghiệm UI hiện đại, tùy biến với Dark/Light theme.
 - 🗓️ **Đồng bộ Google Calendar**: Đẩy lịch học trực tiếp lên Google Calendar chỉ với một chạm.
 - ⚡ **Hoạt động ngoại tuyến**: Tích hợp Workbox và caching, hỗ trợ lưu trữ dữ liệu với Firebase & Local Storage.
-- 🗺️ **Map phòng học**: Hiển thị sơ đồ vị trí các phòng học, tòa nhà trong trường trực quan giúp tân sinh viên dễ dàng tìm lớp học.
+- 🗺️ **Sơ đồ tòa nhà**: Hiển thị sơ đồ vị trí các tòa nhà trong trường TLU trực quan giúp tân sinh viên dễ dàng tìm lớp học.
 
 ## 🚀 Hướng dẫn cài đặt (Chạy ở môi trường Local)
 
