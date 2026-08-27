@@ -4,7 +4,7 @@ import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
 import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2 } from 'lucide-react';
 import { Button } from './Button';
-import { cn } from '../lib/utils';
+import { cn, getSubjectColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface WeeklyViewProps {
@@ -158,7 +158,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                           key={s.id + i}
                           className={cn(
                             "absolute inset-0.5 rounded-md p-1 text-[9px] font-bold leading-tight overflow-hidden shadow-sm border",
-                            s.color || "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                            getSubjectColor(s.name)
                           )}
                         >
                           {s.name}
@@ -175,3 +175,4 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
     </div>
   );
 }
+
