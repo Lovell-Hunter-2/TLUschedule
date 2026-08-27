@@ -26,15 +26,28 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-          <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
-            <h2 className="text-2xl font-bold text-red-600 mb-4">Đã có lỗi xảy ra</h2>
-            <p className="text-gray-600 mb-4">Vui lòng tải lại trang hoặc liên hệ hỗ trợ.</p>
-            <pre className="bg-gray-100 p-4 rounded-lg text-xs text-gray-800 overflow-auto max-h-40 whitespace-pre-wrap">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-6">
+          <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl max-w-md w-full">
+            <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Đã có lỗi xảy ra</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">Vui lòng tải lại trang hoặc liên hệ hỗ trợ.</p>
+            <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg text-xs text-gray-800 dark:text-gray-200 overflow-auto max-h-40 whitespace-pre-wrap">
               {this.state.errorMessage}
             </pre>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                      registration.unregister();
+                    }
+                  });
+                }
+                caches.keys().then((keyList) => {
+                  return Promise.all(keyList.map((key) => caches.delete(key)));
+                }).finally(() => {
+                  window.location.reload();
+                });
+              }}
               className="mt-6 w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
             >
               Tải lại trang
