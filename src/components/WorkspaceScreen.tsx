@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
-import { Users, Key, CheckCircle2, ChevronRight, RefreshCw } from 'lucide-react';
+import { Users, Key, CheckCircle2, ChevronRight, RefreshCw, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, setDoc, doc, onSnapshot, writeBatch } from 'firebase/firestore';
+import { collection, setDoc, doc, onSnapshot, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Workspace } from '../types';
 
@@ -12,6 +12,60 @@ interface WorkspaceScreenProps {
   userId: string;
   onWorkspaceSelect: (workspace: Workspace) => void;
 }
+
+
+const SwipeableWorkspace = ({ workspace, onSelect, onDelete, isSyncing }: any) => {
+  const controls = useAnimation();
+  
+  const handleDragEnd = (event: any, info: PanInfo) => {
+    const offset = info.offset.x;
+    const velocity = info.velocity.x;
+    if (offset < -50 || velocity < -500) {
+      controls.start({ x: -70 });
+    } else {
+      controls.start({ x: 0 });
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-xl bg-red-500">
+      <div className="absolute inset-y-0 right-0 w-[70px] flex items-center justify-center">
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(workspace); }}
+          className="w-full h-full flex flex-col items-center justify-center text-white hover:bg-red-600 transition-colors"
+        >
+          <Trash2 className="w-5 h-5 mb-1" />
+          <span className="text-[10px] font-bold">Xóa</span>
+        </button>
+      </div>
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: -70, right: 0 }}
+        dragElastic={0.1}
+        onDragEnd={handleDragEnd}
+        animate={controls}
+        className="relative z-10 w-full"
+      >
+        <Card 
+          className="overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm transition-all hover:border-blue-300 hover:shadow-md cursor-pointer"
+          onClick={() => onSelect(workspace)}
+        >
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              <h3 className="font-bold text-gray-900 dark:text-white">{workspace.name}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tiếp tục đồng bộ và xem lịch</p>
+            </div>
+            {isSyncing ? (
+              <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+            ) : (
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            )}
+          </div>
+        </Card>
+      </motion.div>
+    </div>
+  );
+};
 
 export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenProps) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -50,6 +104,21 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
 
     return () => unsubscribe();
   }, [userId, onWorkspaceSelect]);
+
+  
+  const handleDeleteWorkspace = async (workspace: Workspace) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản ${workspace.name} không?`)) {
+      try {
+        await deleteDoc(doc(db, 'users', userId, 'workspaces', workspace.id));
+        if (localStorage.getItem('savedWorkspaceId') === workspace.id) {
+          localStorage.removeItem('savedWorkspaceId');
+        }
+      } catch (err) {
+        console.error("Lỗi khi xóa:", err);
+        alert('Có lỗi xảy ra khi xóa!');
+      }
+    }
+  };
 
   const handleSelectWorkspace = async (workspace: Workspace) => {
     setSyncingWorkspaceId(workspace.id);
@@ -254,23 +323,13 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         {workspaces.length > 0 && (
           <div className="mb-6 flex flex-col gap-3">
             {workspaces.map(w => (
-              <Card 
-                key={w.id} 
-                className="overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm transition-all hover:border-blue-300 hover:shadow-md cursor-pointer"
-                onClick={() => handleSelectWorkspace(w)}
-              >
-                <div className="p-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-gray-900 dark:text-white">{w.name}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tiếp tục đồng bộ và xem lịch</p>
-                  </div>
-                  {syncingWorkspaceId === w.id ? (
-                    <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
-                  )}
-                </div>
-              </Card>
+              <SwipeableWorkspace
+                key={w.id}
+                workspace={w}
+                onSelect={handleSelectWorkspace}
+                onDelete={handleDeleteWorkspace}
+                isSyncing={syncingWorkspaceId === w.id}
+              />
             ))}
             <div className="flex items-center gap-4 my-2">
               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700"></div>
