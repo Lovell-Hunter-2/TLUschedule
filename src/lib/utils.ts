@@ -23,11 +23,12 @@ const PASTEL_COLORS = [
 export const getSubjectColor = (subjectName: string) => {
   if (!subjectName) return PASTEL_COLORS[0];
   if (subjectName.includes('(THI)')) return "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800";
+  
   let hash = 0;
   const name = subjectName.trim().toLowerCase();
   for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    hash = name.charCodeAt(i) + (hash << 6) + (hash << 16) - hash;
   }
-  const index = Math.abs(hash) % PASTEL_COLORS.length;
+  const index = (hash >>> 0) % PASTEL_COLORS.length;
   return PASTEL_COLORS[index];
 };
