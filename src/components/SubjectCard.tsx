@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Subject, PERIODS } from '../types';
 import { Card } from './Card';
 import { MapPin, User, Clock, Map as MapIcon, X, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, getSubjectColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
@@ -96,12 +96,12 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
         onClick={onClick}
         className={cn(
           "relative overflow-hidden border-l-4",
-          subject.color || "border-l-blue-400"
+          getSubjectColor(subject.name)
         )}
       >
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-start">
-            <h4 className="font-bold text-lg text-gray-800 dark:text-gray-100 leading-tight">{subject.name}</h4>
+            <h4 className="font-bold text-lg leading-tight">{subject.name}</h4>
             <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-300">
               <Clock className="w-3 h-3" />
               {startPeriod?.startTime} - {endPeriod?.endTime}
