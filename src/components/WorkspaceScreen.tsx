@@ -3,7 +3,7 @@ import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
 import { Users, Key, CheckCircle2, ChevronRight, RefreshCw, Trash2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useAnimation, PanInfo } from 'motion/react';
 import { collection, setDoc, doc, onSnapshot, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Workspace } from '../types';
