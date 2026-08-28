@@ -120,10 +120,10 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
                     e.stopPropagation();
                     setShowMap(true);
                   }}
-                  className="p-1.5 ml-1 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0"
+                  className="p-2 sm:p-2.5 ml-1.5 bg-blue-100/50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg shadow-sm hover:bg-blue-200/60 dark:hover:bg-blue-900/60 hover:scale-105 active:scale-95 transition-all shrink-0"
                   title="Xem bản đồ"
                 >
-                  <MapIcon className="w-4 h-4" />
+                  <MapIcon className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
             )}
