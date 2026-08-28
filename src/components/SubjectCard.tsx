@@ -123,7 +123,7 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
                   className="p-2 sm:p-2.5 ml-1.5 bg-blue-100/50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-lg shadow-sm hover:bg-blue-200/60 dark:hover:bg-blue-900/60 hover:scale-105 active:scale-95 transition-all shrink-0"
                   title="Xem bản đồ"
                 >
-                  <MapIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <MapIcon className="w-5 h-5 sm:w-5 sm:h-5" />
                 </button>
               </div>
             )}
