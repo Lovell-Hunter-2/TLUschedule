@@ -20,6 +20,30 @@ interface DailyViewProps {
 }
 
 export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote, isSyncing, onForceSync }: DailyViewProps) {
+  const [forecast, setForecast] = useState<Record<string, { code: number; maxTemp: number; minTemp: number }>>({});
+
+  useEffect(() => {
+    const fetchForecast = async () => {
+      try {
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=21.0285&longitude=105.8542&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FBangkok&forecast_days=16');
+        const data = await res.json();
+        
+        const forecastMap: Record<string, any> = {};
+        data.daily.time.forEach((dateStr: string, index: number) => {
+          forecastMap[dateStr] = {
+            code: data.daily.weather_code[index],
+            maxTemp: Math.round(data.daily.temperature_2m_max[index]),
+            minTemp: Math.round(data.daily.temperature_2m_min[index]),
+          };
+        });
+        setForecast(forecastMap);
+      } catch (error) {
+        console.error("Failed to fetch 16-day forecast", error);
+      }
+    };
+    fetchForecast();
+  }, []);
+
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [now, setNow] = useState(new Date());
 
@@ -72,6 +96,9 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const dateKey = format(selectedDate, 'yyyy-MM-dd');
+  const dayForecast = forecast[dateKey];
 
   const dates = useMemo(() => {
     // Generate dates from 30 days ago to 60 days in the future
@@ -266,7 +293,7 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
               >
-                <SubjectCard subject={subject} />
+                <SubjectCard subject={subject} weather={dayForecast} />
               </motion.div>
             ))}
 
