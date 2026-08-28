@@ -32,7 +32,7 @@ export function WeatherWidget() {
     const fetchWeather = async () => {
       try {
         // Hanoi coordinates
-        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=21.0285&longitude=105.8542&current=temperature_2m,weather_code');
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=21.00738&longitude=105.82452&current=temperature_2m,weather_code');
         const data = await res.json();
         setWeather({
           temp: Math.round(data.current.temperature_2m),
