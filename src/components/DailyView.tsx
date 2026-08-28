@@ -25,7 +25,7 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
   useEffect(() => {
     const fetchForecast = async () => {
       try {
-        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=21.0285&longitude=105.8542&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FBangkok&forecast_days=16');
+        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=21.00738&longitude=105.82452&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FBangkok&forecast_days=16');
         const data = await res.json();
         
         const forecastMap: Record<string, any> = {};
