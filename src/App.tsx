@@ -13,6 +13,8 @@ import { UpdateView } from './components/UpdateView';
 import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
+import { WeatherWidget } from './components/WeatherWidget';
+import { HeaderMenu } from './components/HeaderMenu';
 import { Subject, Note, UserProfile, Workspace } from './types';
 import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
 import { cn } from './lib/utils';
@@ -20,7 +22,7 @@ import { format } from 'date-fns';
 import { Toaster } from 'react-hot-toast';
 import { useClassNotifications } from './hooks/useClassNotifications';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch } from 'firebase/firestore';
 
 enum OperationType {
@@ -525,7 +527,12 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthScreen onLoginSuccess={() => {}} />;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-gray-500 mt-4 font-medium">Đang khởi tạo danh tính...</p>
+      </div>
+    );
   }
 
   if (!workspace) {
@@ -541,6 +548,7 @@ export default function App() {
       backgroundImage={globalBg}
       headerAction={
         <div className="flex items-center gap-2">
+          <WeatherWidget />
           {isAdmin && (
             <Button 
               variant="ghost" 
@@ -583,12 +591,7 @@ export default function App() {
             <Download size={18} />
             <span className="hidden sm:inline">Cài đặt app</span>
           </button>
-          <Button variant="ghost" size="sm" onClick={handleSwitchWorkspace} className="text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400" title="Đổi lịch học">
-            <Users className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400" title="Đăng xuất">
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <HeaderMenu onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />
         </div>
       }
     >
