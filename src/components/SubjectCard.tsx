@@ -5,6 +5,7 @@ import { MapPin, User, Clock, Map as MapIcon, X, ZoomIn, ZoomOut, Maximize } fro
 import { cn, getSubjectColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { getWeatherIcon, getWeatherText } from './WeatherWidget';
 
 const BUILDING_PINS: Record<string, { top: string, left: string }> = {
   'A4': { top: '39%', left: '12.3%' },
@@ -70,9 +71,10 @@ const getBuildingFromRoom = (room?: string) => {
 interface SubjectCardProps {
   subject: Subject;
   onClick?: () => void;
+  weather?: { code: number; maxTemp: number; minTemp: number };
 }
 
-export function SubjectCard({ subject, onClick }: SubjectCardProps) {
+export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
   const [showMap, setShowMap] = useState(false);
   const transformRef = useRef<any>(null);
   const startPeriod = PERIODS.find(p => p.id === Math.min(...subject.periods));
@@ -111,7 +113,7 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
           <div className="grid grid-cols-2 gap-2 mt-1">
             {subject.room && (
               <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
-                <MapPin className="w-4 h-4 text-red-300 dark:text-red-400" />
+                <MapPin className="w-4 h-4 text-red-300 dark:text-red-400 shrink-0" />
                 <span className="truncate">{subject.room}</span>
                 <button 
                   onClick={(e) => {
@@ -125,20 +127,37 @@ export function SubjectCard({ subject, onClick }: SubjectCardProps) {
                 </button>
               </div>
             )}
-            {subject.lecturer && (
-              <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
-                <User className="w-4 h-4 text-blue-300 dark:text-blue-400" />
-                <span className="truncate">{subject.lecturer}</span>
+            
+            <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+              {subject.lecturer && (
+                <>
+                  <User className="w-4 h-4 text-blue-300 dark:text-blue-400 shrink-0" />
+                  <span className="truncate">{subject.lecturer}</span>
+                </>
+              )}
+              {weather && (
+                <div className="hidden sm:flex items-center gap-1.5 ml-auto pl-2 border-l border-gray-200 dark:border-gray-700 text-xs shrink-0" title={getWeatherText(weather.code)}>
+                  {getWeatherIcon(weather.code)}
+                  <span className="font-medium">{weather.minTemp}°-{weather.maxTemp}°C</span>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center justify-between mt-1 gap-2">
+            <div className="flex gap-1">
+              {subject.periods.map(p => (
+                <span key={p} className="text-[10px] px-1.5 py-0.5 bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 rounded text-gray-400 dark:text-gray-300 font-mono">
+                  T{p}
+                </span>
+              ))}
+            </div>
+            {weather && (
+              <div className="flex sm:hidden items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 shrink-0" title={getWeatherText(weather.code)}>
+                {getWeatherIcon(weather.code)}
+                <span className="font-medium">{weather.minTemp}°-{weather.maxTemp}°C</span>
               </div>
             )}
-          </div>
-
-          <div className="flex gap-1 mt-1">
-            {subject.periods.map(p => (
-              <span key={p} className="text-[10px] px-1.5 py-0.5 bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 rounded text-gray-400 dark:text-gray-300 font-mono">
-                T{p}
-              </span>
-            ))}
           </div>
         </div>
       </Card>
