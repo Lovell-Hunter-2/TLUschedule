@@ -110,29 +110,29 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-2 mt-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-1">
             {subject.room && (
               <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
                 <MapPin className="w-4 h-4 text-red-300 dark:text-red-400 shrink-0" />
-                <span className="truncate">{subject.room}</span>
+                <span className="whitespace-nowrap font-medium text-gray-700 dark:text-gray-300">{subject.room}</span>
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowMap(true);
                   }}
-                  className="ml-auto p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0"
+                  className="p-1.5 ml-1 bg-blue-50 dark:bg-blue-900/30 text-blue-500 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors shrink-0"
                   title="Xem bản đồ"
                 >
-                  <MapIcon className="w-5 h-5" />
+                  <MapIcon className="w-4 h-4" />
                 </button>
               </div>
             )}
             
-            <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+            <div className="flex items-start sm:items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 flex-1">
               {subject.lecturer && (
                 <>
-                  <User className="w-4 h-4 text-blue-300 dark:text-blue-400 shrink-0" />
-                  <span className="truncate">{subject.lecturer}</span>
+                  <User className="w-4 h-4 text-blue-300 dark:text-blue-400 shrink-0 mt-[3px] sm:mt-0" />
+                  <span className="leading-tight">{subject.lecturer}</span>
                 </>
               )}
               {weather && (
@@ -144,7 +144,7 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center justify-between mt-1 gap-2">
+          <div className="flex flex-wrap items-center justify-between mt-1.5 gap-2">
             <div className="flex gap-1">
               {subject.periods.map(p => (
                 <span key={p} className="text-[10px] px-1.5 py-0.5 bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 rounded text-gray-400 dark:text-gray-300 font-mono">
