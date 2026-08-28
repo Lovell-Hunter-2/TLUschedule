@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, Sun } from 'lucide-react';
 
 // WMO Weather interpretation codes (https://open-meteo.com/en/docs)
-const getWeatherIcon = (code: number) => {
+export const getWeatherIcon = (code: number) => {
   if (code === 0) return <Sun className="w-4 h-4 text-orange-400" />;
   if (code === 1 || code === 2 || code === 3) return <Cloud className="w-4 h-4 text-gray-400" />;
   if (code === 45 || code === 48) return <CloudFog className="w-4 h-4 text-gray-400" />;
@@ -13,7 +13,7 @@ const getWeatherIcon = (code: number) => {
   return <Sun className="w-4 h-4 text-orange-400" />;
 };
 
-const getWeatherText = (code: number) => {
+export const getWeatherText = (code: number) => {
   if (code === 0) return 'Trời quang';
   if (code === 1 || code === 2 || code === 3) return 'Nhiều mây';
   if (code === 45 || code === 48) return 'Có sương mù';
