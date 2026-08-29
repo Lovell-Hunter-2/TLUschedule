@@ -58,7 +58,7 @@ export function HeaderMenu({ onSwitchWorkspace, onLogout, isAdmin, onOpenAdmin }
               className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
             >
               <Shield className="w-4 h-4" />
-              <span>Admin Dashboard</span>
+              <span>Dashboard</span>
             </button>
           )}
           <button
