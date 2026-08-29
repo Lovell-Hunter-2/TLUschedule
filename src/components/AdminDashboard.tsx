@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Users, Activity, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, collectionGroup, query, onSnapshot, orderBy, limit, getDocs } from 'firebase/firestore';
 import { format, formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -13,10 +13,30 @@ interface AdminDashboardProps {
 export function AdminDashboard({ onClose }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'analytics' | 'errors'>('users');
   const [users, setUsers] = useState<any[]>([]);
+  const [userMsvMap, setUserMsvMap] = useState<Record<string, string>>({});
   const [usageEvents, setUsageEvents] = useState<any[]>([]);
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
   useEffect(() => {
+    
+    // Fetch MSV for existing users using collectionGroup
+    const fetchMsvs = async () => {
+      try {
+        const msvSnapshot = await getDocs(collectionGroup(db, 'workspaces'));
+        const msvMap: Record<string, string> = {};
+        msvSnapshot.forEach(doc => {
+          const userId = doc.ref.parent.parent?.id;
+          if (userId) {
+            msvMap[userId] = doc.id; // workspace.id is MSV
+          }
+        });
+        setUserMsvMap(msvMap);
+      } catch (e) {
+        console.error("Failed to fetch MSVs:", e);
+      }
+    };
+    fetchMsvs();
+
     const unsubscribeUsers = onSnapshot(query(collection(db, 'users')), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
@@ -132,6 +152,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
                       <th className="p-4 font-medium">Người dùng</th>
+                      <th className="p-4 font-medium">MSV</th>
                       <th className="p-4 font-medium">Email</th>
                       <th className="p-4 font-medium">Trạng thái</th>
                       <th className="p-4 font-medium">Lần cuối đăng nhập</th>
@@ -142,6 +163,9 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                       <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <td className="p-4 text-gray-900 dark:text-gray-100 font-medium">
                           {u.displayName || 'Khách'}
+                        </td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300 font-mono text-sm">
+                          {userMsvMap[u.id] || u.msv || 'Chưa có'}
                         </td>
                         <td className="p-4 text-gray-500 dark:text-gray-400">
                           {u.email}
@@ -167,7 +191,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                     ))}
                     {users.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="p-8 text-center text-gray-500">
+                        <td colSpan={5} className="p-8 text-center text-gray-500">
                           Chưa có dữ liệu người dùng
                         </td>
                       </tr>
