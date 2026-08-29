@@ -3,11 +3,15 @@ import { Menu, Users, LogOut } from 'lucide-react';
 import { Button } from './Button';
 
 interface HeaderMenuProps {
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
   onSwitchWorkspace: () => void;
   onLogout: () => void;
 }
 
-export function HeaderMenu({ onSwitchWorkspace, onLogout }: HeaderMenuProps) {
+import { Shield } from 'lucide-react';
+
+export function HeaderMenu({ onSwitchWorkspace, onLogout, isAdmin, onOpenAdmin }: HeaderMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +49,18 @@ export function HeaderMenu({ onSwitchWorkspace, onLogout }: HeaderMenuProps) {
             <Users className="w-4 h-4" />
             <span>Change</span>
           </button>
+                    {isAdmin && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                if (onOpenAdmin) onOpenAdmin();
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-left"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Admin Dashboard</span>
+            </button>
+          )}
           <button
             onClick={() => {
               setIsOpen(false);
