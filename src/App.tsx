@@ -15,6 +15,7 @@ import { Modal } from './components/Modal';
 import { Button } from './components/Button';
 import { WeatherWidget } from './components/WeatherWidget';
 import { HeaderMenu } from './components/HeaderMenu';
+import { AdminDashboard } from './components/AdminDashboard';
 import { Subject, Note, UserProfile, Workspace } from './types';
 import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
 import { cn } from './lib/utils';
@@ -107,9 +108,10 @@ export default function App() {
   // Admin & Global Settings
   const [globalBg, setGlobalBg] = useState<string>('');
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [bgInput, setBgInput] = useState('');
 
-  const isAdmin = user?.email === 'taikhoanphubg4@gmail.com';
+  const isAdmin = user?.email === 'taikhoanphubg4@gmail.com' || user?.email === 'ngominhthuanbg1612007@gmail.com';
 
   const semestersList = useMemo(() => {
     const map = new Map<number, string>();
@@ -182,6 +184,15 @@ export default function App() {
       });
       
       if (!res.ok) {
+        try {
+          const { addDoc, collection } = await import('firebase/firestore');
+          await addDoc(collection(db, 'sync_errors'), {
+            timestamp: new Date().toISOString(),
+            userEmail: user.email,
+            studentCode,
+            errorMessage: 'API returned ' + res.status
+          });
+        } catch(e) {}
         if (force) alert("Có lỗi khi đồng bộ. Vui lòng thử lại sau.");
         return;
       }
@@ -342,7 +353,10 @@ export default function App() {
       if (currentUser) {
         const userData = {
           displayName: currentUser.displayName || 'Sinh viên',
-          email: currentUser.email || ''
+          email: currentUser.email || '',
+          lastLogin: new Date().toISOString(),
+          lastActive: new Date().toISOString(),
+          isOnline: true
         };
         setUser({ ...userData, uid: currentUser.uid });
         
@@ -591,7 +605,7 @@ export default function App() {
             <Download size={18} />
             <span className="hidden sm:inline">Cài đặt app</span>
           </button>
-          <HeaderMenu onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />
+          <HeaderMenu onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} isAdmin={isAdmin} onOpenAdmin={() => setIsAdminDashboardOpen(true)} />
         </div>
       }
     >
@@ -688,6 +702,13 @@ export default function App() {
           <Button onClick={addNote} className="w-full">Lưu ghi chú</Button>
         </div>
       </Modal>
+
+      
+      
+      {isAdminDashboardOpen && (
+        <AdminDashboard onClose={() => setIsAdminDashboardOpen(false)} />
+      )}
+
 
       {/* Admin Modal */}
       <Modal
