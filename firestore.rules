@@ -132,6 +132,10 @@ service cloud.firestore {
       allow write: if isAuthenticated();
     }
 
+    match /{path=**}/workspaces/{workspaceId} {
+      allow read: if isAdmin();
+    }
+    
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isValidUser();
