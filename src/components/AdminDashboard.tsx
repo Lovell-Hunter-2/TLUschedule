@@ -19,6 +19,14 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   useEffect(() => {
     const unsubscribeUsers = onSnapshot(query(collection(db, 'users')), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Sắp xếp: Ai có hoạt động gần nhất (hoặc đăng nhập gần nhất) lên đầu
+      data.sort((a, b) => {
+        const timeA = a.lastActive ? new Date(a.lastActive).getTime() : (a.lastLogin ? new Date(a.lastLogin).getTime() : 0);
+        const timeB = b.lastActive ? new Date(b.lastActive).getTime() : (b.lastLogin ? new Date(b.lastLogin).getTime() : 0);
+        return timeB - timeA; // Descending
+      });
+      
       setUsers(data);
     });
 
