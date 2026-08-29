@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Users, Activity, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import { X, Users, Activity, AlertTriangle, Settings, Image as ImageIcon } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, collectionGroup, query, onSnapshot, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, collectionGroup, query, onSnapshot, orderBy, limit, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { format, formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -11,13 +11,25 @@ interface AdminDashboardProps {
 }
 
 export function AdminDashboard({ onClose }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'analytics' | 'errors'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'analytics' | 'errors' | 'settings'>('users');
+  const [bgInput, setBgInput] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [userMsvMap, setUserMsvMap] = useState<Record<string, string>>({});
   const [usageEvents, setUsageEvents] = useState<any[]>([]);
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
   useEffect(() => {
+    const fetchGlobalSettings = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'app_settings', 'global'));
+        if (snap.exists()) {
+          setBgInput(snap.data().backgroundImage || snap.data().bgUrl || '');
+        }
+      } catch (e) {}
+    };
+    fetchGlobalSettings();
+
     
     // Fetch MSV for existing users using collectionGroup
     const fetchMsvs = async () => {
@@ -60,7 +72,22 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
       setSyncErrors(data);
     });
 
-    return () => {
+    
+  const saveGlobalSettings = async () => {
+    setIsSaving(true);
+    try {
+      await setDoc(doc(db, 'app_settings', 'global'), {
+        backgroundImage: bgInput
+      }, { merge: true });
+      alert("Đã lưu hình nền chung!");
+    } catch (error) {
+      console.error(error);
+      alert("Lỗi khi lưu hình nền");
+    }
+    setIsSaving(false);
+  };
+
+  return () => {
       unsubscribeUsers();
       unsubscribeUsage();
       unsubscribeErrors();
@@ -133,6 +160,14 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             }`}
           >
             <AlertTriangle className="w-4 h-4" /> Sync Errors (${syncErrors.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-colors whitespace-nowrap ${
+              activeTab === 'settings' ? 'bg-purple-600 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            <Settings className="w-4 h-4" /> Cài đặt chung
           </button>
         </div>
       </div>
@@ -298,6 +333,47 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               </div>
             </motion.div>
           )}
+          {activeTab === 'settings' && (
+            <motion.div
+              key="settings"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+            >
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                <h3 className="font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-purple-500" />
+                  Đổi hình nền toàn cục
+                </h3>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Dán link ảnh (URL) vào đây để đổi hình nền cho toàn bộ người dùng. Để trống nếu muốn xóa hình nền.
+                </p>
+                <input
+                  type="text"
+                  className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-900 focus:border-purple-400 dark:focus:border-purple-600 outline-none transition-all dark:text-gray-100"
+                  placeholder="https://example.com/image.jpg"
+                  value={bgInput}
+                  onChange={(e) => setBgInput(e.target.value)}
+                />
+                {bgInput && (
+                  <div className="mt-4 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 h-64 relative">
+                    <img src={bgInput} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <button 
+                  onClick={saveGlobalSettings} 
+                  disabled={isSaving}
+                  className="mt-6 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                >
+                  {isSaving ? 'Đang lưu...' : 'Lưu hình nền'}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
         </AnimatePresence>
       </div>
     </div>
