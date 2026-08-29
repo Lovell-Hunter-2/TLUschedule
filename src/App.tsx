@@ -107,10 +107,8 @@ export default function App() {
   // Dark Mode
   // Admin & Global Settings
   const [globalBg, setGlobalBg] = useState<string>('');
-  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
-  const [bgInput, setBgInput] = useState('');
-
+    const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  
   const isAdmin = user?.email === 'taikhoanphubg4@gmail.com' || user?.email === 'ngominhthuanbg1612007@gmail.com';
 
   const semestersList = useMemo(() => {
@@ -508,18 +506,7 @@ export default function App() {
     setIsNoteModalOpen(true);
   };
 
-  const saveGlobalSettings = async () => {
-    try {
-      await setDoc(doc(db, 'app_settings', 'global'), {
-        backgroundImage: bgInput
-      }, { merge: true });
-      setIsAdminModalOpen(false);
-    } catch (error) {
-      console.error("Failed to save global settings:", error);
-      alert("Lỗi khi lưu cài đặt. Bạn có chắc mình là admin không?");
-    }
-  };
-
+  
   const handleTabChange = (newTab: string) => {
     if (hasUnsavedChanges && activeTab === 'update' && newTab !== 'update') {
       if (!window.confirm('Bạn có môn học chưa lưu. Bạn có chắc chắn muốn rời khỏi trang này?')) {
@@ -563,20 +550,7 @@ export default function App() {
       headerAction={
         <div className="flex items-center gap-2">
           <WeatherWidget />
-          {isAdmin && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => {
-                setBgInput(globalBg);
-                setIsAdminModalOpen(true);
-              }} 
-              className="text-purple-500 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-gray-800" 
-              title="Cài đặt Admin"
-            >
-              <ImageIcon className="w-5 h-5" />
-            </Button>
-          )}
+          
           <Button 
             variant="ghost" 
             size="sm" 
@@ -710,33 +684,7 @@ export default function App() {
       )}
 
 
-      {/* Admin Modal */}
-      <Modal
-        isOpen={isAdminModalOpen}
-        onClose={() => setIsAdminModalOpen(false)}
-        title="Cài đặt Admin - Đổi hình nền"
-      >
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Dán link ảnh (URL) vào đây để đổi hình nền cho toàn bộ người dùng. Để trống nếu muốn xóa hình nền.
-          </p>
-          <input
-            type="text"
-            className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-200 dark:focus:ring-purple-900 focus:border-purple-400 dark:focus:border-purple-600 outline-none transition-all dark:text-gray-100"
-            placeholder="https://example.com/image.jpg"
-            value={bgInput}
-            onChange={(e) => setBgInput(e.target.value)}
-          />
-          {bgInput && (
-            <div className="mt-2 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 h-32 relative">
-              <img src={bgInput} alt="Preview" className="w-full h-full object-cover" />
-            </div>
-          )}
-          <Button onClick={saveGlobalSettings} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-            Lưu hình nền
-          </Button>
-        </div>
-      </Modal>
+      
 
       {/* Floating Action Button for quick add */}
       {activeTab !== 'update' && (
