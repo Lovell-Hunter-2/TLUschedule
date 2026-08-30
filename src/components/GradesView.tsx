@@ -70,6 +70,8 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
   const getGradeColor = (charMark: string) => {
     if (!charMark) return 'text-gray-500';
     const char = charMark.toUpperCase();
+    if (char === 'ĐẠT' || char === 'DAT' || char === 'M' || char === 'P') return 'text-green-600 dark:text-green-400';
+    if (char === 'KHÔNG ĐẠT' || char === 'KHONG DAT') return 'text-red-600 dark:text-red-400';
     if (char.includes('A')) return 'text-green-600 dark:text-green-400';
     if (char.includes('B')) return 'text-blue-600 dark:text-blue-400';
     if (char.includes('C')) return 'text-yellow-600 dark:text-yellow-400';
@@ -119,10 +121,10 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
           if (kl === 'mark2' && examMark === '-') examMark = v;
         }
 
-        if (typeof v === 'string' && v.trim().length > 0 && v.trim().length <= 2) {
+        if (typeof v === 'string' && v.trim().length > 0) {
           const char = v.trim().toUpperCase();
-          if (['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F'].includes(char)) {
-             if (kl.includes('char') || kl.includes('chu') || kl.includes('diemchu') || kl.includes('mark') || kl === 'rank' || kl === 'grade') charMark = char;
+          if (['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F', 'ĐẠT', 'DAT', 'M', 'P', 'KHÔNG ĐẠT', 'KHONG DAT'].includes(char)) {
+             if (kl.includes('char') || kl.includes('chu') || kl.includes('diemchu') || kl.includes('mark') || kl === 'rank' || kl === 'grade' || kl === 'status' || kl === 'danhgia') charMark = char;
           }
         }
         if (typeof v === 'object') traverse(v);
