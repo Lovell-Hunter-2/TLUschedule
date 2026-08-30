@@ -206,13 +206,6 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
                   // Try to extract school year if not present
                   let schoolYear = sem.semester?.schoolYear || '//';
                   let semName = sem.semester?.semesterName || 'Toàn khóa';
-                  if (schoolYear === '//' && semName.includes('_')) {
-                      // Attempt to parse "1_2025_2026"
-                      const parts = semName.split('_');
-                      if (parts.length >= 3) {
-                          semName = parts[0];
-                      }
-                  }
                   
                   return (
                     <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
