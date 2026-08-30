@@ -56,7 +56,11 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
   }
 
   // Get unique semesters from GPA summary
-  const semesters = [...gpaSummary].sort((a, b) => b.semester?.semesterCode?.localeCompare(a.semester?.semesterCode || '') || 0);
+  const semesters = [...gpaSummary].sort((a, b) => {
+    const codeA = a.semester?.semesterCode || '';
+    const codeB = b.semester?.semesterCode || '';
+    return codeB.localeCompare(codeA);
+  });
   
   const currentSummary = selectedSemester === 'all' 
     ? null 
@@ -77,7 +81,7 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
         >
           <option value="all">Toàn khóa</option>
           {semesters.map(sem => (
-            <option key={sem.id} value={sem.semester?.id?.toString()}>{sem.semester?.semesterName}</option>
+            <option key={sem.semester?.id || Math.random()} value={sem.semester?.id?.toString() || ""}>{sem.semester?.semesterName}</option>
           ))}
         </select>
       </div>
@@ -142,7 +146,7 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <span className={`text-lg font-bold \${
+                      <span className={`text-lg font-bold ${
                         ['A', 'B+', 'B'].includes(mark.mark?.charMark) ? 'text-green-500' :
                         ['C+', 'C', 'D+', 'D'].includes(mark.mark?.charMark) ? 'text-orange-500' :
                         'text-red-500'
