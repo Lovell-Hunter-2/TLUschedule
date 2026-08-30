@@ -147,6 +147,21 @@ export default async function handler(req, res) {
               gpaSummary = rawData;
             } else if (rawData.schoolYearSummaryMarks) {
               rawData.schoolYearSummaryMarks.forEach(year => {
+                 if (year.semesterMarks) {
+                    year.semesterMarks.forEach(sem => {
+                       gpaSummary.push({
+                          semester: sem.semester,
+                          summaryMark: {
+                             mark10Accumulate: sem.firstLearningMark,
+                             mark4Accumulate: sem.firstLearningMark4,
+                             numberOfCreditAccumulate: sem.firstTotalCredit,
+                             mark10: sem.mark,
+                             mark4: sem.mark4,
+                             numberOfCredit: sem.totalCredit
+                          }
+                       });
+                    });
+                 }
                  if (year.semesterSummaryMarks) {
                     year.semesterSummaryMarks.forEach(sem => {
                        gpaSummary.push({
