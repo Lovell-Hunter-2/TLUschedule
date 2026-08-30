@@ -289,7 +289,20 @@ export default function App() {
         });
       }
 
-      if (results.length > 0) {
+            // Save grades
+      if (json.gpaSummary || json.detailedMarks) {
+        try {
+          await setDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id, 'grades', 'data'), {
+            summary: json.gpaSummary || [],
+            detailed: json.detailedMarks || [],
+            updatedAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error("Lỗi khi lưu điểm:", e);
+        }
+      }
+
+      if (results.length > 0 || json.gpaSummary || json.detailedMarks) {
         const batch = writeBatch(db);
         results.forEach(subject => {
            const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
@@ -300,7 +313,7 @@ export default function App() {
         await batch.commit();
         localStorage.setItem(lastSyncKey, Date.now().toString());
         console.log("Đã đồng bộ thành công!");
-        if (force) alert("Đồng bộ lịch học và lịch thi thành công!");
+        if (force) alert("Đồng bộ lịch học, thi và điểm số thành công!");
       } else {
         if (force) alert("Không tìm thấy môn học nào.");
       }
