@@ -274,7 +274,10 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
                     >
                       <div className="flex-1 pr-4">
                         <h4 className="font-bold text-gray-900 dark:text-gray-100">{mark.subject?.subjectName}</h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono">{mark.subject?.subjectCode} • {mark.subject?.numberOfCredit} tín chỉ</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono">
+                          {mark.subject?.subjectCode} • {mark.subject?.numberOfCredit} tín chỉ
+                          {mark.studyTime ? ` • Lần học: ${mark.studyTime}` : ''}
+                        </p>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
