@@ -267,8 +267,21 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       password: btoa(encodeURIComponent(pass))
     };
 
-    if (!existingWp) {
+        if (!existingWp) {
       await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace);
+    }
+    
+    // Save grades
+    if (json.gpaSummary || json.detailedMarks) {
+      try {
+        await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'grades', 'data'), {
+          summary: json.gpaSummary || [],
+          detailed: json.detailedMarks || [],
+          updatedAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Lỗi khi lưu điểm:", e);
+      }
     }
     
     const batch = writeBatch(db);
