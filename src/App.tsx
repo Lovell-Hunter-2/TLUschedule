@@ -665,10 +665,7 @@ export default function App() {
           />
         )}
         {activeTab === 'grades' && (
-          <GradesView 
-            workspaceId={workspace.id}
-            userId={user.uid}
-          />
+          <GradesView workspaceId={workspace.id} userId={user.uid} subjects={subjects} />
         )}
         {activeTab === 'update' && (
           <UpdateView 
