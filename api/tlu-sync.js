@@ -116,6 +116,36 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Không lấy được Token từ TLU' });
     }
 
+    
+    // BƯỚC 1.5: LẤY ĐIỂM SỐ
+    let gpaSummary = [];
+    let detailedMarks = [];
+    try {
+      const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
+      
+      const gpaRes = await httpsGet(UPSTREAM_HOST, '/education/api/studentsummarymark/getbystudent', {
+        'Authorization': `Bearer ${token}`,
+        'Cookie': `token=${tokenPayload}`,
+        'User-Agent': 'Mozilla/5.0'
+      });
+      if (gpaRes.status === 200) {
+        let gpaData = JSON.parse(gpaRes.data);
+        gpaSummary = Array.isArray(gpaData) ? gpaData : (gpaData.content || []);
+      }
+
+      const marksRes = await httpsGet(UPSTREAM_HOST, '/education/api/studentsubjectmark/getListMarkDetailStudent', {
+        'Authorization': `Bearer ${token}`,
+        'Cookie': `token=${tokenPayload}`,
+        'User-Agent': 'Mozilla/5.0'
+      });
+      if (marksRes.status === 200) {
+        let marksData = JSON.parse(marksRes.data);
+        detailedMarks = Array.isArray(marksData) ? marksData : (marksData.content || []);
+      }
+    } catch (e) {
+      console.error("Lỗi khi lấy điểm:", e);
+    }
+    
     // BƯỚC 2: TÌM ENDPOINT CHUẨN ĐỂ LẤY LỊCH HỌC
     let workingDataForSchedule = null;
     let probingResults = {};
@@ -337,7 +367,9 @@ export default async function handler(req, res) {
       message: 'Đồng bộ thành công', 
       data: cleanedList,
       exams: cleanedExams,
-      studentName: studentName
+      studentName: studentName,
+      gpaSummary: gpaSummary,
+      detailedMarks: detailedMarks
     });
 
   } catch (error) {
