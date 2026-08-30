@@ -241,7 +241,7 @@ export default async function handler(req, res) {
         
         if (!name || name.includes('(thi)') || name.includes('thi kết thúc')) return;
         
-        const key = code || name;
+        const key = (code || name) + '_' + (item.semester?.id || item.semesterIndex || '') + '_' + (item.studyTime || item.examCount || item.examStatus || '');
         if (!key) return;
         
         if (!markMap.has(key)) {
