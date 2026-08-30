@@ -50,7 +50,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     fetchMsvs();
 
     const unsubscribeUsers = onSnapshot(query(collection(db, 'users')), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map(doc => (({ id: doc.id, ...doc.data() } as any)));
       
       // Sắp xếp: Ai có hoạt động gần nhất (hoặc đăng nhập gần nhất) lên đầu
       data.sort((a, b) => {
@@ -63,29 +63,17 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     });
 
     const unsubscribeUsage = onSnapshot(query(collection(db, 'usage_events'), orderBy('timestamp', 'desc'), limit(100)), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map(doc => (({ id: doc.id, ...doc.data() } as any)));
       setUsageEvents(data);
     });
 
     const unsubscribeErrors = onSnapshot(query(collection(db, 'sync_errors'), orderBy('timestamp', 'desc'), limit(100)), (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map(doc => (({ id: doc.id, ...doc.data() } as any)));
       setSyncErrors(data);
     });
 
     
-  const saveGlobalSettings = async () => {
-    setIsSaving(true);
-    try {
-      await setDoc(doc(db, 'app_settings', 'global'), {
-        backgroundImage: bgInput
-      }, { merge: true });
-      alert("Đã lưu hình nền chung!");
-    } catch (error) {
-      console.error(error);
-      alert("Lỗi khi lưu hình nền");
-    }
-    setIsSaving(false);
-  };
+
 
   return () => {
       unsubscribeUsers();
@@ -117,6 +105,20 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     } catch {
       return '';
     }
+  };
+
+    const saveGlobalSettings = async () => {
+    setIsSaving(true);
+    try {
+      await setDoc(doc(db, 'app_settings', 'global'), {
+        backgroundImage: bgInput
+      }, { merge: true });
+      alert("Đã lưu hình nền chung!");
+    } catch (error) {
+      console.error(error);
+      alert("Lỗi khi lưu hình nền");
+    }
+    setIsSaving(false);
   };
 
   return (
