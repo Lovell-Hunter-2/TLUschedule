@@ -273,9 +273,16 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
                       onClick={() => setExpandedSubject(expandedSubject === (mark?.id || i) ? null : (mark?.id || i))}
                     >
                       <div className="flex-1 pr-4">
-                        <h4 className="font-bold text-gray-900 dark:text-gray-100">{mark.subject?.subjectName}</h4>
+                        <h4 className="font-bold text-gray-900 dark:text-gray-100">
+                          {mark.subject?.subjectName || mark.subjectName}
+                          {mark.isCounted === false && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                              Không tính GPA
+                            </span>
+                          )}
+                        </h4>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono">
-                          {mark.subject?.subjectCode} • {mark.subject?.numberOfCredit} tín chỉ
+                          {mark.subject?.subjectCode || mark.subjectCode || ''} • {mark.subject?.numberOfCredit || mark.numberOfCredit || 0} tín chỉ
                           {mark.studyTime ? ` • Lần học: ${mark.studyTime}` : ''}
                         </p>
                       </div>
