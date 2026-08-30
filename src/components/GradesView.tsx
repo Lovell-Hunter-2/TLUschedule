@@ -142,11 +142,11 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <span className={\`text-lg font-bold \${
+                      <span className={`text-lg font-bold \${
                         ['A', 'B+', 'B'].includes(mark.mark?.charMark) ? 'text-green-500' :
                         ['C+', 'C', 'D+', 'D'].includes(mark.mark?.charMark) ? 'text-orange-500' :
                         'text-red-500'
-                      }\`}>
+                      }`}>
                         {mark.mark?.charMark || '-'}
                       </span>
                     </div>
