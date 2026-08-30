@@ -92,7 +92,7 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
         return;
       }
 
-      const nameObj = o.markDetail || o.markComponent || o.component || o.type || o.markType || o.examType || o;
+      const nameObj = o.markDetail || o.markComponent || o.component || o.type || o.markType || o.examType || o.subjectExam || o;
       const nameStr = String(nameObj?.name || nameObj?.description || o?.name || '').toLowerCase();
       const codeStr = String(nameObj?.code || nameObj?.id || o?.code || '').toUpperCase();
       
