@@ -18,7 +18,7 @@ import { WeatherWidget } from './components/WeatherWidget';
 import { HeaderMenu } from './components/HeaderMenu';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
+import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
 import { cn } from './lib/utils';
 import { format } from 'date-fns';
 import { Toaster } from 'react-hot-toast';
