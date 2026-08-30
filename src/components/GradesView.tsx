@@ -5,11 +5,12 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { Award, BookOpen, ChevronDown, ChevronUp, AlertCircle, BarChart3, TrendingUp, Medal } from 'lucide-react';
 
 interface GradesViewProps {
+  subjects?: any[];
   userId: string;
   workspaceId: string;
 }
 
-export function GradesView({ userId, workspaceId }: GradesViewProps) {
+export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewProps) {
   const [loading, setLoading] = useState(true);
   const [gpaSummary, setGpaSummary] = useState<any[]>([]);
   const [detailedMarks, setDetailedMarks] = useState<any[]>([]);
@@ -66,9 +67,45 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
     ? null 
     : (gpaSummary || []).find(s => s?.semester?.id?.toString() === selectedSemester);
 
+  // Merge missing subjects from schedules (subjects prop)
+  const allMarks = [...(detailedMarks || [])];
+  
+  // Find subjects that are in schedule but missing in marks
+  if (subjects && subjects.length > 0) {
+    const existingNames = new Set(allMarks.map(m => String(m?.subject?.subjectName || m?.subjectName || '').toLowerCase().trim()).filter(Boolean));
+    
+    // Deduplicate schedule subjects by name
+    const uniqueSubjects = new Map();
+    subjects.forEach(s => {
+      const name = String(s.name || s.subjectName || '').toLowerCase().trim();
+      if (name && !existingNames.has(name) && !uniqueSubjects.has(name)) {
+         uniqueSubjects.set(name, s);
+      }
+    });
+    
+    uniqueSubjects.forEach((s) => {
+       allMarks.push({
+          id: 'synth_' + Math.random(),
+          subject: { subjectName: s.name || s.subjectName },
+          semester: { id: s.semesterId, semesterName: s.semesterName },
+          isSynthesized: true,
+          mark: '-',
+          mark4: '-',
+          charMark: '-'
+       });
+    });
+  }
+
   const filteredMarks = selectedSemester === 'all'
-    ? (detailedMarks || []).filter(Boolean)
-    : (detailedMarks || []).filter(Boolean).filter(m => m?.semester?.id?.toString() === selectedSemester);
+    ? allMarks.filter(Boolean)
+    : allMarks.filter(Boolean).filter(m => String(m?.semester?.id || '') === String(selectedSemester));
+    
+  // Sort alphabetically by subject name
+  filteredMarks.sort((a, b) => {
+     const nameA = String(a?.subject?.subjectName || a?.subjectName || '').trim();
+     const nameB = String(b?.subject?.subjectName || b?.subjectName || '').trim();
+     return nameA.localeCompare(nameB, 'vi');
+  });
   
   
   const getGradeColor = (charMark: string) => {
@@ -96,43 +133,54 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
         return;
       }
 
-      // Check common component structures
-      const name = String(o?.markDetail?.name || o?.markComponent?.name || o?.name || '').toLowerCase();
-      const code = String(o?.markDetail?.code || o?.markComponent?.code || o?.code || '').toUpperCase();
-      const val = o.mark !== undefined ? o.mark : (o.value !== undefined ? o.value : undefined);
+      // 1. Dò theo cấu trúc object (component mark)
+      const nameObj = o.markDetail || o.markComponent || o.component || o.type || o.markType || o.examType || o;
+      const nameStr = String(nameObj?.name || nameObj?.description || o?.name || '').toLowerCase();
+      const codeStr = String(nameObj?.code || nameObj?.id || o?.code || '').toUpperCase();
+      
+      const val = o.mark !== undefined ? o.mark : (o.value !== undefined ? o.value : (o.score !== undefined ? o.score : (o.diem !== undefined ? o.diem : undefined)));
 
       if (val !== undefined && val !== null) {
-        if (name.includes('quá trình') || name.includes('qua trinh') || code.includes('QT') || code === 'QUATRINH') processMark = val;
-        if (name.includes('thi') || code.includes('THI') || name === 'kết thúc học phần') examMark = val;
-        if (name.includes('tổng kết') || name.includes('tkhp') || code.includes('TKHP')) summaryMark = val;
+        if (nameStr.includes('quá trình') || nameStr.includes('qua trinh') || codeStr.includes('QT') || codeStr === 'QUATRINH' || nameStr.includes('chuyên cần') || nameStr.includes('thường xuyên')) processMark = val;
+        if (nameStr.includes('thi') || codeStr.includes('THI') || nameStr === 'kết thúc học phần') examMark = val;
+        if (nameStr.includes('tổng kết') || nameStr.includes('tkhp') || codeStr.includes('TKHP')) summaryMark = val;
       }
 
+      // 2. Dò theo key trực tiếp (flat properties)
       Object.keys(o).forEach(k => {
         const kl = k.toLowerCase();
         const v = o[k];
         if (v === null || v === undefined) return;
 
+        // Bắt các con số
         if (typeof v === 'number' || (typeof v === 'string' && !isNaN(parseFloat(v)))) {
-          if (kl === 'processmark' || kl === 'markqt' || kl === 'diemquatrinh' || kl.includes('quatrinh')) processMark = v;
-          if (kl === 'exammark' || kl === 'markthi' || kl === 'diemthi' || kl === 'thi') examMark = v;
-          if (kl === 'summarymark' || kl === 'marktk' || kl === 'mark10' || kl === 'tkhp' || kl === 'tongket') summaryMark = v;
-          if (kl === 'mark4' || kl === 'summarymark4' || kl === 'diem4') mark4 = v;
+          if (['processmark', 'markqt', 'diemquatrinh', 'diemqt', 'diem_qt', 'qt', 'quatrinh'].includes(kl) || kl.includes('quatrinh')) processMark = v;
+          if (['exammark', 'markthi', 'diemthi', 'thi', 'diem_thi'].includes(kl) || (kl.includes('thi') && !kl.includes('thiet'))) examMark = v;
+          if (['summarymark', 'marktk', 'mark10', 'tkhp', 'tongket', 'diemtk', 'diemtongket', 'diem10', 'diem_tk', 'totalmark'].includes(kl)) summaryMark = v;
+          if (['mark4', 'summarymark4', 'diem4', 'diemhe4', 'gpa4'].includes(kl)) mark4 = v;
+          
+          // Bắt trường hợp Edusoft trả về mảng điểm trong các key index (vd: mark1, mark2...)
+          // Đôi khi QT là mark1, Thi là mark2
+          if (kl === 'mark1' && processMark === '-') processMark = v;
+          if (kl === 'mark2' && examMark === '-') examMark = v;
         }
 
+        // Bắt điểm chữ
         if (typeof v === 'string' && v.trim().length > 0 && v.trim().length <= 2) {
           const char = v.trim().toUpperCase();
           if (['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F'].includes(char)) {
-             if (kl.includes('char') || kl.includes('chu') || kl.includes('diemchu') || kl.includes('mark')) charMark = char;
+             if (kl.includes('char') || kl.includes('chu') || kl.includes('diemchu') || kl.includes('mark') || kl === 'rank' || kl === 'grade') charMark = char;
           }
         }
 
+        // Đệ quy
         if (typeof v === 'object') traverse(v);
       });
     };
 
     traverse(markObj);
     
-    // Final fallbacks
+    // Final fallbacks from root if still missing
     if (summaryMark === '-' && markObj.mark !== undefined && typeof markObj.mark === 'number') summaryMark = markObj.mark;
 
     const safeDisplay = (val: any) => (val !== undefined && val !== null && val !== '') ? val : '-';
