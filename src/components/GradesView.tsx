@@ -56,19 +56,19 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
   }
 
   // Get unique semesters from GPA summary
-  const semesters = [...gpaSummary].sort((a, b) => {
-    const codeA = a.semester?.semesterCode || '';
-    const codeB = b.semester?.semesterCode || '';
+  const semesters = [...(gpaSummary || [])].filter(Boolean).sort((a, b) => {
+    const codeA = a?.semester?.semesterCode || '';
+    const codeB = b?.semester?.semesterCode || '';
     return codeB.localeCompare(codeA);
   });
   
   const currentSummary = selectedSemester === 'all' 
     ? null 
-    : gpaSummary.find(s => s.semester?.id?.toString() === selectedSemester);
+    : (gpaSummary || []).find(s => s?.semester?.id?.toString() === selectedSemester);
 
   const filteredMarks = selectedSemester === 'all'
-    ? detailedMarks
-    : detailedMarks.filter(m => m.semester?.id?.toString() === selectedSemester);
+    ? (detailedMarks || []).filter(Boolean)
+    : (detailedMarks || []).filter(Boolean).filter(m => m?.semester?.id?.toString() === selectedSemester);
 
   return (
     <div className="space-y-6">
@@ -80,8 +80,8 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
           className="appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
         >
           <option value="all">Toàn khóa</option>
-          {semesters.map(sem => (
-            <option key={sem.semester?.id || Math.random()} value={sem.semester?.id?.toString() || ""}>{sem.semester?.semesterName}</option>
+          {semesters.map((sem: any, i: number) => (
+            <option key={sem?.semester?.id || i} value={sem?.semester?.id?.toString() || ""}>{sem?.semester?.semesterName}</option>
           ))}
         </select>
       </div>
@@ -130,15 +130,15 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
           <p className="text-gray-500 dark:text-gray-400 italic">Không có điểm trong học kỳ này.</p>
         ) : (
           <div className="grid gap-3">
-            {filteredMarks.map((mark) => (
+            {filteredMarks.map((mark: any, i: number) => (
               <motion.div
-                key={mark.id}
+                key={mark?.id || i}
                 layout
                 className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden"
               >
                 <div 
                   className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-                  onClick={() => setExpandedSubject(expandedSubject === mark.id ? null : mark.id)}
+                  onClick={() => setExpandedSubject(expandedSubject === (mark?.id || i) ? null : (mark?.id || i))}
                 >
                   <div className="flex-1 pr-4">
                     <h4 className="font-bold text-gray-900 dark:text-gray-100">{mark.subject?.subjectName}</h4>
@@ -154,7 +154,7 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                         {mark.mark?.charMark || '-'}
                       </span>
                     </div>
-                    {expandedSubject === mark.id ? (
+                    {expandedSubject === (mark?.id || i) ? (
                       <ChevronUp className="w-5 h-5 text-gray-400" />
                     ) : (
                       <ChevronDown className="w-5 h-5 text-gray-400" />
@@ -163,7 +163,7 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                 </div>
 
                 <AnimatePresence>
-                  {expandedSubject === mark.id && (
+                  {expandedSubject === (mark?.id || i) && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
