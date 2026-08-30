@@ -99,8 +99,8 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
       const val = o.mark !== undefined ? o.mark : (o.value !== undefined ? o.value : (o.score !== undefined ? o.score : (o.diem !== undefined ? o.diem : undefined)));
 
       if (val !== undefined && val !== null) {
-        if (nameStr.includes('quá trình') || nameStr.includes('qua trinh') || codeStr.includes('QT') || codeStr === 'QUATRINH' || nameStr.includes('chuyên cần') || nameStr.includes('thường xuyên')) processMark = val;
-        if (nameStr.includes('thi') || codeStr.includes('THI') || nameStr === 'kết thúc học phần') examMark = val;
+        if (nameStr.includes('quá trình') || nameStr.includes('qua trinh') || codeStr.includes('QT') || codeStr === 'QUATRINH' || nameStr.includes('chuyên cần') || nameStr.includes('thường xuyên') || nameStr.includes('giữa kỳ') || nameStr.includes('điểm thành phần') || nameStr === 'đánh giá quá trình') processMark = val;
+        if (nameStr.includes('thi') || codeStr.includes('THI') || nameStr.includes('kết thúc học phần') || nameStr.includes('cuối kỳ') || nameStr.includes('đánh giá cuối kỳ')) examMark = val;
         if (nameStr.includes('tổng kết') || nameStr.includes('tkhp') || codeStr.includes('TKHP')) summaryMark = val;
       }
 
