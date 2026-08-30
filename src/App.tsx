@@ -664,6 +664,12 @@ export default function App() {
             onForceSync={() => runSync(true)}
           />
         )}
+        {activeTab === 'grades' && (
+          <GradesView 
+            workspaceId={workspace.id}
+            userId={user.uid}
+          />
+        )}
         {activeTab === 'update' && (
           <UpdateView 
             subjects={subjects} 
