@@ -219,6 +219,7 @@ export default async function handler(req, res) {
       
       let allMarksData = [];
       for (const ep of markEndpoints) {
+        if (allMarksData.length > 0) break;
         try {
           const res = await httpsGet(UPSTREAM_HOST, ep, {
             'Authorization': `Bearer ${token}`,
@@ -228,37 +229,29 @@ export default async function handler(req, res) {
           if (res.status === 200) {
             let data = JSON.parse(res.data);
             let arr = Array.isArray(data) ? data : (data.content || []);
-            allMarksData = allMarksData.concat(arr);
+            if (arr.length > 0) {
+               allMarksData = allMarksData.concat(arr);
+               break;
+            }
           }
         } catch (e) {}
       }
 
-      // Merge and deduplicate marks by subject code or name
-      const markMap = new Map();
+      // Deduplicate marks exactly
+      const uniqueItems = [];
+      const seen = new Set();
       allMarksData.forEach(item => {
-        const code = String(item?.subject?.subjectCode || item?.subjectCode || '').trim().toUpperCase();
         const name = String(item?.subject?.subjectName || item?.subjectName || '').trim().toLowerCase();
-        
         if (!name || name.includes('(thi)') || name.includes('thi kết thúc')) return;
         
-        const key = (code || name) + '_' + (item.semester?.id || item.semesterIndex || '') + '_' + (item.studyTime || item.examCount || item.examStatus || '');
-        if (!key) return;
-        
-        if (!markMap.has(key)) {
-          markMap.set(key, item);
-        } else {
-          // Merge details if the new item has them
-          const existing = markMap.get(key);
-          if ((!existing.details || existing.details.length === 0) && item.details && item.details.length > 0) {
-            existing.details = item.details;
-          }
-          if ((!existing.markDetail || existing.markDetail.length === 0) && item.markDetail && item.markDetail.length > 0) {
-            existing.markDetail = item.markDetail;
-          }
+        // Try to use a unique identifier from the item itself
+        const key = item.id ? String(item.id) : JSON.stringify(item);
+        if (!seen.has(key)) {
+           seen.add(key);
+           uniqueItems.push(item);
         }
       });
-      
-      detailedMarks = Array.from(markMap.values());
+      detailedMarks = uniqueItems;
       try {
         fs.writeFileSync('dump_marks.json', JSON.stringify({ gpaSummary, detailedMarks, allMarksData }, null, 2));
       } catch(err) {}
