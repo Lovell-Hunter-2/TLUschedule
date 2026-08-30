@@ -194,7 +194,12 @@ export default async function handler(req, res) {
           }
         }
       });
+      
       detailedMarks = Array.from(markMap.values());
+      try {
+        fs.writeFileSync('dump_marks.json', JSON.stringify({ gpaSummary, detailedMarks, allMarksData }, null, 2));
+      } catch(err) {}
+
       
     } catch (e) {
       console.error("Lỗi khi lấy điểm:", e);
