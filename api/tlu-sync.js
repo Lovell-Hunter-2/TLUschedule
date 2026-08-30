@@ -123,33 +123,39 @@ export default async function handler(req, res) {
     try {
       const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
       
-      const gpaRes = await httpsGet(UPSTREAM_HOST, '/education/api/studentsummarymark/getbystudent', {
-        'Authorization': `Bearer ${token}`,
-        'Cookie': `token=${tokenPayload}`,
-        'User-Agent': 'Mozilla/5.0'
-      });
-      if (gpaRes.status === 200) {
-        let gpaData = JSON.parse(gpaRes.data);
-        gpaSummary = Array.isArray(gpaData) ? gpaData : (gpaData.content || []);
+      const gpaEndpoints = [
+        '/education/api/studentsummarymark/getbystudent',
+        '/education/api/studentsummarymark/getByStudent',
+        '/education/api/StudentSummaryMark/getbystudent',
+        '/education/api/StudentSummaryMark/GetByStudent',
+        '/education/api/studentsummarymark/getsummary'
+      ];
+      for (const ep of gpaEndpoints) {
+        if (gpaSummary.length > 0) break;
+        try {
+          const res = await httpsGet(UPSTREAM_HOST, ep, {
+            'Authorization': `Bearer ${token}`,
+            'Cookie': `token=${tokenPayload}`,
+            'User-Agent': 'Mozilla/5.0'
+          });
+          if (res.status === 200) {
+            let data = JSON.parse(res.data);
+            gpaSummary = Array.isArray(data) ? data : (data.content || []);
+          }
+        } catch (e) {}
       }
 
-      const marksRes = await httpsGet(UPSTREAM_HOST, '/education/api/studentsubjectmark/getListMarkDetailStudent', {
-        'Authorization': `Bearer ${token}`,
-        'Cookie': `token=${tokenPayload}`,
-        'User-Agent': 'Mozilla/5.0'
-      });
-      if (marksRes.status === 200) {
-        let marksData = JSON.parse(marksRes.data);
-        detailedMarks = Array.isArray(marksData) ? marksData : (marksData.content || []);
-      }
-      
-      // Bổ sung lấy điểm các môn phụ (thể chất, tiếng anh) từ các endpoint khác
-      const extraEndpoints = [
+      const markEndpoints = [
+        '/education/api/studentsubjectmark/getListMarkDetailStudent',
+        '/education/api/StudentSubjectMark/getListMarkDetailStudent',
+        '/education/api/StudentSubjectMark/GetListMarkDetailStudent',
         '/education/api/studentsubjectmark/getStudentMarks',
         '/education/api/studentsubjectmark/getAll',
         '/education/api/studentmark/getListMarkDetailStudent'
       ];
-      for (const ep of extraEndpoints) {
+      
+      let allMarksData = [];
+      for (const ep of markEndpoints) {
         try {
           const res = await httpsGet(UPSTREAM_HOST, ep, {
             'Authorization': `Bearer ${token}`,
@@ -159,25 +165,37 @@ export default async function handler(req, res) {
           if (res.status === 200) {
             let data = JSON.parse(res.data);
             let arr = Array.isArray(data) ? data : (data.content || []);
-            arr.forEach(item => {
-              const name = String(item?.subject?.subjectName || item?.subjectName || '').toLowerCase().trim();
-              // Lọc bỏ rác
-              if (!name || name.includes('(thi)') || item?.isCounted === false && !name.includes('bóng chuyền') && !name.includes('thể chất')) {
-                  // Chỉ lấy những môn có tên và không phải lịch thi
-              }
-              
-              if (name && !name.includes('(thi)') && !name.includes('thi kết thúc')) {
-                const exists = detailedMarks.some(m => String(m?.subject?.subjectName || m?.subjectName || '').toLowerCase().trim() === name);
-                if (!exists) {
-                   detailedMarks.push(item);
-                }
-              }
-            });
+            allMarksData = allMarksData.concat(arr);
           }
-        } catch(e) {}
+        } catch (e) {}
       }
 
-
+      // Merge and deduplicate marks by subject code or name
+      const markMap = new Map();
+      allMarksData.forEach(item => {
+        const code = String(item?.subject?.subjectCode || item?.subjectCode || '').trim().toUpperCase();
+        const name = String(item?.subject?.subjectName || item?.subjectName || '').trim().toLowerCase();
+        
+        if (!name || name.includes('(thi)') || name.includes('thi kết thúc')) return;
+        
+        const key = code || name;
+        if (!key) return;
+        
+        if (!markMap.has(key)) {
+          markMap.set(key, item);
+        } else {
+          // Merge details if the new item has them
+          const existing = markMap.get(key);
+          if ((!existing.details || existing.details.length === 0) && item.details && item.details.length > 0) {
+            existing.details = item.details;
+          }
+          if ((!existing.markDetail || existing.markDetail.length === 0) && item.markDetail && item.markDetail.length > 0) {
+            existing.markDetail = item.markDetail;
+          }
+        }
+      });
+      detailedMarks = Array.from(markMap.values());
+      
     } catch (e) {
       console.error("Lỗi khi lấy điểm:", e);
     }
