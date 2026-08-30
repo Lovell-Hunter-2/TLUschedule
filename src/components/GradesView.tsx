@@ -205,6 +205,9 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
                   const m = sem.summaryMark || {};
                   // Try to extract school year if not present
                   let schoolYear = sem.semester?.schoolYear || '//';
+                  if (typeof schoolYear === 'object') {
+                      schoolYear = schoolYear.name || schoolYear.code || '//';
+                  }
                   let semName = sem.semester?.semesterName || 'Toàn khóa';
                   
                   return (
