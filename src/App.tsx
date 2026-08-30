@@ -10,6 +10,7 @@ import { Layout } from './components/Layout';
 import { DailyView } from './components/DailyView';
 import { WeeklyView } from './components/WeeklyView';
 import { UpdateView } from './components/UpdateView';
+import { GradesView } from './components/GradesView';
 import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
@@ -591,12 +592,13 @@ export default function App() {
           tabs={[
             { id: 'daily', label: 'Ngày', icon: <Calendar className="w-4 h-4" /> },
             { id: 'weekly', label: 'Tuần', icon: <LayoutGrid className="w-4 h-4" /> },
+            { id: 'grades', label: 'Điểm số', icon: <Award className="w-4 h-4" /> },
             { id: 'update', label: 'Cập nhật', icon: <Settings className="w-4 h-4" /> },
           ]}
         />
         
         <div className="flex items-center gap-2">
-          {semestersList.length > 0 && activeTab !== 'update' && (
+          {semestersList.length > 0 && activeTab !== 'update' && activeTab !== 'grades' && (
             <div className="relative w-full sm:w-auto">
               <select
                 value={selectedSemesterId}
@@ -687,7 +689,7 @@ export default function App() {
       
 
       {/* Floating Action Button for quick add */}
-      {activeTab !== 'update' && (
+      {activeTab !== 'update' && activeTab !== 'grades' && (
         <button
           onClick={() => {
             setNoteDate(new Date());
