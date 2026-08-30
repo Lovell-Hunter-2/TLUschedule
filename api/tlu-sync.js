@@ -143,42 +143,7 @@ export default async function handler(req, res) {
         detailedMarks = Array.isArray(marksData) ? marksData : (marksData.content || []);
       }
 
-      // THỬ TÌM CÁC MÔN KHÔNG TÍNH ĐIỂM HOẶC THIẾU TỪ CÁC ENDPOINT KHÁC CỦA EDUSOFT
-      const alternativeEndpoints = [
-        '/education/api/studentsubjectmark/getStudentMarks',
-        '/education/api/studentsubjectmark/getAll',
-        '/education/api/studentmark/getListMarkDetailStudent',
-        '/education/api/StudentCourseSubject/studentLoginUser'
-      ];
-      
-      for (const endpoint of alternativeEndpoints) {
-         try {
-            const altRes = await httpsGet(UPSTREAM_HOST, endpoint, {
-              'Authorization': `Bearer ${token}`,
-              'Cookie': `token=${tokenPayload}`,
-              'User-Agent': 'Mozilla/5.0'
-            });
-            if (altRes.status === 200) {
-               let altData = JSON.parse(altRes.data);
-               let altList = Array.isArray(altData) ? altData : (altData.content || []);
-               if (altList.length > 0) {
-                  // Merge những môn chưa có trong detailedMarks (dựa vào subjectCode)
-                  const existingCodes = new Set(detailedMarks.map(m => m?.subject?.subjectCode || m?.subjectCode).filter(Boolean));
-                  
-                  altList.forEach(m => {
-                     const code = m?.subject?.subjectCode || m?.subjectCode;
-                     // Nếu có tên môn học (subjectName) mà chưa tồn tại trong danh sách
-                     if (code && !existingCodes.has(code) && (m?.subject?.subjectName || m?.subjectName)) {
-                        detailedMarks.push(m);
-                        existingCodes.add(code);
-                     }
-                  });
-               }
-            }
-         } catch (e) {
-            // Ignore errors for probing endpoints
-         }
-      }
+
     } catch (e) {
       console.error("Lỗi khi lấy điểm:", e);
     }
