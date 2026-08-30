@@ -70,22 +70,80 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
     ? (detailedMarks || []).filter(Boolean)
     : (detailedMarks || []).filter(Boolean).filter(m => m?.semester?.id?.toString() === selectedSemester);
   
+  
+  const getGradeColor = (charMark: string) => {
+    if (!charMark) return 'text-gray-500';
+    const char = charMark.toUpperCase();
+    if (char.includes('A')) return 'text-green-600 dark:text-green-400';
+    if (char.includes('B')) return 'text-blue-600 dark:text-blue-400';
+    if (char.includes('C')) return 'text-yellow-600 dark:text-yellow-400';
+    if (char.includes('D')) return 'text-orange-600 dark:text-orange-400';
+    if (char.includes('F')) return 'text-red-600 dark:text-red-400';
+    return 'text-gray-600 dark:text-gray-400';
+  };
+
   const getScore = (markObj: any) => {
-    let processMark = markObj.processMark ?? markObj.mark?.processMark ?? '-';
-    let examMark = markObj.examMark ?? markObj.mark?.examMark ?? '-';
-    let summaryMark = markObj.summaryMark ?? markObj.summaryMark10 ?? markObj.mark?.summaryMark ?? '-';
-    let charMark = markObj.charMark ?? markObj.charMark1 ?? markObj.mark?.charMark ?? '-';
-    let mark4 = markObj.mark4 ?? markObj.summaryMark4 ?? markObj.mark?.mark4 ?? '-';
+    let processMark: any = '-';
+    let examMark: any = '-';
+    let summaryMark: any = '-';
+    let charMark: any = '-';
+    let mark4: any = '-';
 
-    if (Array.isArray(markObj.details)) {
-       const processDetail = markObj.details.find((d:any) => d.markDetail?.name?.toLowerCase().includes('quá trình') || d.markDetail?.code?.includes('QT'));
-       if (processDetail && processDetail.mark !== undefined && processMark === '-') processMark = processDetail.mark;
+    const traverse = (o: any) => {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) {
+        o.forEach(traverse);
+        return;
+      }
 
-       const examDetail = markObj.details.find((d:any) => d.markDetail?.name?.toLowerCase().includes('thi') || d.markDetail?.code?.includes('THI'));
-       if (examDetail && examDetail.mark !== undefined && examMark === '-') examMark = examDetail.mark;
-    }
+      // Check common component structures
+      const name = String(o?.markDetail?.name || o?.markComponent?.name || o?.name || '').toLowerCase();
+      const code = String(o?.markDetail?.code || o?.markComponent?.code || o?.code || '').toUpperCase();
+      const val = o.mark !== undefined ? o.mark : (o.value !== undefined ? o.value : undefined);
+
+      if (val !== undefined && val !== null) {
+        if (name.includes('quá trình') || name.includes('qua trinh') || code.includes('QT') || code === 'QUATRINH') processMark = val;
+        if (name.includes('thi') || code.includes('THI') || name === 'kết thúc học phần') examMark = val;
+        if (name.includes('tổng kết') || name.includes('tkhp') || code.includes('TKHP')) summaryMark = val;
+      }
+
+      Object.keys(o).forEach(k => {
+        const kl = k.toLowerCase();
+        const v = o[k];
+        if (v === null || v === undefined) return;
+
+        if (typeof v === 'number' || (typeof v === 'string' && !isNaN(parseFloat(v)))) {
+          if (kl === 'processmark' || kl === 'markqt' || kl === 'diemquatrinh' || kl.includes('quatrinh')) processMark = v;
+          if (kl === 'exammark' || kl === 'markthi' || kl === 'diemthi' || kl === 'thi') examMark = v;
+          if (kl === 'summarymark' || kl === 'marktk' || kl === 'mark10' || kl === 'tkhp' || kl === 'tongket') summaryMark = v;
+          if (kl === 'mark4' || kl === 'summarymark4' || kl === 'diem4') mark4 = v;
+        }
+
+        if (typeof v === 'string' && v.trim().length > 0 && v.trim().length <= 2) {
+          const char = v.trim().toUpperCase();
+          if (['A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F'].includes(char)) {
+             if (kl.includes('char') || kl.includes('chu') || kl.includes('diemchu') || kl.includes('mark')) charMark = char;
+          }
+        }
+
+        if (typeof v === 'object') traverse(v);
+      });
+    };
+
+    traverse(markObj);
     
-    return { processMark, examMark, summaryMark, charMark, mark4 };
+    // Final fallbacks
+    if (summaryMark === '-' && markObj.mark !== undefined && typeof markObj.mark === 'number') summaryMark = markObj.mark;
+
+    const safeDisplay = (val: any) => (val !== undefined && val !== null && val !== '') ? val : '-';
+
+    return {
+      processMark: safeDisplay(processMark),
+      examMark: safeDisplay(examMark),
+      summaryMark: safeDisplay(summaryMark),
+      charMark: safeDisplay(charMark),
+      mark4: safeDisplay(mark4)
+    };
   };
 
 
@@ -168,12 +226,8 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <span className={`text-lg font-bold ${
-                        ['A', 'B+', 'B'].includes(score.charMark) ? 'text-green-500' :
-                        ['C+', 'C', 'D+', 'D'].includes(score.charMark) ? 'text-orange-500' :
-                        'text-red-500'
-                      }`}>
-                        {score.charMark || '-'}
+                      <span className={`text-xl font-black ${getGradeColor(String(score.charMark))}`}>
+                        {score.charMark}
                       </span>
                     </div>
                     {expandedSubject === (mark?.id || i) ? (
@@ -195,27 +249,22 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                       <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Điểm quá trình</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.processMark || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.processMark}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Điểm thi</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.examMark || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.examMark}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Tổng kết (Hệ 10)</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.summaryMark || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.summaryMark}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Tổng kết (Hệ 4)</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.mark4 || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.mark4}</span>
                         </div>
                       </div>
-                      <div className="p-4 border-t border-gray-100 dark:border-gray-700">
-                        <details>
-                          <summary className="text-xs text-gray-400 cursor-pointer">Debug Data (Nhấn để xem)</summary>
-                          <pre className="text-[10px] text-gray-500 mt-2 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(mark, null, 2)}</pre>
-                        </details>
-                      </div>
+                      
                     </motion.div>
                   )}
                 </AnimatePresence>
