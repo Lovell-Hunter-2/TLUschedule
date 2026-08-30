@@ -142,6 +142,40 @@ export default async function handler(req, res) {
         let marksData = JSON.parse(marksRes.data);
         detailedMarks = Array.isArray(marksData) ? marksData : (marksData.content || []);
       }
+      
+      // Bổ sung lấy điểm các môn phụ (thể chất, tiếng anh) từ các endpoint khác
+      const extraEndpoints = [
+        '/education/api/studentsubjectmark/getStudentMarks',
+        '/education/api/studentsubjectmark/getAll',
+        '/education/api/studentmark/getListMarkDetailStudent'
+      ];
+      for (const ep of extraEndpoints) {
+        try {
+          const res = await httpsGet(UPSTREAM_HOST, ep, {
+            'Authorization': `Bearer ${token}`,
+            'Cookie': `token=${tokenPayload}`,
+            'User-Agent': 'Mozilla/5.0'
+          });
+          if (res.status === 200) {
+            let data = JSON.parse(res.data);
+            let arr = Array.isArray(data) ? data : (data.content || []);
+            arr.forEach(item => {
+              const name = String(item?.subject?.subjectName || item?.subjectName || '').toLowerCase().trim();
+              // Lọc bỏ rác
+              if (!name || name.includes('(thi)') || item?.isCounted === false && !name.includes('bóng chuyền') && !name.includes('thể chất')) {
+                  // Chỉ lấy những môn có tên và không phải lịch thi
+              }
+              
+              if (name && !name.includes('(thi)') && !name.includes('thi kết thúc')) {
+                const exists = detailedMarks.some(m => String(m?.subject?.subjectName || m?.subjectName || '').toLowerCase().trim() === name);
+                if (!exists) {
+                   detailedMarks.push(item);
+                }
+              }
+            });
+          }
+        } catch(e) {}
+      }
 
 
     } catch (e) {
