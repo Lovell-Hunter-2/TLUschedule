@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../firebase';
+import { motion, AnimatePresence } from 'framer-motion';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Award, BookOpen, ChevronDown, ChevronUp, AlertCircle, BarChart3, TrendingUp, Medal } from 'lucide-react';
 
 interface GradesViewProps {
-  subjects?: any[];
   userId: string;
   workspaceId: string;
+  subjects?: any[];
 }
 
 export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewProps) {
@@ -30,28 +30,14 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
       }
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, [userId, workspaceId]);
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-500 dark:text-gray-400">Đang tải điểm số...</p>
-      </div>
-    );
-  }
-
-  if (gpaSummary.length === 0 && detailedMarks.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-          <BookOpen className="w-10 h-10 text-gray-400" />
-        </div>
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Chưa có dữ liệu điểm</h3>
-        <p className="text-gray-500 dark:text-gray-400 max-w-sm">
-          Vui lòng bấm Đồng bộ ở màn hình chọn Tài khoản để hệ thống lấy bảng điểm từ TLU.
-        </p>
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -70,14 +56,17 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
   // Merge missing subjects from schedules (subjects prop)
   const allMarks = [...(detailedMarks || [])];
   
-  // Find subjects that are in schedule but missing in marks
   if (subjects && subjects.length > 0) {
     const existingNames = new Set(allMarks.map(m => String(m?.subject?.subjectName || m?.subjectName || '').toLowerCase().trim()).filter(Boolean));
     
-    // Deduplicate schedule subjects by name
     const uniqueSubjects = new Map();
     subjects.forEach(s => {
-      const name = String(s.name || s.subjectName || '').toLowerCase().trim();
+      const rawName = String(s.name || s.subjectName || '');
+      // Exclude exam items
+      if (rawName.toUpperCase().includes('(THI)') || s.id?.includes('exam_') || s.color === 'border-l-red-500') {
+         return;
+      }
+      let name = rawName.replace(/\uFFFD/g, 'ố').toLowerCase().trim();
       if (name && !existingNames.has(name) && !uniqueSubjects.has(name)) {
          uniqueSubjects.set(name, s);
       }
@@ -86,7 +75,10 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
     uniqueSubjects.forEach((s) => {
        allMarks.push({
           id: 'synth_' + Math.random(),
-          subject: { subjectName: s.name || s.subjectName },
+          subject: { 
+             subjectName: (s.name || s.subjectName || '').replace(/\uFFFD/g, 'ố'), 
+             subjectCode: s.subjectCode || '' 
+          },
           semester: { id: s.semesterId, semesterName: s.semesterName },
           isSynthesized: true,
           mark: '-',
@@ -102,12 +94,11 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
     
   // Sort alphabetically by subject name
   filteredMarks.sort((a, b) => {
-     const nameA = String(a?.subject?.subjectName || a?.subjectName || '').trim();
-     const nameB = String(b?.subject?.subjectName || b?.subjectName || '').trim();
+     const nameA = String(a?.subject?.subjectName || a?.subjectName || '').replace(/\uFFFD/g, 'ố').trim();
+     const nameB = String(b?.subject?.subjectName || b?.subjectName || '').replace(/\uFFFD/g, 'ố').trim();
      return nameA.localeCompare(nameB, 'vi');
   });
-  
-  
+
   const getGradeColor = (charMark: string) => {
     if (!charMark) return 'text-gray-500';
     const char = charMark.toUpperCase();
@@ -193,8 +184,6 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
       mark4: safeDisplay(mark4)
     };
   };
-
-
 
   return (
     <div className="space-y-6">
@@ -312,7 +301,6 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
                           <span className="font-bold text-gray-900 dark:text-gray-100">{score.mark4}</span>
                         </div>
                       </div>
-                      
                     </motion.div>
                   )}
                 </AnimatePresence>
