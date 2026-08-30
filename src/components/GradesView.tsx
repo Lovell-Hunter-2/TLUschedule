@@ -69,6 +69,26 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
   const filteredMarks = selectedSemester === 'all'
     ? (detailedMarks || []).filter(Boolean)
     : (detailedMarks || []).filter(Boolean).filter(m => m?.semester?.id?.toString() === selectedSemester);
+  
+  const getScore = (markObj: any) => {
+    let processMark = markObj.processMark ?? markObj.mark?.processMark ?? '-';
+    let examMark = markObj.examMark ?? markObj.mark?.examMark ?? '-';
+    let summaryMark = markObj.summaryMark ?? markObj.summaryMark10 ?? markObj.mark?.summaryMark ?? '-';
+    let charMark = markObj.charMark ?? markObj.charMark1 ?? markObj.mark?.charMark ?? '-';
+    let mark4 = markObj.mark4 ?? markObj.summaryMark4 ?? markObj.mark?.mark4 ?? '-';
+
+    if (Array.isArray(markObj.details)) {
+       const processDetail = markObj.details.find((d:any) => d.markDetail?.name?.toLowerCase().includes('quá trình') || d.markDetail?.code?.includes('QT'));
+       if (processDetail && processDetail.mark !== undefined && processMark === '-') processMark = processDetail.mark;
+
+       const examDetail = markObj.details.find((d:any) => d.markDetail?.name?.toLowerCase().includes('thi') || d.markDetail?.code?.includes('THI'));
+       if (examDetail && examDetail.mark !== undefined && examMark === '-') examMark = examDetail.mark;
+    }
+    
+    return { processMark, examMark, summaryMark, charMark, mark4 };
+  };
+
+
 
   return (
     <div className="space-y-6">
@@ -130,7 +150,9 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
           <p className="text-gray-500 dark:text-gray-400 italic">Không có điểm trong học kỳ này.</p>
         ) : (
           <div className="grid gap-3">
-            {filteredMarks.map((mark: any, i: number) => (
+            {filteredMarks.map((mark: any, i: number) => {
+              const score = getScore(mark);
+              return (
               <motion.div
                 key={mark?.id || i}
                 layout
@@ -147,11 +169,11 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <span className={`text-lg font-bold ${
-                        ['A', 'B+', 'B'].includes(mark.mark?.charMark) ? 'text-green-500' :
-                        ['C+', 'C', 'D+', 'D'].includes(mark.mark?.charMark) ? 'text-orange-500' :
+                        ['A', 'B+', 'B'].includes(score.charMark) ? 'text-green-500' :
+                        ['C+', 'C', 'D+', 'D'].includes(score.charMark) ? 'text-orange-500' :
                         'text-red-500'
                       }`}>
-                        {mark.mark?.charMark || '-'}
+                        {score.charMark || '-'}
                       </span>
                     </div>
                     {expandedSubject === (mark?.id || i) ? (
@@ -173,26 +195,32 @@ export function GradesView({ userId, workspaceId }: GradesViewProps) {
                       <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Điểm quá trình</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{mark.mark?.processMark || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.processMark || '-'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Điểm thi</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{mark.mark?.examMark || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.examMark || '-'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Tổng kết (Hệ 10)</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{mark.mark?.summaryMark || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.summaryMark || '-'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-500 dark:text-gray-400">Tổng kết (Hệ 4)</span>
-                          <span className="font-bold text-gray-900 dark:text-gray-100">{mark.mark?.mark4 || '-'}</span>
+                          <span className="font-bold text-gray-900 dark:text-gray-100">{score.mark4 || '-'}</span>
                         </div>
+                      </div>
+                      <div className="p-4 border-t border-gray-100 dark:border-gray-700">
+                        <details>
+                          <summary className="text-xs text-gray-400 cursor-pointer">Debug Data (Nhấn để xem)</summary>
+                          <pre className="text-[10px] text-gray-500 mt-2 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(mark, null, 2)}</pre>
+                        </details>
                       </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
               </motion.div>
-            ))}
+            )})}
           </div>
         )}
       </div>
