@@ -140,7 +140,55 @@ export default async function handler(req, res) {
           });
           if (res.status === 200) {
             let data = JSON.parse(res.data);
-            gpaSummary = Array.isArray(data) ? data : (data.content || []);
+
+            let rawData = data;
+            gpaSummary = [];
+            if (Array.isArray(rawData)) {
+              gpaSummary = rawData;
+            } else if (rawData.schoolYearSummaryMarks) {
+              rawData.schoolYearSummaryMarks.forEach(year => {
+                 if (year.semesterSummaryMarks) {
+                    year.semesterSummaryMarks.forEach(sem => {
+                       gpaSummary.push({
+                          semester: sem.semester,
+                          summaryMark: {
+                             mark10Accumulate: sem.firstLearningMark,
+                             mark4Accumulate: sem.firstLearningMark4,
+                             numberOfCreditAccumulate: sem.firstTotalCredit,
+                             mark10: sem.mark,
+                             mark4: sem.mark4,
+                             numberOfCredit: sem.totalCredit
+                          }
+                       });
+                    });
+                 }
+                 gpaSummary.push({
+                    semester: { semesterName: 'Cả Năm', schoolYear: year.schoolYear?.code || year.schoolYear?.name },
+                    summaryMark: {
+                       mark10Accumulate: year.firstLearningMark,
+                       mark4Accumulate: year.firstLearningMark4,
+                       numberOfCreditAccumulate: year.firstTotalCredit,
+                       mark10: year.mark,
+                       mark4: year.mark4,
+                       numberOfCredit: year.totalCredit
+                    }
+                 });
+              });
+              gpaSummary.push({
+                semester: { semesterName: 'Toàn khóa' },
+                summaryMark: {
+                   mark10Accumulate: rawData.firstLearningMark,
+                   mark4Accumulate: rawData.firstLearningMark4,
+                   numberOfCreditAccumulate: rawData.firstTotalCredit,
+                   mark10: rawData.mark,
+                   mark4: rawData.mark4,
+                   numberOfCredit: rawData.totalCredit
+                }
+              });
+            } else {
+              gpaSummary = rawData.content || [];
+            }
+
           }
         } catch (e) {}
       }
