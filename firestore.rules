@@ -82,11 +82,12 @@ service cloud.firestore {
     }
 
     function isValidWorkspace() {
-      return hasOnlyAllowedFields(['id', 'name', 'password']) &&
-             hasRequiredFields(['id', 'name', 'password']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'password', 'isEncrypted']) &&
+             hasRequiredFields(['id', 'name']) &&
              request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 100 &&
              request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
-             request.resource.data.password is string && request.resource.data.password.size() > 0 && request.resource.data.password.size() <= 500;
+             (!('password' in request.resource.data) || request.resource.data.password is string) &&
+             (!('isEncrypted' in request.resource.data) || request.resource.data.isEncrypted is bool);
     }
 
     function isValidSubject() {
@@ -149,6 +150,11 @@ service cloud.firestore {
 
         match /grades/{document=**} {
           allow read, write: if isOwner(userId);
+        }
+        
+        match /secrets/{secretId} {
+          allow read, write: if isOwner(userId);
+          // Admins have NO access to secrets subcollection
         }
         
         match /subjects/{subjectId} {
