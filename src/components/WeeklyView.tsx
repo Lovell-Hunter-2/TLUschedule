@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
-import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2, BookOpen } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getSubjectColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,6 +19,20 @@ interface WeeklyViewProps {
 
 export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote, isSyncing, onForceSync }: WeeklyViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [activeSubject, setActiveSubject] = useState<{subject: Subject, x: number, y: number} | null>(null);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (activeSubject) {
+      timeoutId = setTimeout(() => {
+        setActiveSubject(null);
+      }, 5000);
+    }
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [activeSubject]);
+
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -85,10 +99,10 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-        <div className="min-w-[800px]">
-          <div className="grid grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
-            <div className="p-3 text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">Tiết</div>
+      <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+        <div className="w-full">
+          <div className="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[70px_repeat(7,1fr)] md:grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
+            <div className="p-1 sm:p-3 text-[9px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center justify-center text-center">Tiết</div>
             {weekDays.map(day => {
               const dayStr = format(day, 'yyyy-MM-dd');
               const dayNotes = weekNotes[dayStr] || [];
@@ -97,13 +111,14 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                 <div 
                   key={day.toString()} 
                   className={cn(
-                    "p-3 text-center border-l border-gray-100 dark:border-gray-700 flex flex-col",
+                    "p-1 sm:p-3 text-center border-l border-gray-100 dark:border-gray-700 flex flex-col",
                     isSameDay(day, new Date()) && "bg-blue-50/50 dark:bg-blue-900/20"
                   )}
                 >
-                  <div className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">{format(day, 'EEEE', { locale: vi })}</div>
+                  <div className="text-[8px] sm:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase hidden sm:block">{format(day, 'EEEE', { locale: vi })}</div>
+                  <div className="text-[8px] sm:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase sm:hidden">{format(day, 'E', { locale: vi }).replace('Th ', 'T')}</div>
                   <div className={cn(
-                    "text-sm font-bold",
+                    "text-[10px] sm:text-sm font-bold",
                     isSameDay(day, new Date()) ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"
                   )}>
                     {format(day, 'dd/MM')}
@@ -142,10 +157,10 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
 
           <div className="relative">
             {PERIODS.map((period, idx) => (
-              <div key={period.id} className="grid grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 last:border-0 h-12">
-                <div className="flex flex-col items-center justify-center bg-gray-50/30 dark:bg-gray-900/30 border-r border-gray-100 dark:border-gray-700">
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Tiết {period.id}</span>
-                  <span className="text-[9px] text-gray-400 dark:text-gray-500">{period.startTime}</span>
+              <div key={period.id} className="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[70px_repeat(7,1fr)] md:grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 last:border-0 h-14 sm:h-12">
+                <div className="flex flex-col items-center justify-center bg-gray-50/30 dark:bg-gray-900/30 border-r border-gray-100 dark:border-gray-700 p-0.5">
+                  <span className="text-[9px] sm:text-xs font-bold text-gray-500 dark:text-gray-400">{period.id}</span>
+                  <span className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 hidden sm:block">{period.startTime}</span>
                 </div>
                 {weekDays.map(day => {
                   const dayStr = format(day, 'yyyy-MM-dd');
@@ -156,12 +171,17 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                       {subjectsAtPeriod.map((s, i) => (
                         <div 
                           key={s.id + i}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setActiveSubject({ subject: s, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+                          }}
                           className={cn(
-                            "absolute inset-0.5 rounded-md p-1 text-[9px] font-bold leading-tight overflow-hidden shadow-sm border",
+                            "absolute inset-[1px] sm:inset-0.5 rounded-sm sm:rounded-md p-0.5 sm:p-1 text-[7.5px] sm:text-[9px] font-bold leading-[1.1] sm:leading-tight overflow-hidden shadow-sm border cursor-pointer hover:opacity-90 flex flex-col justify-center items-center text-center",
                             getSubjectColor(s.name)
                           )}
                         >
-                          {s.name}
+                          <span className="line-clamp-3 sm:line-clamp-2 w-full">{s.room && <span className="block sm:inline">{s.room}</span>} <span className="hidden sm:inline">-</span> {s.name}</span>
                         </div>
                       ))}
                     </div>
@@ -172,6 +192,45 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
           </div>
         </div>
       </div>
+      {activeSubject && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center sm:items-start sm:justify-start"
+          onClick={() => setActiveSubject(null)}
+          onTouchStart={() => setActiveSubject(null)}
+          onScroll={() => setActiveSubject(null)}
+        >
+          <div 
+            className="fixed bg-gray-900 dark:bg-gray-800 text-white rounded-xl shadow-2xl p-4 w-[240px] z-50 border border-gray-700/50 animate-in fade-in zoom-in-95 duration-200"
+            style={{ 
+              // On mobile center it, on desktop place near click
+              ...(window.innerWidth < 640 ? {
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)'
+              } : {
+                top: Math.min(activeSubject.y, window.innerHeight - 150), 
+                left: Math.min(activeSubject.x, window.innerWidth - 260) 
+              })
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-2">
+              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                <BookOpen className="w-4 h-4 text-blue-400" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm leading-tight">{activeSubject.subject.name}</h4>
+                <p className="text-xs text-blue-400 font-medium mt-0.5">{activeSubject.subject.room}</p>
+              </div>
+            </div>
+            
+            <div className="space-y-1.5 mt-4 text-xs text-gray-300">
+              <p>Mã môn: <span className="font-medium text-white">{activeSubject.subject.id}</span></p>
+              {activeSubject.subject.teacher && <p>Giảng viên: <span className="font-medium text-white">{activeSubject.subject.teacher}</span></p>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
