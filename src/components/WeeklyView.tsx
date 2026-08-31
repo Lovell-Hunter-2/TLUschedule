@@ -236,7 +236,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
             </div>
             
             <div className="mt-4 pt-3 border-t border-current/10 text-xs opacity-90">
-              <p>Giảng viên: <span className="font-bold">{activeSubject.subject.teacher || 'Chưa cập nhật'}</span></p>
+              <p>Giảng viên: <span className="font-bold">{activeSubject.subject.lecturer || 'Chưa cập nhật'}</span></p>
             </div>
           </div>
         </div>
