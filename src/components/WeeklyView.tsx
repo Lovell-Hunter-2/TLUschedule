@@ -69,7 +69,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
   const prevWeek = () => setCurrentDate(subWeeks(currentDate, 1));
 
   return (
-    <div className="flex flex-col gap-4 overflow-hidden">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-lg text-gray-700 dark:text-gray-200">
           {format(weekStart, 'dd/MM', { locale: vi })} - {format(weekDays[6], 'dd/MM/yyyy', { locale: vi })}
