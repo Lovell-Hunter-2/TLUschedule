@@ -391,6 +391,14 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser?.isAnonymous) {
+        // If user has a cached anonymous session from the previous bug, log them out
+        try {
+          await signOut(auth);
+        } catch(e) {}
+        return; // wait for the next state change
+      }
+
       if (currentUser) {
         const userData = {
           displayName: currentUser.displayName || 'Sinh viên',
