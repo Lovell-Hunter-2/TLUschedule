@@ -2,10 +2,10 @@ import https from 'https';
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 
-if (!admin.apps.length && !admin.getApps().length) {
+const getApps = admin.apps || (admin.getApps && admin.getApps()) || [];
+if (getApps.length === 0) {
   try {
     admin.initializeApp({
-       // Hardcode project ID to match client's config so it doesn't fail if env is wrong
        projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0517344670'
     });
   } catch(e) {
