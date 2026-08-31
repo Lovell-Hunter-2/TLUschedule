@@ -2,7 +2,7 @@ import https from 'https';
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 
-if (!admin.apps.length) {
+if (!admin.getApps().length) {
   try {
     admin.initializeApp({
        projectId: process.env.FIREBASE_PROJECT_ID || 'ai-studio-cea2153d-8217-48bb-be5d-6759729fa4c2'
