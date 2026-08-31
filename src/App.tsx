@@ -407,10 +407,11 @@ export default function App() {
           console.error("Failed to save user profile:", error);
         }
       } else {
-        setUser(null);
-        setWorkspace(null);
-        setSubjects([]);
-        setNotes([]);
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          console.error("Anonymous auth failed:", error);
+        }
       }
       setIsAuthReady(true);
     });
