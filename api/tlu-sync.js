@@ -2,10 +2,11 @@ import https from 'https';
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 
-if (!admin.getApps().length) {
+if (!admin.apps.length && !admin.getApps().length) {
   try {
     admin.initializeApp({
-       projectId: process.env.FIREBASE_PROJECT_ID || 'ai-studio-cea2153d-8217-48bb-be5d-6759729fa4c2'
+       // Hardcode project ID to match client's config so it doesn't fail if env is wrong
+       projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0517344670'
     });
   } catch(e) {
     console.error('Firebase Admin init error', e);
