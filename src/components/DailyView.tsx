@@ -194,16 +194,21 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
       >
-        {dates.map((date) => (
+        {dates.map((date) => {
+          const isSelected = isSameDay(date, selectedDate);
+          const isToday = isSameDay(date, new Date());
+          return (
           <button
             key={date.toString()}
             id={`date-btn-${format(date, 'yyyy-MM-dd')}`}
-            data-today={isSameDay(date, new Date())}
+            data-today={isToday}
             onClick={() => handleDateClick(date)}
             className={cn(
               "flex flex-col items-center min-w-[64px] p-3 rounded-2xl transition-all border",
-              isSameDay(date, selectedDate)
+              isSelected
                 ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100 dark:shadow-none scale-105"
+                : isToday
+                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700"
                 : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-500"
             )}
           >
@@ -214,7 +219,8 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
               {format(date, 'dd')}
             </span>
           </button>
-        ))}
+        );
+        })}
       </div>
 
       <div className="flex flex-col gap-4">
