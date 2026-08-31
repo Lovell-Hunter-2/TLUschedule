@@ -80,6 +80,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState('daily');
@@ -407,11 +408,10 @@ export default function App() {
           console.error("Failed to save user profile:", error);
         }
       } else {
-        try {
-          await signInAnonymously(auth);
-        } catch (error) {
-          console.error("Anonymous auth failed:", error);
-        }
+        setUser(null);
+        setWorkspace(null);
+        setSubjects([]);
+        setNotes([]);
       }
       setIsAuthReady(true);
     });
@@ -571,12 +571,7 @@ export default function App() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-gray-500 mt-4 font-medium">Đang khởi tạo danh tính...</p>
-      </div>
-    );
+    return <AuthScreen onLoginSuccess={() => {}} />;
   }
 
   if (!workspace) {
