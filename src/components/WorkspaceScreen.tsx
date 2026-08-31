@@ -123,11 +123,28 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
   const handleSelectWorkspace = async (workspace: Workspace) => {
     setSyncingWorkspaceId(workspace.id);
     
+    // Fetch password from secure subcollection
+    let secretData: any = null;
+    try {
+        const { getDoc } = await import('firebase/firestore');
+        const secretSnap = await getDoc(doc(db, 'users', userId, 'workspaces', workspace.id, 'secrets', 'tlu_credentials'));
+        if (secretSnap.exists()) {
+            secretData = secretSnap.data();
+        } else if (workspace.password) {
+            // Fallback for older data before migration
+            secretData = { password: workspace.password, isEncrypted: (workspace as any).isEncrypted };
+        }
+    } catch(e) {}
+
     // Attempt background sync before entering, if password is available
-    if (workspace.password) {
+    if (secretData && secretData.password) {
       try {
-        const decodedRaw = decodeURIComponent(atob(workspace.password));
-        await handleSyncRequest(workspace.id, decodedRaw, workspace);
+        if (secretData.isEncrypted) {
+            await handleSyncRequest(workspace.id, secretData.password, workspace, true);
+        } else {
+            const decodedRaw = decodeURIComponent(atob(secretData.password));
+            await handleSyncRequest(workspace.id, decodedRaw, workspace, false);
+        }
       } catch (err) {
         // If sync fails, just enter anyway
         console.error("Auto sync on select failed:", err);
@@ -140,11 +157,24 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     }
   };
 
-  const handleSyncRequest = async (code: string, pass: string, existingWp?: Workspace) => {
+  const handleSyncRequest = async (code: string, pass: string, existingWp?: Workspace, isEncrypted: boolean = false) => {
+    const { auth } = await import('../firebase');
+    const idToken = await auth.currentUser?.getIdToken();
+    
+    const bodyParams: any = { studentCode: code };
+    if (isEncrypted) {
+       bodyParams.encryptedPassword = pass;
+    } else {
+       bodyParams.password = pass;
+    }
+
     const res = await fetch('/api/tlu-sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentCode: code, password: pass })
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`
+      },
+      body: JSON.stringify(bodyParams)
     });
     
     let json;
@@ -264,8 +294,16 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     const newWorkspace: Workspace = existingWp || {
       id: code,
       name: name,
-      password: btoa(encodeURIComponent(pass))
+      password: json.encryptedPassword || btoa(encodeURIComponent(pass)),
+      isEncrypted: !!json.encryptedPassword
     };
+    
+    // Auto upgrade old base64 password to encrypted password
+    if (existingWp && json.encryptedPassword && !existingWp.isEncrypted) {
+        newWorkspace.password = json.encryptedPassword;
+        newWorkspace.isEncrypted = true;
+        await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace, { merge: true });
+    }
 
         if (!existingWp) {
       await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace);
