@@ -1,4 +1,16 @@
 import https from 'https';
+import crypto from 'crypto';
+import admin from 'firebase-admin';
+
+if (!admin.apps.length) {
+  try {
+    admin.initializeApp({
+       projectId: process.env.FIREBASE_PROJECT_ID || 'ai-studio-cea2153d-8217-48bb-be5d-6759729fa4c2'
+    });
+  } catch(e) {
+    console.error('Firebase Admin init error', e);
+  }
+}
 
 const UPSTREAM_HOST = 'sinhvien1.tlu.edu.vn';
 const AUTH_CONFIG = {
@@ -7,29 +19,47 @@ const AUTH_CONFIG = {
   grant_type: 'password',
 };
 
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '12345678901234567890123456789012';
+const IV_LENGTH = 16;
+
+function encrypt(text) {
+  let iv = crypto.randomBytes(IV_LENGTH);
+  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0,32)), iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function decrypt(text) {
+  let textParts = text.split(':');
+  let iv = Buffer.from(textParts.shift(), 'hex');
+  let encryptedText = Buffer.from(textParts.join(':'), 'hex');
+  let decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').substring(0,32)), iv);
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+}
+
 async function httpsPost(hostname, path, data, headers = {}) {
   return new Promise((resolve, reject) => {
     const postData = (typeof data === 'string' || data instanceof URLSearchParams) ? data.toString() : JSON.stringify(data);
-    
     const options = {
       hostname,
       port: 443,
       path,
       method: 'POST',
-      rejectUnauthorized: false, // Bỏ qua lỗi chứng chỉ SSL
+      rejectUnauthorized: true, // SECURITY FIX: Enable SSL cert verification
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData),
         ...headers
       }
     };
-
     const req = https.request(options, (res) => {
       let body = '';
       res.on('data', (chunk) => body += chunk);
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, data: body }));
     });
-
     req.on('error', (e) => reject(e));
     req.write(postData);
     req.end();
@@ -43,40 +73,84 @@ async function httpsGet(hostname, path, headers = {}) {
       port: 443,
       path,
       method: 'GET',
-      rejectUnauthorized: false,
+      rejectUnauthorized: true, // SECURITY FIX: Enable SSL cert verification
       headers
     };
-
     const req = https.request(options, (res) => {
       let body = '';
       res.on('data', (chunk) => body += chunk);
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, data: body }));
     });
-
     req.on('error', (e) => reject(e));
     req.end();
   });
 }
 
+// Simple in-memory rate limiter (Works per Vercel serverless instance)
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 10;
+
 export default async function handler(req, res) {
-  // CORS Setup
+  // SECURITY FIX: CORS setup restricted
+  const allowedOrigins = ['https://lichhoctlu.vercel.app', 'http://localhost:3000', 'http://localhost:5173'];
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', 'https://lichhoctlu.vercel.app');
+  }
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Chỉ hỗ trợ phương thức POST' });
+
+  // SECURITY FIX: Rate Limiting
+  const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const rateRecord = rateLimitMap.get(clientIp) || { count: 0, startTime: now };
+  if (now - rateRecord.startTime > RATE_LIMIT_WINDOW_MS) {
+    rateRecord.count = 1;
+    rateRecord.startTime = now;
+  } else {
+    rateRecord.count++;
+  }
+  rateLimitMap.set(clientIp, rateRecord);
+  
+  if (rateRecord.count > MAX_REQUESTS_PER_WINDOW) {
+    return res.status(429).json({ error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.' });
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Chỉ hỗ trợ phương thức POST' });
+  // SECURITY FIX: Firebase Admin Token Verification
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized: Missing Firebase ID Token' });
+  }
+  
+  let decodedToken;
+  try {
+    const idToken = authHeader.split('Bearer ')[1];
+    decodedToken = await admin.auth().verifyIdToken(idToken);
+  } catch (e) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID Token' });
   }
 
-  const { studentCode, password } = req.body;
+  const { studentCode, password, encryptedPassword } = req.body;
 
-  if (!studentCode || !password) {
+  if (!studentCode || (!password && !encryptedPassword)) {
     return res.status(400).json({ error: 'Thiếu mã sinh viên hoặc mật khẩu' });
+  }
+
+  let rawPassword = password;
+  if (encryptedPassword) {
+    try {
+      rawPassword = decrypt(encryptedPassword);
+    } catch (e) {
+      return res.status(400).json({ error: 'Không thể giải mã mật khẩu' });
+    }
   }
 
   try {
@@ -86,9 +160,9 @@ export default async function handler(req, res) {
     params.append('client_secret', AUTH_CONFIG.client_secret);
     params.append('grant_type', AUTH_CONFIG.grant_type);
     params.append('username', studentCode);
-    params.append('password', password);
+    params.append('password', rawPassword);
 
-    console.log(`Đang đăng nhập cho: ${studentCode}`);
+    console.log(`Đang đăng nhập cho: ${studentCode} (by UID: ${decodedToken.uid})`);
     
     let loginResponse;
     try {
@@ -111,18 +185,21 @@ export default async function handler(req, res) {
     }
 
     const token = authData.access_token;
-    
     if (!token) {
       return res.status(401).json({ error: 'Không lấy được Token từ TLU' });
     }
 
-    
+    // Encrypt password to return to client if raw password was provided
+    let returnedEncryptedPassword = encryptedPassword;
+    if (password) {
+      returnedEncryptedPassword = encrypt(password);
+    }
+
     // BƯỚC 1.5: LẤY ĐIỂM SỐ
     let gpaSummary = [];
     let detailedMarks = [];
     try {
       const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
-      
       const gpaEndpoints = [
         '/education/api/studentsummarymark/getbystudent',
         '/education/api/studentsummarymark/getByStudent',
@@ -140,7 +217,6 @@ export default async function handler(req, res) {
           });
           if (res.status === 200) {
             let data = JSON.parse(res.data);
-
             let rawData = data;
             gpaSummary = [];
             if (Array.isArray(rawData)) {
@@ -203,7 +279,6 @@ export default async function handler(req, res) {
             } else {
               gpaSummary = rawData.content || [];
             }
-
           }
         } catch (e) {}
       }
@@ -216,7 +291,6 @@ export default async function handler(req, res) {
         '/education/api/studentsubjectmark/getAll',
         '/education/api/studentmark/getListMarkDetailStudent'
       ];
-      
       let allMarksData = [];
       for (const ep of markEndpoints) {
         if (allMarksData.length > 0) break;
@@ -237,14 +311,11 @@ export default async function handler(req, res) {
         } catch (e) {}
       }
 
-      // Deduplicate marks exactly
       const uniqueItems = [];
       const seen = new Set();
       allMarksData.forEach(item => {
         const name = String(item?.subject?.subjectName || item?.subjectName || '').trim().toLowerCase();
         if (!name || name.includes('(thi)') || name.includes('thi kết thúc')) return;
-        
-        // Try to use a unique identifier from the item itself
         const key = item.id ? String(item.id) : JSON.stringify(item);
         if (!seen.has(key)) {
            seen.add(key);
@@ -252,36 +323,24 @@ export default async function handler(req, res) {
         }
       });
       detailedMarks = uniqueItems;
-      try {
-        fs.writeFileSync('dump_marks.json', JSON.stringify({ gpaSummary, detailedMarks, allMarksData }, null, 2));
-      } catch(err) {}
-
-      
     } catch (e) {
       console.error("Lỗi khi lấy điểm:", e);
     }
     
     // BƯỚC 2: TÌM ENDPOINT CHUẨN ĐỂ LẤY LỊCH HỌC
-    let workingDataForSchedule = null;
     let probingResults = {};
-
-    // Đầu tiên lấy danh sách học kỳ
     let allSemesterIds = [];
-    let semesterMap = {}; // mapping id -> name
+    let semesterMap = {};
     try {
       const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
-      // Lấy danh sách school years chứa semesters
       const semRes = await httpsGet(UPSTREAM_HOST, '/education/api/schoolyear/1/10000', {
         'Authorization': `Bearer ${token}`,
         'Cookie': `token=${tokenPayload}`,
         'User-Agent': 'Mozilla/5.0'
       });
-      probingResults['/education/api/schoolyear'] = semRes.status;
       if (semRes.status === 200) {
         let data = JSON.parse(semRes.data);
         const list = Array.isArray(data) ? data : (data.content || []);
-        
-        // Trích xuất tất cả semester IDs từ các năm học
         let foundIds = [];
         list.forEach(year => {
            if (year.semesters && Array.isArray(year.semesters)) {
@@ -293,19 +352,13 @@ export default async function handler(req, res) {
               });
            }
         });
-        
         if (foundIds.length > 0) {
-           // Sắp xếp ID giảm dần (mới nhất)
            foundIds.sort((a, b) => b - a);
            allSemesterIds = foundIds;
-           console.log("Tìm thấy các semester IDs:", allSemesterIds);
         }
       }
-    } catch (e) {
-      console.log("Lỗi fetch schoolyear", e);
-    }
+    } catch (e) {}
     
-    // Lấy thông tin user
     let studentName = null;
     try {
       const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
@@ -318,25 +371,17 @@ export default async function handler(req, res) {
         const userData = JSON.parse(userRes.data);
         studentName = userData.displayName;
       }
-    } catch (e) {
-      console.log("Lỗi fetch user", e);
-    }
+    } catch (e) {}
 
-    // Các URL cần thử
     let endpointsToProbe = [];
-    
-    // Thêm các URL cho TẤT CẢ học kỳ để gộp chung lại
     if (allSemesterIds.length > 0) {
-        // Chỉ lấy 8 học kỳ gần nhất để tránh fetch quá lâu (8 kỳ ~ 4 năm)
         allSemesterIds.slice(0, 8).forEach(id => {
             endpointsToProbe.push({ url: `/education/api/StudentCourseSubject/studentLoginUser/${id}`, semId: id });
         });
     } else {
-        // Fallback
         endpointsToProbe.push({ url: '/education/api/StudentCourseSubject/studentLoginUser', semId: null });
     }
 
-    // Helper to run promises in chunks to avoid overloading the TLU server
     const runInChunks = async (items, chunkFn, chunkSize = 3) => {
         let results = [];
         for (let i = 0; i < items.length; i += chunkSize) {
@@ -348,7 +393,6 @@ export default async function handler(req, res) {
     };
 
     let allSchedules = [];
-
     const scheduleResults = await runInChunks(endpointsToProbe, async (target) => {
       const path = target.url;
       try {
@@ -356,29 +400,19 @@ export default async function handler(req, res) {
         const res = await httpsGet(UPSTREAM_HOST, path, {
           'Authorization': `Bearer ${token}`,
           'Cookie': `token=${tokenPayload}`,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Referer': `https://${UPSTREAM_HOST}/`
+          'User-Agent': 'Mozilla/5.0',
+          'Accept': 'application/json, text/plain, */*'
         });
-        
-        probingResults[path] = { status: res.status, data: res.data.substring(0, 100) };
         
         if (res.status === 200) {
           const dt = JSON.parse(res.data);
           const list = Array.isArray(dt) ? dt : (dt.content || [dt]);
-          
           let dtStr = JSON.stringify(dt);
-          // Kiểm tra xem data có vẻ giống schedule không
           if (dtStr.includes('subjectCode') || (dtStr.includes('timetable') && dtStr.includes('courseSubject'))) {
-             // Gắn thông tin semester
-             const listWithSem = list.map(item => ({...item, _semesterId: target.semId, _semesterName: semesterMap[target.semId]}));
-             console.log(`Đã gom thêm data lịch học từ: ${path}`);
-             return listWithSem;
+             return list.map(item => ({...item, _semesterId: target.semId, _semesterName: semesterMap[target.semId]}));
           }
         }
-      } catch (e) {
-        probingResults[path] = 'Error: ' + e.message;
-      }
+      } catch (e) {}
       return [];
     }, 3);
 
@@ -386,7 +420,6 @@ export default async function handler(req, res) {
       allSchedules = allSchedules.concat(res);
     });
 
-    // --- NEW: FETCH EXAM SCHEDULES ---
     let examEndpoints = [];
     const periodResults = await runInChunks(allSemesterIds.slice(0, 4), async (semId) => {
        try {
@@ -433,23 +466,19 @@ export default async function handler(req, res) {
            }
        } catch (e) {}
        return [];
-    }, 4); // Chạy 4 request mỗi lần cho exams vì payload thường nhỏ
+    }, 4);
     
     examResults.forEach(res => {
        allExams = allExams.concat(res);
     });
 
     if (allSchedules.length === 0 && allExams.length === 0) {
-      console.log("Không tìm thấy data lịch học và lịch thi. Kết quả probe:", probingResults);
+      // SECURITY FIX: Remove probingResults from client response
       return res.status(404).json({ 
-        error: 'Không tìm thấy API lịch học TLU khả dụng hoặc không có dữ liệu.', 
-        details: { probes: probingResults }
+        error: 'Không tìm thấy API lịch học TLU khả dụng hoặc không có dữ liệu.'
       });
     }
 
-    let originalData = allSchedules;
-
-    // BƯỚC 3: DỌN DẸP DỮ LIỆU LỊCH HỌC
     let list = Array.isArray(allSchedules) ? allSchedules : (allSchedules.content || [allSchedules]);
     
     const cleanedList = list.map(item => {
@@ -463,7 +492,6 @@ export default async function handler(req, res) {
       };
     }).filter(s => s.subjectName);
 
-    // BƯỚC 4: DỌN DẸP DỮ LIỆU LỊCH THI
     const cleanedExams = allExams.map(item => {
       return {
         id: item.id || Math.random().toString(36).substr(2, 9),
@@ -484,7 +512,8 @@ export default async function handler(req, res) {
       exams: cleanedExams,
       studentName: studentName,
       gpaSummary: gpaSummary,
-      detailedMarks: detailedMarks
+      detailedMarks: detailedMarks,
+      encryptedPassword: returnedEncryptedPassword // SECURITY FIX: Return encrypted password
     });
 
   } catch (error) {
