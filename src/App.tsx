@@ -159,7 +159,7 @@ export default function App() {
 
   // Background Auto-sync
   const runSync = async (force: boolean = false) => {
-    if (!user || !workspace || !workspace.password || workspace.password === '') return;
+    if (!user || !workspace) return;
     
     const lastSyncKey = `last_sync_tlu_${workspace.id}`;
     if (!force) {
@@ -172,14 +172,42 @@ export default function App() {
 
     try {
       setIsSyncing(true);
+      
+      const { auth } = await import('./firebase');
+      const { getDoc, doc } = await import('firebase/firestore');
+      
+      let secretData: any = null;
+      const secretSnap = await getDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id, 'secrets', 'tlu_credentials'));
+      if (secretSnap.exists()) {
+          secretData = secretSnap.data();
+      } else if (workspace.password) {
+          secretData = { password: workspace.password, isEncrypted: (workspace as any).isEncrypted };
+      }
+      
+      if (!secretData || !secretData.password) {
+          setIsSyncing(false);
+          return;
+      }
+
       console.log("Đang đồng bộ ngầm lịch học/thi...");
-      const rawPassword = decodeURIComponent(atob(workspace.password!));
+      const idToken = await auth.currentUser?.getIdToken();
+      
       const studentCode = workspace.id;
+      const isEncrypted = secretData.isEncrypted;
+      const bodyParams: any = { studentCode };
+      if (isEncrypted) {
+         bodyParams.encryptedPassword = secretData.password;
+      } else {
+         bodyParams.password = decodeURIComponent(atob(secretData.password));
+      }
 
       const res = await fetch('/api/tlu-sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentCode, password: rawPassword })
+        headers: { 
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(bodyParams)
       });
       
       if (!res.ok) {
