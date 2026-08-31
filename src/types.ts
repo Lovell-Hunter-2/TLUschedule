@@ -55,4 +55,5 @@ export interface Workspace {
   id: string;
   name: string;
   password?: string;
+  isEncrypted?: boolean;
 }
