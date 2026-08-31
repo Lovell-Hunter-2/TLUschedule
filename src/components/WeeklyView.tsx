@@ -112,7 +112,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                   key={day.toString()} 
                   className={cn(
                     "p-1 sm:p-3 text-center border-l border-gray-100 dark:border-gray-700 flex flex-col",
-                    isSameDay(day, new Date()) && "bg-blue-50/50 dark:bg-blue-900/20"
+                    isSameDay(day, new Date()) && "bg-blue-100/60 dark:bg-blue-900/40"
                   )}
                 >
                   <div className="text-[8px] sm:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase hidden sm:block">{format(day, 'EEEE', { locale: vi })}</div>
@@ -165,9 +165,10 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                 {weekDays.map(day => {
                   const dayStr = format(day, 'yyyy-MM-dd');
                   const subjectsAtPeriod = weekSchedule[dayStr]?.[period.id] || [];
+                  const isToday = isSameDay(day, new Date());
                   
                   return (
-                    <div key={day.toString()} className="border-l border-gray-100 dark:border-gray-700 p-0.5 relative group">
+                    <div key={day.toString()} className={cn("border-l border-gray-100 dark:border-gray-700 p-0.5 relative group", isToday && "bg-blue-50/50 dark:bg-blue-900/20")}>
                       {subjectsAtPeriod.map((s, i) => (
                         <div 
                           key={s.id + i}
@@ -181,7 +182,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                             getSubjectColor(s.name)
                           )}
                         >
-                          <span className="line-clamp-3 sm:line-clamp-2 w-full">{s.room && <span className="block sm:inline">{s.room}</span>} <span className="hidden sm:inline">-</span> {s.name}</span>
+                          <span className="line-clamp-2 w-full leading-tight">{s.name}</span>\n                          {s.room && <span className="block mt-0.5 font-medium opacity-90 truncate w-full text-center">{s.room}</span>}
                         </div>
                       ))}
                     </div>
@@ -200,9 +201,11 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
           onScroll={() => setActiveSubject(null)}
         >
           <div 
-            className="fixed bg-gray-900 dark:bg-gray-800 text-white rounded-xl shadow-2xl p-4 w-[240px] z-50 border border-gray-700/50 animate-in fade-in zoom-in-95 duration-200"
+            className={cn(
+              "fixed rounded-xl shadow-2xl p-4 w-[240px] z-50 animate-in fade-in zoom-in-95 duration-200 border",
+              getSubjectColor(activeSubject.subject.name)
+            )}
             style={{ 
-              // On mobile center it, on desktop place near click
               ...(window.innerWidth < 640 ? {
                 top: '50%',
                 left: '50%',
@@ -215,18 +218,17 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-start gap-3 mb-2">
-              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                <BookOpen className="w-4 h-4 text-blue-400" />
+              <div className="w-8 h-8 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                <BookOpen className="w-4 h-4 opacity-80" />
               </div>
-              <div>
+              <div className="flex-1">
                 <h4 className="font-bold text-sm leading-tight">{activeSubject.subject.name}</h4>
-                <p className="text-xs text-blue-400 font-medium mt-0.5">{activeSubject.subject.room}</p>
+                <p className="text-xs font-semibold opacity-90 mt-0.5">{activeSubject.subject.room}</p>
               </div>
             </div>
             
-            <div className="space-y-1.5 mt-4 text-xs text-gray-300">
-              <p>Mã môn: <span className="font-medium text-white">{activeSubject.subject.id}</span></p>
-              {activeSubject.subject.teacher && <p>Giảng viên: <span className="font-medium text-white">{activeSubject.subject.teacher}</span></p>}
+            <div className="mt-4 pt-3 border-t border-current/10 text-xs opacity-90">
+              <p>Giảng viên: <span className="font-bold">{activeSubject.subject.teacher || 'Chưa cập nhật'}</span></p>
             </div>
           </div>
         </div>
