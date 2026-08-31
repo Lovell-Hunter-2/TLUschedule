@@ -99,9 +99,9 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-        <div className="w-full">
-          <div className="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[70px_repeat(7,1fr)] md:grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
+      <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-x-auto">
+        <div className="w-full sm:min-w-[800px]">
+          <div className="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
             <div className="p-1 sm:p-3 text-[9px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center justify-center text-center">Tiết</div>
             {weekDays.map(day => {
               const dayStr = format(day, 'yyyy-MM-dd');
@@ -157,7 +157,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
 
           <div className="relative">
             {PERIODS.map((period, idx) => (
-              <div key={period.id} className="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[70px_repeat(7,1fr)] md:grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 last:border-0 h-14 sm:h-12">
+              <div key={period.id} className="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 last:border-0 h-14 sm:h-12">
                 <div className="flex flex-col items-center justify-center bg-gray-50/30 dark:bg-gray-900/30 border-r border-gray-100 dark:border-gray-700 p-0.5">
                   <span className="text-[9px] sm:text-xs font-bold text-gray-500 dark:text-gray-400">{period.id}</span>
                   <span className="text-[7px] sm:text-[9px] text-gray-400 dark:text-gray-500 hidden sm:block">{period.startTime}</span>
@@ -178,11 +178,19 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                             setActiveSubject({ subject: s, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
                           }}
                           className={cn(
-                            "absolute inset-[1px] sm:inset-0.5 rounded-sm sm:rounded-md p-0.5 sm:p-1 text-[7.5px] sm:text-[9px] font-bold leading-[1.1] sm:leading-tight overflow-hidden shadow-sm border cursor-pointer hover:opacity-90 flex flex-col justify-center items-center text-center",
+                            // Mobile styling (flex, centered, smaller text)
+                            "absolute inset-[1px] rounded-sm p-0.5 text-[7.5px] font-bold leading-[1.1] overflow-hidden shadow-sm border cursor-pointer hover:opacity-90 flex flex-col justify-center items-center text-center",
+                            // Desktop styling (block, original styling)
+                            "sm:inset-0.5 sm:rounded-md sm:p-1 sm:text-[9px] sm:leading-tight sm:block sm:text-left",
                             getSubjectColor(s.name)
                           )}
                         >
-                          <span className="line-clamp-2 w-full leading-tight">{s.name}</span>\n                          {s.room && <span className="block mt-0.5 font-medium opacity-90 truncate w-full text-center">{s.room}</span>}
+                          {/* Mobile Content */}
+                          <span className="sm:hidden line-clamp-2 w-full leading-tight">{s.name}</span>
+                          {s.room && <span className="sm:hidden block mt-0.5 font-medium opacity-90 truncate w-full text-center">{s.room}</span>}
+                          
+                          {/* Desktop Content */}
+                          <span className="hidden sm:inline">{s.name}</span>
                         </div>
                       ))}
                     </div>
