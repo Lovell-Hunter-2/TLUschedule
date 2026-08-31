@@ -70,7 +70,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
 
   return (
     <div className="flex flex-col gap-4 overflow-hidden">
-      <div className="flex items-center justify-between px-2">
+      <div className="flex items-center justify-between">
         <h3 className="font-bold text-lg text-gray-700 dark:text-gray-200">
           {format(weekStart, 'dd/MM', { locale: vi })} - {format(weekDays[6], 'dd/MM/yyyy', { locale: vi })}
         </h3>
@@ -99,7 +99,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-x-auto">
+      <div className="-mx-6 sm:mx-0 rounded-none sm:rounded-xl border-y sm:border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-x-auto">
         <div className="w-full sm:min-w-[800px]">
           <div className="grid grid-cols-[30px_repeat(7,1fr)] sm:grid-cols-[80px_repeat(7,1fr)] border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
             <div className="p-1 sm:p-3 text-[9px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center justify-center text-center">Tiết</div>
