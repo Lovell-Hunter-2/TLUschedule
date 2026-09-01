@@ -207,8 +207,8 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
                daysOfWeek: [dayIndex],
                periods,
                color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
-               semesterId: item.semesterId,
-               semesterName: item.semesterName
+               semesterId: item.semesterId == null ? '' : String(item.semesterId),
+               semesterName: item.semesterName == null ? '' : String(item.semesterName)
              });
           });
         }
@@ -263,8 +263,8 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
           daysOfWeek: [dayIndex],
           periods: periods,
           color: 'border-l-red-500', 
-          semesterId: item.semesterId,
-          semesterName: item.semesterName
+          semesterId: item.semesterId == null ? '' : String(item.semesterId),
+          semesterName: item.semesterName == null ? '' : String(item.semesterName)
         });
       });
     }
