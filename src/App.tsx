@@ -202,29 +202,26 @@ export default function App() {
          bodyParams.password = decodeURIComponent(atob(secretData.password));
       }
 
-      const res = await fetch('/api/tlu-sync', {
-        method: 'POST',
-        headers: { 
-           'Content-Type': 'application/json',
-           'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify(bodyParams)
-      });
-      
-      if (!res.ok) {
-        try {
-          const { addDoc, collection } = await import('firebase/firestore');
-          await addDoc(collection(db, 'sync_errors'), {
-            timestamp: new Date().toISOString(),
-            userEmail: user.email,
-            studentCode,
-            errorMessage: 'API returned ' + res.status
-          });
-        } catch(e) {}
-        if (force) alert("Có lỗi khi đồng bộ. Vui lòng thử lại sau.");
-        return;
+      const { importClient } = require('./lib/tlu-client') || {}; // Just mock it out, we will use dynamic import for cleaner file
+      const { syncTluWithChunks } = await import('./lib/tlu-client');
+      let res, json;
+      try {
+         const result = await syncTluWithChunks(bodyParams, idToken);
+         res = result.res; json = result.json;
+      } catch (err: any) {
+         try {
+           const { addDoc, collection } = await import('firebase/firestore');
+           await addDoc(collection(db, 'sync_errors'), {
+             timestamp: new Date().toISOString(),
+             userEmail: user.email,
+             studentCode,
+             errorMessage: err.message
+           });
+         } catch(e) {}
+         if (force) alert(err.message || "Có lỗi khi đồng bộ. Vui lòng thử lại sau.");
+         return;
       }
-      const json = await res.json();
+
       const results: any[] = [];
       
       // Map lịch học
