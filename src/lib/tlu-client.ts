@@ -6,11 +6,11 @@ export async function syncTluWithChunks(bodyParams: any, idToken?: string) {
       headers['Authorization'] = `Bearer ${idToken}`;
    }
 
-   const doSync = async (target: string) => {
+   const doSync = async (target: string, extraBody: any = {}) => {
       const r = await fetch('/api/tlu-sync', {
          method: 'POST',
          headers,
-         body: JSON.stringify({ ...bodyParams, syncTarget: target })
+         body: JSON.stringify({ ...bodyParams, ...extraBody, syncTarget: target })
       });
       let data;
       try {
@@ -29,20 +29,24 @@ export async function syncTluWithChunks(bodyParams: any, idToken?: string) {
       return data;
    };
 
+   // 0. Login & Get TLU Token
+   const loginRes = await doSync('login');
+   const tluToken = loginRes.tluToken;
+   if (loginRes.encryptedPassword) json.encryptedPassword = loginRes.encryptedPassword;
+
    // 1. Fetch Marks & Info
-   const marksRes = await doSync('marks');
+   const marksRes = await doSync('marks', { tluToken });
    json.gpaSummary = marksRes.gpaSummary || [];
    json.detailedMarks = marksRes.detailedMarks || [];
    json.studentName = marksRes.studentName || '';
-   if (marksRes.encryptedPassword) json.encryptedPassword = marksRes.encryptedPassword;
 
    // 2. Fetch Schedules
-   const schedRes = await doSync('schedules');
+   const schedRes = await doSync('schedules', { tluToken });
    json.data = schedRes.data || [];
 
    // 3. Fetch Exams
    try {
-      const examsRes = await doSync('exams');
+      const examsRes = await doSync('exams', { tluToken });
       json.exams = examsRes.exams || [];
    } catch (e) {
       // If exams fail, we can just ignore it to avoid destroying everything
