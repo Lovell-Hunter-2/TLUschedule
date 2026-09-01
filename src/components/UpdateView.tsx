@@ -78,8 +78,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                  daysOfWeek: [dayIndex],
                  periods,
                  color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
-                 semesterId: item.semesterId,
-                 semesterName: item.semesterName
+                 semesterId: item.semesterId == null ? '' : String(item.semesterId),
+                 semesterName: item.semesterName == null ? '' : String(item.semesterName)
                });
             });
           }
