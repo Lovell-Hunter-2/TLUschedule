@@ -36,28 +36,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
     
     setIsTluSyncing(true);
     try {
-      const res = await fetch('/api/tlu-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentCode: tluStudentCode, password: tluPassword })
-      });
-      
-      let json;
-      try {
-        json = await res.json();
-      } catch (e) {
-        throw new Error(`Máy chủ Vercel phản hồi lỗi (Status: ${res.status}). Vui lòng deploy lại hoặc kiểm tra Logs trên Vercel.`);
-      }
-      
-      if (!res.ok) {
-        let errorMsg = json?.error || 'Lỗi khi đồng bộ kết quả';
-        if (json?.status) errorMsg += ` (Mã lỗi TLU: ${json.status})`;
-        if (json?.details) {
-          const detailStr = typeof json.details === 'string' ? json.details.substring(0, 500) : JSON.stringify(json.details);
-          errorMsg += `\nChi tiết: ${detailStr}`;
-        }
-        throw new Error(errorMsg);
-      }
+      const { syncTluWithChunks } = await import('../lib/tlu-client');
+      const { json } = await syncTluWithChunks({ studentCode: tluStudentCode, password: tluPassword });
 
       const results: Subject[] = [];
       if (json.data && Array.isArray(json.data)) {
