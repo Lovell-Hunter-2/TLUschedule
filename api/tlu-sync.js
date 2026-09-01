@@ -45,7 +45,7 @@ async function httpsPost(hostname, path, data, headers = {}) {
   return new Promise((resolve, reject) => {
     const postData = (typeof data === 'string' || data instanceof URLSearchParams) ? data.toString() : JSON.stringify(data);
     const options = {
-      hostname, port: 443, path, method: 'POST', rejectUnauthorized: true,
+      hostname, port: 443, path, method: 'POST', rejectUnauthorized: false,
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData), ...headers }
     };
     const req = https.request(options, (res) => {
@@ -62,7 +62,7 @@ async function httpsPost(hostname, path, data, headers = {}) {
 
 async function httpsGet(hostname, path, headers = {}) {
   return new Promise((resolve, reject) => {
-    const options = { hostname, port: 443, path, method: 'GET', rejectUnauthorized: true, headers };
+    const options = { hostname, port: 443, path, method: 'GET', rejectUnauthorized: false, headers };
     const req = https.request(options, (res) => {
       let body = '';
       res.on('data', (chunk) => body += chunk);
@@ -84,7 +84,11 @@ const withTimeout = (promise, ms, fallbackValue) => {
     timeoutId = setTimeout(() => resolve(fallbackValue), ms);
   });
   return Promise.race([
-    promise.then(res => { clearTimeout(timeoutId); return res; }).catch(() => fallbackValue),
+    promise.then(res => { clearTimeout(timeoutId); return res; }).catch((err) => { 
+      clearTimeout(timeoutId);
+      console.error('withTimeout caught error:', err.message);
+      return { status: 502, error: err.message }; 
+    }),
     timeoutPromise
   ]);
 };
@@ -174,6 +178,7 @@ export default async function handler(req, res) {
       
       if (loginResponse.status !== 200) {
         if (loginResponse.status === 504) return res.status(504).json({ error: 'Máy chủ TLU phản hồi quá chậm (Timeout). Vui lòng thử lại.' }); 
+        if (loginResponse.status === 502) return res.status(502).json({ error: `Lỗi kết nối: ${loginResponse.error}. TLU có thể đang chặn IP Vercel.`, details: loginResponse.error }); 
         return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại mật khẩu!' });
       }
 
