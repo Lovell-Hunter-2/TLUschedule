@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { cn } from '../lib/utils';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
+import { auth } from '../firebase';
 import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 import { parseScheduleText } from '../services/geminiService';
 import { syncToGoogleCalendar } from '../services/googleCalendarService';
@@ -38,7 +39,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
     setIsTluSyncing(true);
     try {
       
-      const { json } = await syncTluWithChunks({ studentCode: tluStudentCode, password: tluPassword });
+      const idToken = await auth.currentUser?.getIdToken();
+      const { json } = await syncTluWithChunks({ studentCode: tluStudentCode, password: tluPassword }, idToken);
 
       const results: Subject[] = [];
       if (json.data && Array.isArray(json.data)) {
