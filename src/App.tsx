@@ -92,7 +92,7 @@ export default function App() {
   const [noteContent, setNoteContent] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [selectedSemesterId, setSelectedSemesterId] = useState<number | 'all'>('all');
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | string | 'all'>('all');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const { permission, requestPermission } = useClassNotifications(subjects);
 
@@ -115,7 +115,7 @@ export default function App() {
   const isAdmin = user?.email === 'taikhoanphubg4@gmail.com' || user?.email === 'ngominhthuanbg1612007@gmail.com';
 
   const semestersList = useMemo(() => {
-    const map = new Map<number, string>();
+    const map = new Map<number | string, string>();
     subjects.forEach(s => {
       if (s.semesterId && s.semesterName) {
         map.set(s.semesterId, s.semesterName);
@@ -129,12 +129,12 @@ export default function App() {
         if (match) {
           return parseInt(match[2]) * 10 + parseInt(match[1]);
         }
-        return b.id - a.id;
+        return (Number(b.id) || 0) - (Number(a.id) || 0);
       };
       const valA = parseSem(a.name);
       const valB = parseSem(b.name);
       if (valA !== valB) return valB - valA;
-      return b.id - a.id;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
     }); // Mới nhất lên đầu
     return arr;
   }, [subjects]);
