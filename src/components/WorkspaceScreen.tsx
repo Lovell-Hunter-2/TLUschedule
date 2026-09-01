@@ -1,3 +1,4 @@
+import { syncTluWithChunks } from "../lib/tlu-client";
 import React, { useState, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -168,7 +169,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
        bodyParams.password = pass;
     }
 
-    const { syncTluWithChunks } = await import('../lib/tlu-client');
+    
     const { json } = await syncTluWithChunks(bodyParams, idToken);
 
     const results: any[] = [];
