@@ -202,7 +202,7 @@ export default function App() {
          bodyParams.password = decodeURIComponent(atob(secretData.password));
       }
 
-      const { importClient } = require('./lib/tlu-client') || {}; // Just mock it out, we will use dynamic import for cleaner file
+      
       const { syncTluWithChunks } = await import('./lib/tlu-client');
       let res, json;
       try {
