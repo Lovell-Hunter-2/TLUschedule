@@ -125,7 +125,8 @@ export default async function handler(req, res) {
     const idToken = authHeader.split('Bearer ')[1];
     await admin.auth().verifyIdToken(idToken);
   } catch (e) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID Token' });
+    console.error("Token verification failed:", e.message, e.code);
+    return res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID Token', debug: e.message });
   }
 
   const { studentCode, password, encryptedPassword, syncTarget = 'all' } = req.body;
