@@ -305,7 +305,7 @@ export default async function handler(req, res) {
           });
           if (res.status === 200) {
             let data = JSON.parse(res.data);
-            let arr = Array.isArray(data) ? data : (data.content || []);
+            let arr = (data && Array.isArray(data)) ? data : (data && data.content ? data.content : []);
             if (arr.length > 0) {
                allMarksData = allMarksData.concat(arr);
                break;
@@ -378,7 +378,7 @@ export default async function handler(req, res) {
 
     let endpointsToProbe = [];
     if (allSemesterIds.length > 0) {
-        allSemesterIds.slice(0, 8).forEach(id => {
+        allSemesterIds.slice(0, 4).forEach(id => {
             endpointsToProbe.push({ url: `/education/api/StudentCourseSubject/studentLoginUser/${id}`, semId: id });
         });
     } else {
@@ -424,7 +424,7 @@ export default async function handler(req, res) {
     });
 
     let examEndpoints = [];
-    const periodResults = await runInChunks(allSemesterIds.slice(0, 4), async (semId) => {
+    const periodResults = await runInChunks(allSemesterIds.slice(0, 2), async (semId) => {
        try {
            const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
            const periodRes = await httpsGet(UPSTREAM_HOST, `/education/api/registerperiod/find/${semId}`, {
