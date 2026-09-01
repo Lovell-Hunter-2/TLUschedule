@@ -1,3 +1,4 @@
+import { syncTluWithChunks } from "./lib/tlu-client";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -203,7 +204,7 @@ export default function App() {
       }
 
       
-      const { syncTluWithChunks } = await import('./lib/tlu-client');
+      
       let res, json;
       try {
          const result = await syncTluWithChunks(bodyParams, idToken);
