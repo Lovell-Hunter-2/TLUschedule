@@ -78,6 +78,17 @@ const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW_MS = 60000;
 const MAX_REQUESTS_PER_WINDOW = 20;
 
+const withTimeout = (promise, ms, fallbackValue) => {
+  let timeoutId;
+  const timeoutPromise = new Promise(resolve => {
+    timeoutId = setTimeout(() => resolve(fallbackValue), ms);
+  });
+  return Promise.race([
+    promise.then(res => { clearTimeout(timeoutId); return res; }).catch(() => fallbackValue),
+    timeoutPromise
+  ]);
+};
+
 export default async function handler(req, res) {
   const allowedOrigins = ['https://lichhoctlu.vercel.app', 'http://localhost:3000', 'http://localhost:5173'];
   const origin = req.headers.origin;
@@ -110,15 +121,14 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized: Missing Firebase ID Token' });
   }
   
-  let decodedToken;
   try {
     const idToken = authHeader.split('Bearer ')[1];
-    decodedToken = await admin.auth().verifyIdToken(idToken);
+    await admin.auth().verifyIdToken(idToken);
   } catch (e) {
     return res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID Token' });
   }
 
-  const { studentCode, password, encryptedPassword } = req.body;
+  const { studentCode, password, encryptedPassword, syncTarget = 'all' } = req.body;
   if (!studentCode || (!password && !encryptedPassword)) {
     return res.status(400).json({ error: 'Thiếu mã sinh viên hoặc mật khẩu' });
   }
@@ -142,18 +152,26 @@ export default async function handler(req, res) {
     
     let loginResponse;
     try {
-      loginResponse = await httpsPost(UPSTREAM_HOST, '/education/oauth/token', params, {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      });
+      loginResponse = await withTimeout(
+         httpsPost(UPSTREAM_HOST, '/education/oauth/token', params, {
+           'Content-Type': 'application/x-www-form-urlencoded'
+         }),
+         4000,
+         { status: 504 }
+      );
     } catch (e) {
       return res.status(502).json({ error: 'Lỗi mạng: Không thể kết nối TLU', details: e.message });
     }
     
     if (loginResponse.status !== 200) {
-      return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại mật khẩu!' });
+      if (loginResponse.status === 504) return res.status(504).json({ error: 'Máy chủ TLU phản hồi quá chậm (Timeout). Vui lòng thử lại.' }); return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại mật khẩu!' });
     }
 
-    let authData = JSON.parse(loginResponse.data);
+    let authData = {};
+    try {
+      authData = JSON.parse(loginResponse.data);
+    } catch (e) {}
+
     const token = authData.access_token;
     if (!token) return res.status(401).json({ error: 'Không lấy được Token' });
 
@@ -240,11 +258,29 @@ export default async function handler(req, res) {
       return null;
     };
 
-    const fetchSemestersAndSchedules = async () => {
+    const fetchSemestersAndSchedules = async (target) => {
       let semesterMap = {};
       let allSemesterIds = [];
+      let currentSchedule = [];
+
+      // 1. NGAY LẬP TỨC fetch lịch học kỳ hiện tại (không cần chờ id)
+      // Nếu server TLU chậm, ta ít nhất có cái này.
+      const currentSemPromise = httpsGet(UPSTREAM_HOST, '/education/api/StudentCourseSubject/studentLoginUser', baseHeaders)
+        .then(res => {
+          if (res.status === 200) {
+            const dt = JSON.parse(res.data);
+            const list = Array.isArray(dt) ? dt : (dt.content || [dt]);
+            return list.map(item => ({...item, _semesterId: null, _semesterName: 'Kỳ hiện tại'}));
+          }
+          return [];
+        }).catch(() => []);
+
       try {
-        const semRes = await httpsGet(UPSTREAM_HOST, '/education/api/schoolyear/1/10000', baseHeaders);
+        const semRes = await withTimeout(
+          httpsGet(UPSTREAM_HOST, '/education/api/schoolyear/1/10000', baseHeaders),
+          2000, 
+          {status: 504}
+        );
         if (semRes.status === 200) {
           let data = JSON.parse(semRes.data);
           const list = Array.isArray(data) ? data : (data.content || []);
@@ -262,10 +298,16 @@ export default async function handler(req, res) {
         }
       } catch (e) {}
 
-      // Lấy lịch học và lịch thi của 2 học kỳ gần nhất
-      const targetSemIds = allSemesterIds.slice(0, 2);
+      const targetSemIds = (target === 'schedules' || target === 'exams') ? allSemesterIds : allSemesterIds.slice(0, 2);
       
-      let schedulePromises = targetSemIds.map(id => 
+      // Chờ lịch hiện tại
+      currentSchedule = await withTimeout(currentSemPromise, 2000, []);
+
+      if (targetSemIds.length === 0) {
+        return { allSchedules: currentSchedule, allExams: [] };
+      }
+
+      let schedulePromises = (target === 'exams') ? [] : targetSemIds.map(id => 
         httpsGet(UPSTREAM_HOST, `/education/api/StudentCourseSubject/studentLoginUser/${id}`, baseHeaders)
           .then(res => {
             if (res.status === 200) {
@@ -276,21 +318,8 @@ export default async function handler(req, res) {
             return [];
           }).catch(() => [])
       );
-      if (targetSemIds.length === 0) {
-        schedulePromises.push(
-          httpsGet(UPSTREAM_HOST, '/education/api/StudentCourseSubject/studentLoginUser', baseHeaders)
-          .then(res => {
-            if (res.status === 200) {
-              const dt = JSON.parse(res.data);
-              const list = Array.isArray(dt) ? dt : (dt.content || [dt]);
-              return list.map(item => ({...item, _semesterId: null, _semesterName: null}));
-            }
-            return [];
-          }).catch(() => [])
-        );
-      }
 
-      let examPromises = targetSemIds.map(id => 
+      let examPromises = (target === 'schedules') ? [] : targetSemIds.map(id => 
         httpsGet(UPSTREAM_HOST, `/education/api/registerperiod/find/${id}`, baseHeaders)
           .then(async (periodRes) => {
             if (periodRes.status === 200) {
@@ -318,21 +347,52 @@ export default async function handler(req, res) {
           }).catch(() => [])
       );
 
-      const schedulesArrs = await Promise.all(schedulePromises);
-      const examsArrs = await Promise.all(examPromises);
+      // Cho phép fetch lịch và thi thêm 3.5s nữa (tổng 1+2+3.5=6.5s)
+      const schedulesArrs = await withTimeout(Promise.all(schedulePromises), 3500, []);
+      const examsArrs = await withTimeout(Promise.all(examPromises), 3500, []);
+
+      // Trộn lịch hiện tại vào phòng trường hợp lịch cũ không load được
+      const finalSchedules = [...currentSchedule, ...(schedulesArrs.flat() || [])];
+
       return { 
-        allSchedules: schedulesArrs.flat(), 
-        allExams: examsArrs.flat() 
+        allSchedules: finalSchedules, 
+        allExams: examsArrs ? examsArrs.flat() : [] 
       };
     };
 
-    // CHẠY SONG SONG TẤT CẢ CÁC REQUEST
-    const [gpaSummary, detailedMarks, studentName, {allSchedules, allExams}] = await Promise.all([
-      fetchGpa(),
-      fetchMarks(),
-      fetchUser(),
-      fetchSemestersAndSchedules()
-    ]);
+    // Vercel Serverless Function Timeout is 10.0s. 
+    // Mọi thứ CHẮC CHẮN phải kết thúc sau ~7.5s từ sau khi đăng nhập xong
+    
+    let gpaSummary = [], detailedMarks = [], studentName = null, scheduleAndExams = {allSchedules: [], allExams: []};
+    
+    if (syncTarget === 'marks') {
+      [gpaSummary, detailedMarks, studentName] = await Promise.all([
+        withTimeout(fetchGpa(), 8000, []),
+        withTimeout(fetchMarks(), 8000, []),
+        withTimeout(fetchUser(), 3000, null)
+      ]);
+    } else if (syncTarget === 'schedules') {
+      [studentName, scheduleAndExams] = await Promise.all([
+        withTimeout(fetchUser(), 3000, null),
+        withTimeout(fetchSemestersAndSchedules('schedules'), 8000, {allSchedules: [], allExams: []})
+      ]);
+    } else if (syncTarget === 'exams') {
+      [studentName, scheduleAndExams] = await Promise.all([
+        withTimeout(fetchUser(), 3000, null),
+        withTimeout(fetchSemestersAndSchedules('exams'), 8000, {allSchedules: [], allExams: []})
+      ]);
+    } else {
+      // Default: 'all' (Fallbacks for old clients)
+      [gpaSummary, detailedMarks, studentName, scheduleAndExams] = await Promise.all([
+        withTimeout(fetchGpa(), 5500, []),
+        withTimeout(fetchMarks(), 5500, []),
+        withTimeout(fetchUser(), 3000, null),
+        withTimeout(fetchSemestersAndSchedules('all'), 6500, {allSchedules: [], allExams: []})
+      ]);
+    }
+
+
+    const { allSchedules, allExams } = scheduleAndExams || { allSchedules: [], allExams: [] };
 
     const cleanedList = allSchedules.map(item => {
       let rawCs = (item.studentCourseSubject && item.studentCourseSubject.courseSubject) || item.courseSubject;
@@ -357,9 +417,19 @@ export default async function handler(req, res) {
       semesterName: item._semesterName
     })).filter(e => e.subjectName && e.examDate);
 
+    // Xoá trùng lặp do trộn currentSchedule với schedulesArrs
+    const uniqueSchedules = [];
+    const seenCodes = new Set();
+    for (const s of cleanedList) {
+       if (!seenCodes.has(s.subjectCode)) {
+          seenCodes.add(s.subjectCode);
+          uniqueSchedules.push(s);
+       }
+    }
+
     return res.status(200).json({ 
       message: 'Đồng bộ thành công', 
-      data: cleanedList,
+      data: uniqueSchedules,
       exams: cleanedExams,
       studentName,
       gpaSummary,
