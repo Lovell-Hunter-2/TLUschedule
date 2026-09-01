@@ -285,6 +285,8 @@ export default async function handler(req, res) {
       }
 
       const markEndpoints = [
+        '/education/api/studentsubjectmark/getListStudentMarkBySemesterByLoginUser/0',
+
         '/education/api/studentsubjectmark/getListMarkDetailStudent',
         '/education/api/StudentSubjectMark/getListMarkDetailStudent',
         '/education/api/StudentSubjectMark/GetListMarkDetailStudent',
