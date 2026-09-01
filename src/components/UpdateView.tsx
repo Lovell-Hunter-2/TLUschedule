@@ -1,3 +1,4 @@
+import { syncTluWithChunks } from "../lib/tlu-client";
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -36,7 +37,7 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
     
     setIsTluSyncing(true);
     try {
-      const { syncTluWithChunks } = await import('../lib/tlu-client');
+      
       const { json } = await syncTluWithChunks({ studentCode: tluStudentCode, password: tluPassword });
 
       const results: Subject[] = [];
