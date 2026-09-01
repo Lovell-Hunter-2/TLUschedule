@@ -143,7 +143,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         if (secretData.isEncrypted) {
             await handleSyncRequest(workspace.id, secretData.password, workspace, true);
         } else {
-            const decodedRaw = decodeURIComponent(atob(secretData.password));
+            let decodedRaw = secretData.password; try { decodedRaw = decodeURIComponent(atob(secretData.password)); } catch(e) {}
             await handleSyncRequest(workspace.id, decodedRaw, workspace, false);
         }
       } catch (err) {
