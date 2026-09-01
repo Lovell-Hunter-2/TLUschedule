@@ -159,7 +159,11 @@ export default async function handler(req, res) {
       try {
         loginResponse = await withTimeout(
            httpsPost(UPSTREAM_HOST, '/education/oauth/token', params, {
-             'Content-Type': 'application/x-www-form-urlencoded'
+             'Content-Type': 'application/x-www-form-urlencoded',
+             'User-Agent': 'Mozilla/5.0',
+             'Accept': 'application/json, text/plain, */*',
+             'Origin': 'https://sinhvien1.tlu.edu.vn',
+             'Referer': 'https://sinhvien1.tlu.edu.vn/'
            }),
            4000,
            { status: 504 }
