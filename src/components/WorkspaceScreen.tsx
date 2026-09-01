@@ -168,26 +168,8 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
        bodyParams.password = pass;
     }
 
-    const res = await fetch('/api/tlu-sync', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${idToken}`
-      },
-      body: JSON.stringify(bodyParams)
-    });
-    
-    let json;
-    try {
-      json = await res.json();
-    } catch (e) {
-      throw new Error(`Máy chủ Vercel phản hồi lỗi (Status: ${res.status}). Vui lòng thử lại.`);
-    }
-    
-    if (!res.ok) {
-      let errorMsg = json?.error || 'Lỗi đăng nhập hoặc đồng bộ';
-      throw new Error(errorMsg);
-    }
+    const { syncTluWithChunks } = await import('../lib/tlu-client');
+    const { json } = await syncTluWithChunks(bodyParams, idToken);
 
     const results: any[] = [];
     if (json.data && Array.isArray(json.data)) {
