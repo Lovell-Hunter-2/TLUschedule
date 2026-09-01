@@ -129,8 +129,8 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID Token', debug: e.message });
   }
 
-  const { studentCode, password, encryptedPassword, syncTarget = 'all' } = req.body;
-  if (!studentCode || (!password && !encryptedPassword)) {
+  const { studentCode, password, encryptedPassword, syncTarget = 'all', tluToken } = req.body;
+  if (!studentCode || (!password && !encryptedPassword && !tluToken)) {
     return res.status(400).json({ error: 'Thiếu mã sinh viên hoặc mật khẩu' });
   }
 
@@ -143,42 +143,51 @@ export default async function handler(req, res) {
     }
   }
 
+  let token = tluToken;
+  let returnedEncryptedPassword = encryptedPassword;
+
+  if (!token) {
+    try {
+      const params = new URLSearchParams();
+      params.append('client_id', AUTH_CONFIG.client_id);
+      params.append('client_secret', AUTH_CONFIG.client_secret);
+      params.append('grant_type', AUTH_CONFIG.grant_type);
+      params.append('username', studentCode);
+      params.append('password', rawPassword);
+      
+      let loginResponse;
+      try {
+        loginResponse = await withTimeout(
+           httpsPost(UPSTREAM_HOST, '/education/oauth/token', params, {
+             'Content-Type': 'application/x-www-form-urlencoded'
+           }),
+           4000,
+           { status: 504 }
+        );
+      } catch (e) {
+        return res.status(502).json({ error: 'Lỗi mạng: Không thể kết nối TLU', details: e.message });
+      }
+      
+      if (loginResponse.status !== 200) {
+        if (loginResponse.status === 504) return res.status(504).json({ error: 'Máy chủ TLU phản hồi quá chậm (Timeout). Vui lòng thử lại.' }); 
+        return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại mật khẩu!' });
+      }
+
+      let authData = {};
+      try {
+        authData = JSON.parse(loginResponse.data);
+      } catch (e) {}
+
+      token = authData.access_token;
+      if (!token) return res.status(401).json({ error: 'Không lấy được Token' });
+
+      if (password) returnedEncryptedPassword = encrypt(password);
+    } catch(err) {
+      return res.status(500).json({ error: 'Lỗi đăng nhập TLU', details: err.message });
+    }
+  }
+
   try {
-    const params = new URLSearchParams();
-    params.append('client_id', AUTH_CONFIG.client_id);
-    params.append('client_secret', AUTH_CONFIG.client_secret);
-    params.append('grant_type', AUTH_CONFIG.grant_type);
-    params.append('username', studentCode);
-    params.append('password', rawPassword);
-    
-    let loginResponse;
-    try {
-      loginResponse = await withTimeout(
-         httpsPost(UPSTREAM_HOST, '/education/oauth/token', params, {
-           'Content-Type': 'application/x-www-form-urlencoded'
-         }),
-         4000,
-         { status: 504 }
-      );
-    } catch (e) {
-      return res.status(502).json({ error: 'Lỗi mạng: Không thể kết nối TLU', details: e.message });
-    }
-    
-    if (loginResponse.status !== 200) {
-      if (loginResponse.status === 504) return res.status(504).json({ error: 'Máy chủ TLU phản hồi quá chậm (Timeout). Vui lòng thử lại.' }); return res.status(401).json({ error: 'Đăng nhập thất bại. Vui lòng kiểm tra lại mật khẩu!' });
-    }
-
-    let authData = {};
-    try {
-      authData = JSON.parse(loginResponse.data);
-    } catch (e) {}
-
-    const token = authData.access_token;
-    if (!token) return res.status(401).json({ error: 'Không lấy được Token' });
-
-    let returnedEncryptedPassword = encryptedPassword;
-    if (password) returnedEncryptedPassword = encrypt(password);
-
     const tokenPayload = encodeURIComponent(JSON.stringify({ access_token: token, token_type: 'bearer' }));
     const baseHeaders = {
       'Authorization': `Bearer ${token}`,
@@ -364,6 +373,14 @@ export default async function handler(req, res) {
     // Vercel Serverless Function Timeout is 10.0s. 
     // Mọi thứ CHẮC CHẮN phải kết thúc sau ~7.5s từ sau khi đăng nhập xong
     
+    if (syncTarget === 'login') {
+      return res.status(200).json({ 
+        message: 'Đăng nhập thành công',
+        tluToken: token,
+        encryptedPassword: returnedEncryptedPassword
+      });
+    }
+
     let gpaSummary = [], detailedMarks = [], studentName = null, scheduleAndExams = {allSchedules: [], allExams: []};
     
     if (syncTarget === 'marks') {
