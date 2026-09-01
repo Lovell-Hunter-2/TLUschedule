@@ -1,11 +1,11 @@
 import https from 'https';
 import crypto from 'crypto';
-import admin from 'firebase-admin';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
-const getApps = admin.apps || (admin.getApps && admin.getApps()) || [];
-if (getApps.length === 0) {
+if (getApps().length === 0) {
   try {
-    admin.initializeApp({ 
+    initializeApp({ 
       projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0517344670'
     });
   } catch(e) {
@@ -123,7 +123,7 @@ export default async function handler(req, res) {
   
   try {
     const idToken = authHeader.split('Bearer ')[1];
-    await admin.auth().verifyIdToken(idToken);
+    await getAuth().verifyIdToken(idToken);
   } catch (e) {
     console.error("Token verification failed:", e.message, e.code);
     return res.status(401).json({ error: 'Unauthorized: Invalid Firebase ID Token', debug: e.message });
