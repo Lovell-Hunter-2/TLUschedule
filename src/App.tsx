@@ -200,7 +200,11 @@ export default function App() {
       if (isEncrypted) {
          bodyParams.encryptedPassword = secretData.password;
       } else {
-         bodyParams.password = decodeURIComponent(atob(secretData.password));
+         try {
+            bodyParams.password = decodeURIComponent(atob(secretData.password));
+         } catch(e) {
+            bodyParams.password = secretData.password;
+         }
       }
 
       
@@ -346,7 +350,7 @@ export default function App() {
       }
     } catch (err) {
       console.log("Auto sync failed:", err);
-      if (force) alert("Có lỗi khi đồng bộ.");
+      if (force) alert("Lỗi hệ thống: " + (err.message || "Có lỗi khi đồng bộ."));
     } finally {
       setIsSyncing(false);
     }
