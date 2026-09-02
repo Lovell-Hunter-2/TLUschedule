@@ -740,24 +740,6 @@ export default function App() {
       {isAdminDashboardOpen && (
         <AdminDashboard onClose={() => setIsAdminDashboardOpen(false)} />
       )}
-
-
-      
-
-      {/* Floating Action Button for quick add */}
-      {activeTab !== 'update' && activeTab !== 'grades' && (
-        <button
-          onClick={() => {
-            setNoteDate(new Date());
-            setNoteContent('');
-            setEditingNoteId(null);
-            setIsNoteModalOpen(true);
-          }}
-          className="fixed bottom-24 sm:bottom-8 right-6 sm:right-8 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 dark:shadow-none flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40"
-        >
-          <Plus className="w-8 h-8" />
-        </button>
-      )}
     </Layout>
     </>
   );
