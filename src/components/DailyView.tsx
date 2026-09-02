@@ -182,10 +182,10 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
   }, [notes, selectedDate]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       <div 
         className={cn(
-          "flex gap-3 overflow-x-auto pb-4 no-scrollbar -mx-2 px-2 select-none scroll-smooth",
+          "flex gap-3 overflow-x-auto pb-2 sm:pb-4 no-scrollbar -mx-2 px-2 select-none scroll-smooth",
           isDragging ? "cursor-grabbing" : "cursor-grab"
         )}
         ref={scrollRef}
@@ -223,7 +223,7 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
         })}
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:gap-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-xl text-gray-800 dark:text-gray-100">
             {isSameDay(selectedDate, new Date()) ? "Hôm nay" : format(selectedDate, 'EEEE, dd/MM', { locale: vi })}
