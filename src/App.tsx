@@ -241,7 +241,7 @@ export default function App() {
                const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
                const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
                const periods = [];
-               for(let i = sPeriod; i <= ePeriod; i++) periods.push(i);
+               for(let i = sPeriod; i <= ePeriod && periods.length < 20; i++) periods.push(i);
                const weekIndex = tb?.weekIndex || 2;
                const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
                let sDate = new Date().toISOString().split('T')[0];
@@ -334,14 +334,18 @@ export default function App() {
       }
 
       if (results.length > 0 || json.gpaSummary || json.detailedMarks) {
-        const batch = writeBatch(db);
-        results.forEach(subject => {
-           const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+        // Debug loop
+    for (const subject of results) {
+       try {
+           let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+           deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-'); // FIX URL SAFE
            subject.id = deterministicId;
            const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
-           batch.set(docRef, subject);
-        });
-        await batch.commit();
+           await setDoc(docRef, subject);
+       } catch (err) {
+           console.error("FAIL ON SUBJECT:", JSON.stringify(subject), err);
+       }
+    }
         localStorage.setItem(lastSyncKey, Date.now().toString());
         console.log("Đã đồng bộ thành công!");
         if (force) alert("Đồng bộ lịch học, thi và điểm số thành công!");
@@ -632,17 +636,19 @@ export default function App() {
       }
     >
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-8 gap-4">
-        <Tabs
-          className="w-full sm:w-auto"
-          activeTab={activeTab}
-          onChange={handleTabChange}
-          tabs={[
-            { id: 'daily', label: 'Ngày', icon: <Calendar className="w-4 h-4" /> },
-            { id: 'weekly', label: 'Tuần', icon: <LayoutGrid className="w-4 h-4" /> },
-            { id: 'grades', label: 'Điểm số', icon: <Award className="w-4 h-4" /> },
-            { id: 'update', label: 'Cập nhật', icon: <Settings className="w-4 h-4" /> },
-          ]}
-        />
+        <div className="fixed bottom-4 left-3 right-3 z-50 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-auto bg-white/90 dark:bg-gray-900/90 sm:bg-transparent backdrop-blur-xl sm:backdrop-blur-none p-1.5 sm:p-0 rounded-2xl sm:rounded-none shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:shadow-none border border-gray-100 dark:border-gray-800 sm:border-none">
+          <Tabs
+            className="w-full sm:w-auto bg-transparent dark:bg-transparent border-none sm:border-solid sm:bg-gray-100/50 sm:dark:bg-gray-800/50 sm:border-gray-100 sm:dark:border-gray-700"
+            activeTab={activeTab}
+            onChange={handleTabChange}
+            tabs={[
+              { id: 'daily', label: 'Ngày', icon: <Calendar className="w-4 h-4" /> },
+              { id: 'weekly', label: 'Tuần', icon: <LayoutGrid className="w-4 h-4" /> },
+              { id: 'grades', label: 'Điểm số', icon: <Award className="w-4 h-4" /> },
+              { id: 'update', label: 'Cập nhật', icon: <Settings className="w-4 h-4" /> },
+            ]}
+          />
+        </div>
         
         <div className="flex items-center gap-2">
           {semestersList.length > 0 && activeTab !== 'update' && activeTab !== 'grades' && (
@@ -747,7 +753,7 @@ export default function App() {
             setEditingNoteId(null);
             setIsNoteModalOpen(true);
           }}
-          className="fixed bottom-8 right-8 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 dark:shadow-none flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40"
+          className="fixed bottom-24 sm:bottom-8 right-6 sm:right-8 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 dark:shadow-none flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40"
         >
           <Plus className="w-8 h-8" />
         </button>
