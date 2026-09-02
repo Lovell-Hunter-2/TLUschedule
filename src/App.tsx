@@ -635,10 +635,14 @@ export default function App() {
         </div>
       }
     >
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 sm:mb-8 gap-3 sm:gap-4">
-        <div className="fixed bottom-2 left-2 right-2 z-50 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-auto bg-white/95 dark:bg-gray-900/95 sm:bg-transparent backdrop-blur-xl sm:backdrop-blur-none p-1 sm:p-0 rounded-2xl sm:rounded-none shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:shadow-none border border-gray-100 dark:border-gray-800 sm:border-none">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between mb-4 sm:mb-8 gap-3 sm:gap-4 relative">
+        {/* Left spacer for centering balance on desktop */}
+        <div className="hidden sm:block sm:flex-1"></div>
+        
+        {/* Tabs Bar */}
+        <div className="fixed bottom-2 left-2 right-2 z-50 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-auto bg-white/95 dark:bg-gray-900/95 sm:bg-transparent backdrop-blur-xl sm:backdrop-blur-none p-1 sm:p-0 rounded-2xl sm:rounded-none shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:shadow-none border border-gray-100 dark:border-gray-800 sm:border-none flex justify-center">
           <Tabs
-            className="w-full sm:w-auto bg-transparent dark:bg-transparent border-none sm:border-solid sm:bg-gray-100/50 sm:dark:bg-gray-800/50 sm:border-gray-100 sm:dark:border-gray-700"
+            className="w-full sm:w-auto bg-transparent dark:bg-transparent border-none sm:border-solid sm:bg-gray-100/50 sm:dark:bg-gray-800/50 sm:border-gray-100 sm:dark:border-gray-700 sm:min-w-[450px]"
             activeTab={activeTab}
             onChange={handleTabChange}
             tabs={[
@@ -650,7 +654,8 @@ export default function App() {
           />
         </div>
         
-        <div className="flex items-center gap-2">
+        {/* Right side (Semester Dropdown) */}
+        <div className="flex items-center gap-2 justify-end sm:flex-1">
           {semestersList.length > 0 && activeTab !== 'update' && activeTab !== 'grades' && (
             <div className="relative w-full sm:w-auto">
               <select
