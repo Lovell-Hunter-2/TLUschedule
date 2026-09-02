@@ -147,7 +147,7 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Tabs */}
       <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl max-w-sm">
         <button 
@@ -234,7 +234,7 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
           </div>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Filters */}
           <div className="flex justify-end">
             <select
