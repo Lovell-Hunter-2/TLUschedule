@@ -1,5 +1,4 @@
 import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
-import { parseTluSyncResponse } from "../lib/tlu-parser";
 import React, { useState, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -228,10 +227,107 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
 
     const { json } = await syncTluWithChunks(bodyParams, idToken);
 
-    const results = parseTluSyncResponse(json);
+    const results: any[] = [];
+    if (json.data && Array.isArray(json.data)) {
+      json.data.forEach((item: any) => {
+        if (item.timetables && Array.isArray(item.timetables)) {
+          item.timetables.forEach((tb: any) => {
+             const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
+             const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
+             const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
+             const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
+             const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
+             const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
+             
+             const periods = [];
+             for(let i = sPeriod; i <= ePeriod && periods.length < 20; i++) periods.push(i);
+             
+             const weekIndex = tb?.weekIndex || 2;
+             const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
+             
+             let sDate = new Date().toISOString().split('T')[0];
+             let eDate = new Date().toISOString().split('T')[0];
+             try {
+               if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
+               if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
+             } catch (e) {}
+
+             results.push({
+               id: Math.random().toString(36).substr(2, 9),
+               name: item.subjectName,
+               code: item.subjectCode || '',
+               room,
+               lecturer,
+               startDate: sDate,
+               endDate: eDate,
+               daysOfWeek: [dayIndex],
+               periods,
+               color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
+               semesterId: item.semesterId == null ? '' : String(item.semesterId),
+               semesterName: item.semesterName == null ? '' : String(item.semesterName)
+             });
+          });
+        }
+      });
+    }
+
+    if (json.exams && Array.isArray(json.exams)) {
+      json.exams.forEach((item: any) => {
+        let eDate = new Date().toISOString().split('T')[0];
+        let dayIndex = 0; 
+        try {
+          if (item.examDate) {
+             const d = new Date(item.examDate);
+             eDate = d.toISOString().split('T')[0];
+             dayIndex = d.getDay();
+          }
+        } catch (e) {}
+
+        let periods = [1, 2, 3];
+        const timeStr = String(item.examTime || '');
+        const shiftStr = String(item.examShift || item.shift || item.caThi || '');
+        let shiftMatch = shiftStr.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+        
+        if (shiftMatch) {
+            const s = parseInt(shiftMatch[1]);
+            const e = parseInt(shiftMatch[2] || shiftMatch[1]);
+            periods = [];
+            for (let i = s; i <= e; i++) periods.push(i);
+        } else if (timeStr) {
+            const hsMatch = timeStr.match(/(\d+):/);
+            if (hsMatch) {
+                const h = parseInt(hsMatch[1]);
+                if (h === 7) periods = [1, 2, 3];
+                else if (h === 8) periods = [3, 4];
+                else if (h === 9) periods = [4, 5, 6];
+                else if (h === 10) periods = [5, 6];
+                else if (h === 12 || h === 13) periods = [7, 8, 9];
+                else if (h === 14) periods = [9, 10];
+                else if (h === 15) periods = [10, 11, 12];
+                else if (h === 16) periods = [11, 12];
+                else if (h >= 17) periods = [13, 14, 15];
+            }
+        }
+
+        results.push({
+          id: Math.random().toString(36).substr(2, 9),
+          name: `${item.subjectName} (THI)`,
+          code: item.subjectCode || '',
+          room: item.roomName || '',
+          lecturer: 'Lịch Thi',
+          startDate: eDate,
+          endDate: eDate,
+          daysOfWeek: [dayIndex],
+          periods: periods,
+          color: 'border-l-red-500', 
+          semesterId: item.semesterId == null ? '' : String(item.semesterId),
+          semesterName: item.semesterName == null ? '' : String(item.semesterName)
+        });
+      });
+    }
     
     if (results.length === 0) {
-       throw new Error('Đăng nhập thành công nhưng không tìm thấy dữ liệu lịch học hợp lệ.');
+       throw new Error('Đăng nhập thành công nhưng không tìm thấy dữ liệu lịch học.');
     }
 
     const name = json.studentName ? `${json.studentName} (${code})` : `Sinh viên ${code}`;
@@ -269,6 +365,9 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     
     for (const subject of results) {
        try {
+           let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+           deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-');
+           subject.id = deterministicId;
            const docRef = doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'subjects', subject.id);
            await setDoc(docRef, subject);
        } catch (err) {
