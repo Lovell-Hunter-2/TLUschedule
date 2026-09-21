@@ -80,6 +80,7 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
   const startPeriod = PERIODS.find(p => p.id === Math.min(...subject.periods));
   const endPeriod = PERIODS.find(p => p.id === Math.max(...subject.periods));
   const targetBuilding = getBuildingFromRoom(subject.room);
+  const isExam = subject.name.toUpperCase().includes('(THI)') || subject.lecturer === 'Lịch Thi' || (subject as any).isExam;
 
   useEffect(() => {
     if (showMap && targetBuilding && BUILDING_PINS[targetBuilding]) {
@@ -97,23 +98,44 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
       <Card 
         onClick={onClick}
         className={cn(
-          "relative overflow-hidden border-l-4",
-          getSubjectColor(subject.name)
+          "relative overflow-hidden border-l-4 transition-all",
+          isExam 
+            ? "border-l-rose-500 border-2 border-rose-400 dark:border-rose-600 bg-rose-50/80 dark:bg-rose-950/40 ring-2 ring-rose-400/50 shadow-md"
+            : getSubjectColor(subject.name)
         )}
       >
         <div className="flex flex-col gap-2">
+          {isExam && (
+            <div className="flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white tracking-wide shadow-xs animate-pulse">
+                LỊCH THI HỌC KỲ
+              </span>
+            </div>
+          )}
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col gap-0.5 min-w-0">
-              <h4 className="font-bold text-lg leading-tight">{subject.name}</h4>
+              <h4 className={cn("font-bold text-lg leading-tight", isExam && "text-rose-900 dark:text-rose-100 font-extrabold")}>
+                {isExam ? subject.name.replace(/\(THI\)/gi, '').trim() : subject.name}
+              </h4>
               {subject.code && (
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[11px] font-semibold px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded border border-blue-200/60 dark:border-blue-800/60">
+                  <span className={cn(
+                    "text-[11px] font-semibold px-2 py-0.5 rounded border",
+                    isExam
+                      ? "bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800"
+                      : "bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200/60 dark:border-blue-800/60"
+                  )}>
                     Mã lớp: {subject.code}
                   </span>
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-300 shrink-0">
+            <div className={cn(
+              "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full shrink-0",
+              isExam
+                ? "bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-100 font-bold"
+                : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
+            )}>
               <Clock className="w-3 h-3" />
               {startPeriod?.startTime} - {endPeriod?.endTime}
             </div>
