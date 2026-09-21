@@ -311,8 +311,9 @@ export default async function handler(req, res) {
       console.warn("GetPrivateKey warning:", e.message);
     }
 
-    // Step B: Encrypt password with PBKDF2 + AES-128-CBC (PMTEncryptData standard)
-    let encPass = Buffer.from(rawPassword).toString('base64');
+    // Step B: Prepare Password encoding (Support both standard base64 and PMT AES encryption)
+    const plainBase64Pass = Buffer.from(rawPassword).toString('base64');
+    let aesEncPass = plainBase64Pass;
     if (privateKey) {
       try {
         const key = crypto.pbkdf2Sync(privateKey, 'CryptographyPMT-EMS', 1000, 16, 'sha1');
@@ -320,35 +321,48 @@ export default async function handler(req, res) {
         const cipher = crypto.createCipheriv('aes-128-cbc', key, iv);
         let enc = cipher.update(rawPassword, 'utf8');
         enc = Buffer.concat([enc, cipher.final()]);
-        encPass = enc.toString('base64');
+        aesEncPass = enc.toString('base64');
       } catch (e) {
         console.warn("AES encryption fallback to base64:", e.message);
       }
     }
 
     // Step C: POST login form to /sinh-vien-dang-nhap.html
-    const postData = new URLSearchParams({
-      __RequestVerificationToken: csrfToken,
-      SSOData: '',
-      UserName: studentCode.trim(),
-      Password: encPass,
-      Captcha: captcha.trim()
-    }).toString();
+    const makeLoginPost = async (passwordPayload) => {
+      const postData = new URLSearchParams({
+        __RequestVerificationToken: csrfToken,
+        SSOData: '',
+        UserName: studentCode.trim(),
+        Password: passwordPayload,
+        Captcha: captcha.trim()
+      }).toString();
 
-    let loginRes;
-    try {
-      loginRes = await httpsPostRaw('sv.tlu.edu.vn', '/sinh-vien-dang-nhap.html', postData, {
+      return await httpsPostRaw('sv.tlu.edu.vn', '/sinh-vien-dang-nhap.html', postData, {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': Buffer.byteLength(postData),
         'Cookie': jar.getCookieHeader(),
         'Referer': 'https://sv.tlu.edu.vn/sinh-vien-dang-nhap.html',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       });
+    };
+
+    let loginRes;
+    try {
+      // First attempt with AES enc pass (or base64 if no key)
+      loginRes = await makeLoginPost(aesEncPass);
+      jar.setFromHeaders(loginRes.headers);
+
+      let loc = loginRes.headers['location'] || '';
+      let hasAuthCookie = jar.cookies.has('ASC.AUTH') || (loginRes.headers['set-cookie'] || []).some(c => c.includes('ASC.AUTH'));
+
+      // If failed and aesEncPass !== plainBase64Pass, try plainBase64Pass immediately
+      if (!loc.includes('dashboard') && !hasAuthCookie && aesEncPass !== plainBase64Pass) {
+        loginRes = await makeLoginPost(plainBase64Pass);
+        jar.setFromHeaders(loginRes.headers);
+      }
     } catch (e) {
       return res.status(502).json({ error: 'Không thể kết nối đến máy chủ TLU (sv.tlu.edu.vn): ' + e.message, needNewCaptcha: true });
     }
-
-    jar.setFromHeaders(loginRes.headers);
 
     const loc = loginRes.headers['location'] || '';
     const hasAuthCookie = jar.cookies.has('ASC.AUTH') || (loginRes.headers['set-cookie'] || []).some(c => c.includes('ASC.AUTH'));
@@ -369,7 +383,8 @@ export default async function handler(req, res) {
     // LOGIN SUCCESSFUL!
     // Step D: Scrape student name and available semesters from /lich-hoc-lich-thi.html, /dang-ky-hoc-phan.html, /dashboard.html
     let studentName = '';
-    const discoveredSemesters = new Map(); // id -> name (e.g., '15' -> 'Học kỳ 1 Năm học 2024-2025')
+    const discoveredSemesters = new Map(); // id -> name (e.g., '21' -> 'Học kỳ 1 Năm học 2026-2027')
+    let defaultSelectedDot = '';
 
     // Helper to extract semesters from any HTML content
     const extractSemestersFromHtml = (html) => {
@@ -381,8 +396,16 @@ export default async function handler(req, res) {
       $page('select option').each((_, opt) => {
         const val = $page(opt).attr('value');
         const txt = $page(opt).text().trim();
-        if (val && /^\d+$/.test(val.trim()) && txt && (txt.toLowerCase().includes('học kỳ') || txt.toLowerCase().includes('năm học') || txt.toLowerCase().includes('đợt'))) {
-          discoveredSemesters.set(val.trim(), txt.replace(/\s+/g, ' ').trim());
+        const isSelected = $page(opt).is(':selected') || $page(opt).attr('selected') !== undefined;
+        if (val !== undefined && txt) {
+          const cleanVal = val.trim();
+          const cleanTxt = txt.replace(/\s+/g, ' ').trim();
+          if (cleanTxt && (cleanTxt.toLowerCase().includes('học kỳ') || cleanTxt.toLowerCase().includes('năm học') || cleanTxt.toLowerCase().includes('đợt') || cleanTxt.toLowerCase().includes('hk') || /\d{4}/.test(cleanTxt))) {
+            discoveredSemesters.set(cleanVal, cleanTxt);
+            if (isSelected && cleanVal) {
+              defaultSelectedDot = cleanVal;
+            }
+          }
         }
       });
     };
@@ -419,24 +442,48 @@ export default async function handler(req, res) {
       } catch (e) {}
     }
 
+    // Dynamic current year determination
+    const now = new Date();
+    const currentCalendarYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const isAutumn = currentMonth >= 8 || currentMonth === 1;
+    const academicStartYear = currentMonth === 1 ? currentCalendarYear - 1 : currentCalendarYear;
+    const currentAcademicYearStr = `${academicStartYear}-${academicStartYear + 1}`;
+    const currentSemesterName = isAutumn ? `Học kỳ 1 Năm học ${currentAcademicYearStr}` : (currentMonth >= 2 && currentMonth <= 6 ? `Học kỳ 2 Năm học ${currentAcademicYearStr}` : `Học kỳ phụ Năm học ${currentAcademicYearStr}`);
+
     // Standard mapping of TLU CMC Dot IDs if not dynamically discovered
     const KNOWN_SEMESTERS = {
-      '13': 'Học kỳ 2 Năm học 2023-2024',
-      '14': 'Học kỳ phụ Năm học 2023-2024',
-      '15': 'Học kỳ 1 Năm học 2024-2025',
-      '16': 'Học kỳ 2 Năm học 2024-2025',
-      '17': 'Học kỳ phụ Năm học 2024-2025',
-      '18': 'Học kỳ 1 Năm học 2025-2026',
-      '19': 'Học kỳ 2 Năm học 2025-2026',
-      '20': 'Học kỳ phụ Năm học 2025-2026',
-      '21': 'Học kỳ 1 Năm học 2026-2027',
-      '22': 'Học kỳ 2 Năm học 2026-2027'
+      '21': `Học kỳ 1 Năm học 2026-2027`,
+      '22': `Học kỳ 2 Năm học 2026-2027`,
+      '23': `Học kỳ phụ Năm học 2026-2027`,
+      '18': `Học kỳ 1 Năm học 2025-2026`,
+      '19': `Học kỳ 2 Năm học 2025-2026`,
+      '20': `Học kỳ phụ Năm học 2025-2026`,
+      '15': `Học kỳ 1 Năm học 2024-2025`,
+      '16': `Học kỳ 2 Năm học 2024-2025`,
+      '17': `Học kỳ phụ Năm học 2024-2025`,
+      '13': `Học kỳ 2 Năm học 2023-2024`,
+      '14': `Học kỳ phụ Năm học 2023-2024`
     };
 
-    // Priority semester IDs to fetch
-    const semesterDots = discoveredSemesters.size > 0 
-      ? Array.from(discoveredSemesters.keys())
-      : ['15', '16', '14', '17', '18', '19', '20', '21', '22', '13'];
+    // Priority semester IDs to fetch (prioritize default selected, empty string for current schedule, then modern dots)
+    const semesterDots = [];
+    if (defaultSelectedDot && !semesterDots.includes(defaultSelectedDot)) {
+      semesterDots.push(defaultSelectedDot);
+    }
+    // Also include empty string (pIDDot: '') which requests the currently active semester directly
+    semesterDots.push('');
+    semesterDots.push('0');
+
+    if (discoveredSemesters.size > 0) {
+      for (const k of discoveredSemesters.keys()) {
+        if (!semesterDots.includes(k)) semesterDots.push(k);
+      }
+    } else {
+      ['21', '22', '23', '18', '19', '20', '15', '16'].forEach(d => {
+        if (!semesterDots.includes(d)) semesterDots.push(d);
+      });
+    }
 
     const uniqueSubjectMap = new Map();
 
@@ -482,27 +529,45 @@ export default async function handler(req, res) {
             });
           });
 
+          // Standard ASP.NET portal fallback schema: STT(0) | Mã HP(1) | Tên môn(2) | Số TC(3) | Thứ(4) | Tiết(5) | Loại lịch(6) | Phòng(7) | Nhóm(8)
+          if (colIdx.tenMon === -1 && colIdx.maHocPhan === -1) {
+            colIdx.maHocPhan = 1;
+            colIdx.tenMon = 2;
+            colIdx.thu = 4;
+            colIdx.tiet = 5;
+            colIdx.loaiLich = 6;
+            colIdx.phong = 7;
+            colIdx.nhom = 8;
+          }
+
           // Determine exact semester name
           let semesterName = discoveredSemesters.get(String(dot)) || KNOWN_SEMESTERS[String(dot)] || '';
           if (!semesterName) {
-            const dotNum = parseInt(dot, 10);
-            if (!isNaN(dotNum)) {
-              if (dotNum === 15) semesterName = 'Học kỳ 1 Năm học 2024-2025';
-              else if (dotNum === 16) semesterName = 'Học kỳ 2 Năm học 2024-2025';
-              else if (dotNum === 17) semesterName = 'Học kỳ phụ Năm học 2024-2025';
-              else if (dotNum === 18) semesterName = 'Học kỳ 1 Năm học 2025-2026';
-              else if (dotNum === 19) semesterName = 'Học kỳ 2 Năm học 2025-2026';
-              else if (dotNum >= 15) {
-                const diff = dotNum - 15;
-                const semNumber = (diff % 3) + 1;
-                const yearOffset = Math.floor(diff / 3);
-                const startY = 2024 + yearOffset;
-                semesterName = `Học kỳ ${semNumber === 3 ? 'phụ' : semNumber} Năm học ${startY}-${startY + 1}`;
-              } else {
-                semesterName = `Đợt ${dot}`;
-              }
+            if (dot === '' || dot === '0') {
+              semesterName = currentSemesterName;
             } else {
-              semesterName = `Đợt ${dot}`;
+              const dotNum = parseInt(dot, 10);
+              if (!isNaN(dotNum)) {
+                if (dotNum >= 21) {
+                  const diff = dotNum - 21;
+                  const semNumber = (diff % 3) + 1;
+                  const yearOffset = Math.floor(diff / 3);
+                  const startY = 2026 + yearOffset;
+                  semesterName = `Học kỳ ${semNumber === 3 ? 'phụ' : semNumber} Năm học ${startY}-${startY + 1}`;
+                } else if (dotNum >= 18) {
+                  const diff = dotNum - 18;
+                  const semNumber = (diff % 3) + 1;
+                  semesterName = `Học kỳ ${semNumber === 3 ? 'phụ' : semNumber} Năm học 2025-2026`;
+                } else if (dotNum >= 15) {
+                  const diff = dotNum - 15;
+                  const semNumber = (diff % 3) + 1;
+                  semesterName = `Học kỳ ${semNumber === 3 ? 'phụ' : semNumber} Năm học 2024-2025`;
+                } else {
+                  semesterName = currentSemesterName;
+                }
+              } else {
+                semesterName = currentSemesterName;
+              }
             }
           }
 
@@ -517,17 +582,17 @@ export default async function handler(req, res) {
             const semType = semMatch ? semMatch[1].toLowerCase() : '1';
             if (semType === '1') {
               semStartDate = `${startYear}-08-15`;
-              semEndDate = `${endYear}-01-15`;
+              semEndDate = `${endYear}-01-31`;
             } else if (semType === '2') {
-              semStartDate = `${endYear}-01-16`;
-              semEndDate = `${endYear}-06-15`;
+              semStartDate = `${endYear}-02-01`;
+              semEndDate = `${endYear}-06-30`;
             } else { // Semester 3 / Summer
-              semStartDate = `${endYear}-06-16`;
+              semStartDate = `${endYear}-07-01`;
               semEndDate = `${endYear}-08-14`;
             }
           } else {
-            semStartDate = '2024-09-01';
-            semEndDate = '2025-01-15';
+            semStartDate = `${academicStartYear}-08-15`;
+            semEndDate = `${academicStartYear + 1}-01-31`;
           }
 
           const rows = $s('table tbody tr, table tr');
@@ -889,9 +954,66 @@ export default async function handler(req, res) {
       });
     }
 
-    // Step G: Scrape grades from /SinhVien/ThongKeKetQuaHocTapTheoDot
+    // Step G: Scrape Exam Schedules (/SinhVien/GetDanhSachLichTheoTienDo with pLoaiLich=2)
+    const finalExams = [];
+    for (const dot of semesterDots) {
+      if (!dot) continue;
+      try {
+        const examBody = new URLSearchParams({ pIDDot: String(dot), pLoaiLich: '2' }).toString();
+        const examRes = await httpsPostRaw('sv.tlu.edu.vn', '/SinhVien/GetDanhSachLichTheoTienDo', examBody, {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(examBody),
+          'Cookie': jar.getCookieHeader(),
+          'Referer': 'https://sv.tlu.edu.vn/lich-hoc-lich-thi.html',
+          'User-Agent': 'Mozilla/5.0'
+        });
+
+        if (examRes.status === 200 && examRes.data && examRes.data.includes('<table')) {
+          const $ex = loadCheerio(examRes.data);
+          $ex('table tbody tr, table tr').each((_, el) => {
+            if ($ex(el).find('th').length > 0) return;
+            const tds = $ex(el).find('td');
+            if (tds.length >= 4) {
+              let exCode = $ex(tds[1]).text().trim();
+              let exName = $ex(tds[2]).text().trim();
+              let exDate = '';
+              let exTime = '';
+              let exRoom = '';
+
+              tds.each((idx, td) => {
+                const text = $ex(td).text().trim();
+                const dMatch = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                if (dMatch) {
+                  exDate = `${dMatch[3]}-${String(dMatch[2]).padStart(2, '0')}-${String(dMatch[1]).padStart(2, '0')}`;
+                }
+                if (/\b\d{1,2}:\d{2}\b/.test(text)) {
+                  exTime = text;
+                }
+                if (/(phòng|giảng đường|[0-9]{3}-[A-Z0-9]+)/i.test(text) && !exRoom) {
+                  exRoom = text;
+                }
+              });
+
+              if (exName && exDate) {
+                finalExams.push({
+                  subjectName: exName,
+                  subjectCode: exCode,
+                  examDate: exDate,
+                  examTime: exTime || '07:30',
+                  roomName: exRoom,
+                  semesterId: String(dot)
+                });
+              }
+            }
+          });
+        }
+      } catch (e) {}
+    }
+
+    // Step H: Scrape grades from /SinhVien/ThongKeKetQuaHocTapTheoDot
     let detailedMarks = [];
-    for (const dot of [15, 14, 16, 13]) {
+    const gradeDots = Array.from(new Set([...semesterDots.filter(Boolean), '21', '22', '18', '19', '15', '16', '14', '13', '1', '2', '3']));
+    for (const dot of gradeDots) {
       try {
         const markRes = await httpsGet('sv.tlu.edu.vn', `/SinhVien/ThongKeKetQuaHocTapTheoDot?pIDDot=${dot}`, {
           'Cookie': jar.getCookieHeader(),
@@ -902,12 +1024,18 @@ export default async function handler(req, res) {
           $m('table tbody tr').each((i, el) => {
             const tds = $m(el).find('td');
             if (tds.length >= 6) {
-              detailedMarks.push({
-                subjectName: $m(tds[2]).text().trim(),
-                subjectCode: $m(tds[1]).text().trim(),
-                numberOfCredit: parseFloat($m(tds[3]).text().trim()) || 0,
-                mark: parseFloat($m(tds[6]).text().trim()) || null
-              });
+              const subName = $m(tds[2]).text().trim();
+              const subCode = $m(tds[1]).text().trim();
+              const credits = parseFloat($m(tds[3]).text().trim()) || 0;
+              const mark = parseFloat($m(tds[6]).text().trim()) || null;
+              if (subName && !detailedMarks.some(d => d.subjectCode === subCode && d.subjectName === subName)) {
+                detailedMarks.push({
+                  subjectName: subName,
+                  subjectCode: subCode,
+                  numberOfCredit: credits,
+                  mark: mark
+                });
+              }
             }
           });
         }
@@ -919,7 +1047,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       message: 'Đồng bộ thành công từ sv.tlu.edu.vn (Khóa K68+)',
       data: finalSubjects,
-      exams: [],
+      exams: finalExams,
       studentName: studentName || `Sinh viên ${studentCode}`,
       gpaSummary: [],
       detailedMarks,
