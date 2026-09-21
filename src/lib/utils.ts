@@ -124,3 +124,16 @@ export function normalizeSubjectName(rawName: string): string {
 
   return str;
 }
+
+/**
+ * Checks if a subject is an invalid/administrative dummy entry (such as BC11110)
+ */
+export function isInvalidSubject(name?: string, code?: string): boolean {
+  const n = String(name || '').trim().toUpperCase();
+  const c = String(code || '').trim().toUpperCase();
+  if (!n && !c) return true;
+  if (n === 'BC11110' || c.includes('BC11110') || /^BC\d{4,}/i.test(n) || /^BC\d{4,}/i.test(c)) {
+    return true;
+  }
+  return false;
+}
