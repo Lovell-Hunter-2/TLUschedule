@@ -564,13 +564,68 @@ export default async function handler(req, res) {
       }
     }
 
-    // Step F: Scrape Weekly Schedule from /SinhVien/GetDanhSachLichTheoTuan to extract Lecturer (GV) names!
-    // As shown in the student portal, /SinhVien/GetDanhSachLichTheoTuan returns cells containing:
-    // Tên môn \n Mã lớp \n Tiết: ... \n Giờ: ... \n Phòng: ... \n GV: <Tên Giảng Viên>
+    // Step F: Scrape Registered Courses & Weekly Schedule to extract Lecturer (GV) names and class details!
     const lecturerBySubjectMap = new Map(); // key -> teacherName
 
+    // Sub-step F1: Check /SinhVienDangKy/HocPhanDaDangKy (Đăng ký học phần -> Học phần đã đăng ký)
     try {
-      // Check current week and nearby weeks (e.g., this week, previous 2 weeks, next 3 weeks)
+      const hpDangKyRes = await httpsPostRaw('sv.tlu.edu.vn', '/SinhVienDangKy/HocPhanDaDangKy', '', {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Cookie': jar.getCookieHeader(),
+        'Referer': 'https://sv.tlu.edu.vn/dang-ky-hoc-phan.html',
+        'User-Agent': 'Mozilla/5.0'
+      });
+
+      if (hpDangKyRes.status === 200 && hpDangKyRes.data) {
+        const $hp = loadCheerio(hpDangKyRes.data);
+        // Table contains rows: STT, Mã lớp HP, Tên môn học/HP, Lớp học dự kiến, Số TC, Nhóm, Giảng viên...
+        $hp('table tbody tr').each((_, row) => {
+          const tds = $hp(row).find('td');
+          if (tds.length >= 4) {
+            let rowText = $hp(row).text();
+            let maLopHP = '';
+            let tenMon = '';
+            let gvName = '';
+
+            tds.each((idx, td) => {
+              const text = $hp(td).text().trim();
+              if (/^[A-Z0-9_\-]{5,}$/i.test(text) && !maLopHP) {
+                maLopHP = text;
+              }
+              // If cell or title contains teacher info
+              if (text.startsWith('GV:') || text.startsWith('Giảng viên:')) {
+                gvName = text.replace(/^(GV|Giảng\s*viên)\s*:\s*/i, '').trim();
+              }
+            });
+
+            // Also check data attributes or direct columns
+            if (rowText.includes('GV:')) {
+              const gvMatch = rowText.match(/GV\s*:\s*([^,\n\r<]+)/i);
+              if (gvMatch && gvMatch[1]) {
+                gvName = gvMatch[1].trim();
+              }
+            }
+
+            if (gvName && !/^(lý\s*thuyết|thực\s*hành|bài\s*tập)$/i.test(gvName)) {
+              if (maLopHP) {
+                lecturerBySubjectMap.set(maLopHP.toLowerCase(), gvName);
+              }
+              if (tenMon) {
+                lecturerBySubjectMap.set(tenMon.toLowerCase(), gvName);
+              }
+            }
+          }
+        });
+      }
+    } catch (hpErr) {
+      console.warn('Error fetching /SinhVienDangKy/HocPhanDaDangKy:', hpErr.message);
+    }
+
+    // Sub-step F2: Scrape Weekly Schedule from /SinhVien/GetDanhSachLichTheoTuan
+    // As shown in the student portal, /SinhVien/GetDanhSachLichTheoTuan returns cells containing:
+    // Tên môn \n Mã lớp \n Tiết: ... \n Giờ: ... \n Phòng: ... \n GV: <Tên Giảng Viên>
+    try {
+      // Check current week and nearby weeks across the semester
       const nowMs = Date.now();
       const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
       const weekTimestamps = [
@@ -578,7 +633,9 @@ export default async function handler(req, res) {
         nowMs + oneWeekMs,
         nowMs - oneWeekMs,
         nowMs + 2 * oneWeekMs,
-        nowMs + 3 * oneWeekMs
+        nowMs + 3 * oneWeekMs,
+        nowMs + 4 * oneWeekMs,
+        nowMs - 2 * oneWeekMs
       ];
 
       for (const ts of weekTimestamps) {
