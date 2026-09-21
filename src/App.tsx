@@ -253,7 +253,9 @@ export default function App() {
           if (item.timetables && Array.isArray(item.timetables)) {
             item.timetables.forEach((tb: any) => {
                const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
-               const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
+               const rawLecturer = (tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '').trim();
+               const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(rawLecturer);
+               const lecturer = isType ? '' : rawLecturer;
                const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
                const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
                const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
@@ -262,12 +264,8 @@ export default function App() {
                for(let i = sPeriod; i <= ePeriod && periods.length < 20; i++) periods.push(i);
                const weekIndex = tb?.weekIndex || 2;
                const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
-               let sDate = new Date().toISOString().split('T')[0];
-               let eDate = new Date().toISOString().split('T')[0];
-               try {
-                 if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
-                 if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
-               } catch (e) {}
+               let sDate = tb?.startDate ? String(tb.startDate).split('T')[0] : new Date().toISOString().split('T')[0];
+               let eDate = tb?.endDate ? String(tb.endDate).split('T')[0] : new Date().toISOString().split('T')[0];
 
                results.push({
                  name: item.subjectName,
