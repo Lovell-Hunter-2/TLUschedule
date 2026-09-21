@@ -102,9 +102,18 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
         )}
       >
         <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-start">
-            <h4 className="font-bold text-lg leading-tight">{subject.name}</h4>
-            <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-300">
+          <div className="flex justify-between items-start gap-2">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <h4 className="font-bold text-lg leading-tight">{subject.name}</h4>
+              {subject.code && (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[11px] font-semibold px-2 py-0.5 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded border border-blue-200/60 dark:border-blue-800/60">
+                    Mã lớp: {subject.code}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-gray-500 dark:text-gray-300 shrink-0">
               <Clock className="w-3 h-3" />
               {startPeriod?.startTime} - {endPeriod?.endTime}
             </div>
