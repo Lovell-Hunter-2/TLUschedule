@@ -86,8 +86,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                // Parse standard CMC format
                const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
                const rawLecturer = (tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '').trim();
-               // Filter out schedule type if mistakenly assigned as lecturer name
-               const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(rawLecturer);
+               // Filter out schedule type or placeholder if mistakenly assigned as lecturer name
+               const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(rawLecturer);
                const lecturer = isType ? '' : rawLecturer;
 
                const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
@@ -132,11 +132,11 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
          return;
       }
       
-      setEditingSubjects([...editingSubjects, ...results]);
+      setEditingSubjects(results);
       setMode('list');
       setTluPassword('');
       setCaptchaCode('');
-      alert(`Đã đồng bộ ${results.length} môn học từ TLU!`);
+      alert(`Đã đồng bộ thành công ${results.length} lớp học phần từ TLU!`);
 
     } catch (e: any) {
        alert(e.message || 'Lỗi khi đồng bộ kết quả');
