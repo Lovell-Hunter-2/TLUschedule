@@ -2,11 +2,31 @@ import { useState, useMemo } from 'react';
 import { Subject } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
-import { Search, BookOpen, Users, Clock, MapPin, AlertTriangle, CheckCircle2, Plus, Filter, Calendar, ChevronRight, Sparkles, CalendarOff, Info } from 'lucide-react';
+import { 
+  Search, 
+  BookOpen, 
+  Users, 
+  Clock, 
+  MapPin, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Plus, 
+  Filter, 
+  Calendar, 
+  ChevronRight, 
+  CalendarOff, 
+  CalendarClock,
+  Sparkles
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { RegistrationPeriodSelection } from './RegistrationPeriodSelection';
-import { SemesterRegisterPeriod, SCHOOL_YEAR_REGISTRATIONS } from '../data/registrationData';
+import { 
+  SemesterRegisterPeriod, 
+  SCHOOL_YEAR_REGISTRATIONS, 
+  getRegistrationPeriodStatus,
+  PeriodStatus 
+} from '../data/registrationData';
 
 export interface OpenClassSection {
   id: string;
@@ -27,215 +47,21 @@ export interface OpenClassSection {
   category?: string;
 }
 
-// Sample representative course registration catalog for TLU (Semester 2, 2025-2026)
-const MOCK_TLU_OPEN_COURSES: OpenClassSection[] = [
-  {
-    id: 'reg-1',
-    classCode: 'CSE281_01',
-    subjectCode: 'CSE281',
-    subjectName: 'Lập trình nâng cao (C++/Java)',
-    credits: 3,
-    lecturer: 'TS. Nguyễn Văn Nam',
-    dayOfWeek: 2, // Thứ 3
-    periods: [1, 2, 3],
-    room: '302-A4',
-    enrolled: 54,
-    maxCapacity: 60,
-    department: 'Công nghệ thông tin',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-2',
-    classCode: 'CSE281_02',
-    subjectCode: 'CSE281',
-    subjectName: 'Lập trình nâng cao (C++/Java)',
-    credits: 3,
-    lecturer: 'ThS. Trần Thị Mai',
-    dayOfWeek: 4, // Thứ 5
-    periods: [7, 8, 9],
-    room: '405-A4',
-    enrolled: 60,
-    maxCapacity: 60,
-    department: 'Công nghệ thông tin',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-3',
-    classCode: 'CSE381_01',
-    subjectCode: 'CSE381',
-    subjectName: 'Cơ sở dữ liệu',
-    credits: 3,
-    lecturer: 'PGS.TS. Lê Quốc Hưng',
-    dayOfWeek: 1, // Thứ 2
-    periods: [1, 2, 3],
-    room: '204-T45',
-    enrolled: 48,
-    maxCapacity: 65,
-    department: 'Công nghệ thông tin',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-4',
-    classCode: 'CSE381_02',
-    subjectCode: 'CSE381',
-    subjectName: 'Cơ sở dữ liệu',
-    credits: 3,
-    lecturer: 'TS. Đặng Thanh Tùng',
-    dayOfWeek: 3, // Thứ 4
-    periods: [4, 5, 6],
-    room: '301-A4',
-    enrolled: 65,
-    maxCapacity: 65,
-    department: 'Công nghệ thông tin',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-5',
-    classCode: 'CSE484_01',
-    subjectCode: 'CSE484',
-    subjectName: 'Trí tuệ nhân tạo (AI & Machine Learning)',
-    credits: 3,
-    lecturer: 'TS. Hoàng Đức Long',
-    dayOfWeek: 5, // Thứ 6
-    periods: [1, 2, 3],
-    room: '402-A4',
-    enrolled: 42,
-    maxCapacity: 50,
-    department: 'Công nghệ thông tin',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-6',
-    classCode: 'CSE385_01',
-    subjectCode: 'CSE385',
-    subjectName: 'Mạng máy tính & Truyền thông',
-    credits: 3,
-    lecturer: 'ThS. Nguyễn Quỳnh Nga',
-    dayOfWeek: 3, // Thứ 4
-    periods: [1, 2, 3],
-    room: '305-A4',
-    enrolled: 52,
-    maxCapacity: 60,
-    department: 'Công nghệ thông tin',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-7',
-    classCode: 'MAT102_01',
-    subjectCode: 'MAT102',
-    subjectName: 'Giải tích 2',
-    credits: 3,
-    lecturer: 'TS. Vũ Đình Thắng',
-    dayOfWeek: 2, // Thứ 3
-    periods: [7, 8, 9],
-    room: '201-B1',
-    enrolled: 70,
-    maxCapacity: 75,
-    department: 'Toán học',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-8',
-    classCode: 'PHY101_01',
-    subjectCode: 'PHY101',
-    subjectName: 'Vật lý đại cương 1',
-    credits: 3,
-    lecturer: 'TS. Bùi Văn Hải',
-    dayOfWeek: 4, // Thứ 5
-    periods: [1, 2, 3],
-    room: '304-B1',
-    enrolled: 78,
-    maxCapacity: 80,
-    department: 'Vật lý kỹ thuật',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-9',
-    classCode: 'ECO101_01',
-    subjectCode: 'ECO101',
-    subjectName: 'Kinh tế vi mô',
-    credits: 2,
-    lecturer: 'TS. Phạm Minh Hà',
-    dayOfWeek: 1, // Thứ 2
-    periods: [7, 8, 9],
-    room: '102-A1',
-    enrolled: 62,
-    maxCapacity: 70,
-    department: 'Kinh tế & Quản lý',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-10',
-    classCode: 'ENG201_01',
-    subjectCode: 'ENG201',
-    subjectName: 'Tiếng Anh chuyên ngành CNTT',
-    credits: 2,
-    lecturer: 'ThS. Đỗ Thị Thu Hiền',
-    dayOfWeek: 5, // Thứ 6
-    periods: [7, 8, 9],
-    room: '205-A5',
-    enrolled: 40,
-    maxCapacity: 45,
-    department: 'Ngoại ngữ',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-11',
-    classCode: 'WRE210_01',
-    subjectCode: 'WRE210',
-    subjectName: 'Thủy lực đại cương',
-    credits: 3,
-    lecturer: 'PGS.TS. Ngô Lê An',
-    dayOfWeek: 6, // Thứ 7
-    periods: [1, 2, 3],
-    room: '302-T35',
-    enrolled: 45,
-    maxCapacity: 60,
-    department: 'Tài nguyên nước',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  },
-  {
-    id: 'reg-12',
-    classCode: 'CIE301_01',
-    subjectCode: 'CIE301',
-    subjectName: 'Sức bền vật liệu',
-    credits: 3,
-    lecturer: 'TS. Nguyễn Mạnh Hùng',
-    dayOfWeek: 2, // Thứ 3
-    periods: [4, 5, 6],
-    room: '202-C1',
-    enrolled: 55,
-    maxCapacity: 55,
-    department: 'Công trình',
-    startDate: '2025-02-10',
-    endDate: '2025-05-30',
-  }
-];
-
 interface CourseRegistrationViewProps {
   currentSubjects: Subject[];
   onAddSubject: (newSubject: Subject) => void;
 }
 
 export function CourseRegistrationView({ currentSubjects, onAddSubject }: CourseRegistrationViewProps) {
-  // Find default active period from SCHOOL_YEAR_REGISTRATIONS
+  // Find default period: active period if any, else the newest main period
   const defaultPeriod = useMemo(() => {
     for (const group of SCHOOL_YEAR_REGISTRATIONS) {
-      const active = group.periods.find(p => p.isActive);
+      const active = group.periods.find(p => getRegistrationPeriodStatus(p) === 'active');
       if (active) return active;
     }
-    return SCHOOL_YEAR_REGISTRATIONS[0].periods[0];
+    const newestGroup = SCHOOL_YEAR_REGISTRATIONS[0];
+    const mainPeriod = newestGroup?.periods.find(p => p.name === 'Học kỳ chính');
+    return mainPeriod || newestGroup?.periods[0] || SCHOOL_YEAR_REGISTRATIONS[0].periods[0];
   }, []);
 
   const [selectedPeriod, setSelectedPeriod] = useState<SemesterRegisterPeriod>(() => {
@@ -265,161 +91,14 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
     setSelectedDepartment('all');
   };
 
-  // Dynamically tailor courses for selected period (e.g. general courses, English boost, graduation thesis)
-  const currentPeriodCourses = useMemo(() => {
-    // If the period is not active (past semester or not yet open), no courses are open on TLU
-    if (!selectedPeriod.isActive) {
-      return [];
-    }
+  // Real course list for selected period (no mock/simulated courses)
+  const currentPeriodCourses: OpenClassSection[] = useMemo(() => {
+    return [];
+  }, [selectedPeriod]);
 
-    const pName = selectedPeriod.name.toLowerCase();
-    const pId = selectedPeriod.id.toLowerCase();
-    
-    if (pName.includes('tiếng anh tăng cường') || pId.includes('en_boost')) {
-      return [
-        {
-          id: 'reg-en-1',
-          classCode: 'ENGBOOST_01',
-          subjectCode: 'ENGBOOST',
-          subjectName: 'Tiếng Anh tăng cường B1 (Kỹ năng Nghe - Đọc)',
-          credits: 3,
-          lecturer: 'ThS. Nguyễn Quỳnh Trang',
-          dayOfWeek: 6,
-          periods: [1, 2, 3],
-          room: '301-K1',
-          enrolled: 32,
-          maxCapacity: 40,
-          department: 'Ngoại ngữ',
-          startDate: '2025-02-15',
-          endDate: '2025-05-15',
-        },
-        {
-          id: 'reg-en-2',
-          classCode: 'ENGBOOST_02',
-          subjectCode: 'ENGBOOST',
-          subjectName: 'Tiếng Anh tăng cường B1 (Kỹ năng Nói - Viết)',
-          credits: 3,
-          lecturer: 'Mr. David Miller',
-          dayOfWeek: 6,
-          periods: [7, 8, 9],
-          room: '302-K1',
-          enrolled: 38,
-          maxCapacity: 40,
-          department: 'Ngoại ngữ',
-          startDate: '2025-02-15',
-          endDate: '2025-05-15',
-        },
-        {
-          id: 'reg-en-3',
-          classCode: 'ENGBOOST_03',
-          subjectCode: 'ENGBOOST',
-          subjectName: 'Luyện đề chuẩn B1 Vstep cấp tốc',
-          credits: 2,
-          lecturer: 'ThS. Đỗ Thị Thu Hiền',
-          dayOfWeek: 0,
-          periods: [1, 2, 3, 4],
-          room: '305-K1',
-          enrolled: 25,
-          maxCapacity: 35,
-          department: 'Ngoại ngữ',
-          startDate: '2025-02-20',
-          endDate: '2025-05-20',
-        }
-      ];
-    }
-
-    if (pName.includes('tốt nghiệp') || pId.includes('grad')) {
-      return [
-        {
-          id: 'reg-grad-1',
-          classCode: 'GRAD_CSE_01',
-          subjectCode: 'GRAD_CSE',
-          subjectName: 'Đồ án tốt nghiệp Kỹ sư CNTT & KTPM',
-          credits: 10,
-          lecturer: 'Hội đồng Khoa CNTT',
-          dayOfWeek: 5,
-          periods: [1, 2, 3],
-          room: 'Hội trường T45',
-          enrolled: 42,
-          maxCapacity: 50,
-          department: 'Công nghệ thông tin',
-          startDate: '2025-02-10',
-          endDate: '2025-06-15',
-        },
-        {
-          id: 'reg-grad-2',
-          classCode: 'INTERN_01',
-          subjectCode: 'INTERN_01',
-          subjectName: 'Thực tập tốt nghiệp Doanh nghiệp CNTT',
-          credits: 4,
-          lecturer: 'TS. Hoàng Đức Long',
-          dayOfWeek: 6,
-          periods: [1, 2],
-          room: 'VP Khoa CNTT',
-          enrolled: 52,
-          maxCapacity: 60,
-          department: 'Công nghệ thông tin',
-          startDate: '2025-02-10',
-          endDate: '2025-05-10',
-        },
-        {
-          id: 'reg-grad-3',
-          classCode: 'GRAD_CIE_01',
-          subjectCode: 'GRAD_CIE',
-          subjectName: 'Đồ án tốt nghiệp Kỹ sư Xây dựng & Thủy lợi',
-          credits: 10,
-          lecturer: 'Hội đồng Khoa Công trình',
-          dayOfWeek: 5,
-          periods: [4, 5, 6],
-          room: '301-A1',
-          enrolled: 30,
-          maxCapacity: 45,
-          department: 'Công trình',
-          startDate: '2025-02-10',
-          endDate: '2025-06-15',
-        }
-      ];
-    }
-
-    if (pName.includes('chuẩn đầu ra') || pId.includes('exit') || pId.includes('review')) {
-      return [
-        {
-          id: 'reg-exit-1',
-          classCode: 'EXIT_ENG_01',
-          subjectCode: 'EXIT_ENG',
-          subjectName: 'Sát hạch Chuẩn đầu ra Ngoại ngữ B1 (Đợt 1)',
-          credits: 0,
-          lecturer: 'Trung tâm Ngoại ngữ TLU',
-          dayOfWeek: 0,
-          periods: [1, 2, 3, 4],
-          room: 'K1 - Phòng máy tính',
-          enrolled: 110,
-          maxCapacity: 120,
-          department: 'Ngoại ngữ',
-          startDate: '2025-03-15',
-          endDate: '2025-03-15',
-        },
-        {
-          id: 'reg-exit-2',
-          classCode: 'EXIT_IT_01',
-          subjectCode: 'EXIT_IT',
-          subjectName: 'Sát hạch Chuẩn đầu ra Tin học ứng dụng (MOS/IC3)',
-          credits: 0,
-          lecturer: 'Trung tâm Tin học TLU',
-          dayOfWeek: 6,
-          periods: [1, 2, 3, 4],
-          room: 'Lab 401-A4',
-          enrolled: 85,
-          maxCapacity: 100,
-          department: 'Công nghệ thông tin',
-          startDate: '2025-03-20',
-          endDate: '2025-03-20',
-        }
-      ];
-    }
-
-    // Default regular courses
-    return MOCK_TLU_OPEN_COURSES;
+  // Current registration period status: 'active' | 'expired' | 'upcoming'
+  const periodStatus: PeriodStatus = useMemo(() => {
+    return getRegistrationPeriodStatus(selectedPeriod);
   }, [selectedPeriod]);
 
   const departments = useMemo(() => {
@@ -431,9 +110,7 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
   // Check if a section conflicts with student's current timetable
   const checkScheduleConflict = (section: OpenClassSection): { conflict: boolean; conflictingSubject?: Subject } => {
     for (const sub of currentSubjects) {
-      // Check day overlap
       if (sub.daysOfWeek.includes(section.dayOfWeek)) {
-        // Check period overlap
         const periodOverlap = section.periods.some(p => sub.periods.includes(p));
         if (periodOverlap) {
           return { conflict: true, conflictingSubject: sub };
@@ -523,12 +200,8 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
               </h3>
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
-              Tra cứu danh sách lớp học phần đang mở tại TLU, theo dõi sĩ số chỗ trống trực tiếp và tự động đối chiếu xem có bị trùng lịch với TKB của bạn hay không.
+              Tra cứu trạng thái mở đợt và danh sách lớp học phần đăng ký tín chỉ Đại học Thủy Lợi (TLU).
             </p>
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-blue-700 dark:text-blue-300 font-medium">
-              <Info className="w-3.5 h-3.5 shrink-0" />
-              <span>Dữ liệu môn học mô phỏng theo cấu trúc thực tế của cổng đăng ký tín chỉ Đại học Thủy Lợi (TLU).</span>
-            </div>
           </div>
 
           {/* Current Period Card & Select Period Action */}
@@ -538,13 +211,19 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
                 <span className="text-xs font-bold text-blue-900 dark:text-blue-100">
                   {selectedPeriod.name}
                 </span>
-                {selectedPeriod.isActive ? (
+                {periodStatus === 'active' && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
                     Đang mở
                   </span>
-                ) : (
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                    {selectedPeriod.timeText === 'Chưa cập nhật' ? 'Chưa mở' : 'Đã kết thúc'}
+                )}
+                {periodStatus === 'expired' && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                    Đã kết thúc
+                  </span>
+                )}
+                {periodStatus === 'upcoming' && (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                    Chưa mở đăng ký
                   </span>
                 )}
               </div>
@@ -584,243 +263,299 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
         )}
       </AnimatePresence>
 
-      {!selectedPeriod.isActive ? (
-        <Card className="p-8 sm:p-10 text-center flex flex-col items-center justify-center gap-4 bg-white dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs">
-          <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-700/60 text-gray-400 dark:text-gray-400 flex items-center justify-center">
-            <CalendarOff className="w-7 h-7" />
-          </div>
-          <div className="max-w-md">
-            <h3 className="font-bold text-base text-gray-800 dark:text-gray-100">
-              Đợt đăng ký này đã kết thúc hoặc chưa mở
-            </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
-              Học kỳ <strong className="text-gray-700 dark:text-gray-200">{selectedPeriod.name} ({selectedPeriod.semesterCode})</strong> - Năm học {selectedPeriod.yearName} hiện không có môn học nào mở đăng ký trên hệ thống.
-            </p>
-            <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
-              <Clock className="w-3.5 h-3.5 text-gray-400" />
-              <span>Thời gian: <strong>{selectedPeriod.timeText}</strong></span>
-            </div>
-          </div>
+      {/* When no courses are present (no mock data, status based) */}
+      {currentPeriodCourses.length === 0 ? (
+        <Card className="p-8 sm:p-12 text-center flex flex-col items-center justify-center gap-4 bg-white dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs">
+          {periodStatus === 'expired' ? (
+            <>
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center">
+                <CalendarOff className="w-8 h-8" />
+              </div>
+              <div className="max-w-md">
+                <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 text-[11px] font-semibold">
+                  <span>Đã hết hạn đăng ký</span>
+                </div>
+                <h3 className="font-bold text-base text-gray-900 dark:text-gray-100">
+                  Đợt đăng ký này đã kết thúc
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                  Học kỳ <strong className="text-gray-700 dark:text-gray-200">{selectedPeriod.name} ({selectedPeriod.semesterCode})</strong> - Năm học {selectedPeriod.yearName} đã qua thời gian đăng ký tín chỉ. Hiện tại không có môn học nào mở đăng ký trên hệ thống.
+                </p>
+                <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Thời gian: <strong>{selectedPeriod.timeText}</strong></span>
+                </div>
+              </div>
+            </>
+          ) : periodStatus === 'upcoming' ? (
+            <>
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 flex items-center justify-center">
+                <CalendarClock className="w-8 h-8" />
+              </div>
+              <div className="max-w-md">
+                <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-[11px] font-semibold">
+                  <span>Chưa mở đăng ký</span>
+                </div>
+                <h3 className="font-bold text-base text-gray-900 dark:text-gray-100">
+                  Chưa đến thời gian mở đăng ký
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                  Học kỳ <strong className="text-gray-700 dark:text-gray-200">{selectedPeriod.name} ({selectedPeriod.semesterCode})</strong> - Năm học {selectedPeriod.yearName} hiện chưa mở cổng đăng ký tín chỉ hoặc chưa cập nhật thời gian chính thức.
+                </p>
+                <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Lịch đăng ký: <strong>{selectedPeriod.timeText}</strong></span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 flex items-center justify-center">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <div className="max-w-md">
+                <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-[11px] font-semibold">
+                  <span>Đang mở</span>
+                </div>
+                <h3 className="font-bold text-base text-gray-900 dark:text-gray-100">
+                  Không có môn học nào mở đăng ký
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+                  Hệ thống ghi nhận đợt <strong className="text-gray-700 dark:text-gray-200">{selectedPeriod.name} ({selectedPeriod.semesterCode})</strong> đang trong thời gian mở, tuy nhiên hiện tại không có lớp học phần nào mở để đăng ký.
+                </p>
+                <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Thời gian: <strong>{selectedPeriod.timeText}</strong></span>
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
             <Button
               variant="primary"
               size="sm"
-              onClick={() => handleSelectPeriod(defaultPeriod)}
-              className="rounded-xl text-xs font-semibold px-4 py-2"
-            >
-              Chuyển sang đợt đang mở ({defaultPeriod.name})
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => setIsSelectingPeriod(true)}
-              className="rounded-xl text-xs font-medium px-4 py-2"
+              className="rounded-xl text-xs font-semibold px-4 py-2 flex items-center gap-1.5"
             >
-              Chọn đợt khác
+              <Calendar className="w-4 h-4" />
+              <span>Chọn đợt đăng ký khác</span>
             </Button>
           </div>
         </Card>
       ) : (
         <>
           {/* Search & Filter Bar */}
-      <div className="flex flex-col gap-3">
-        <div className="relative">
-          <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Tìm theo tên môn, mã môn, mã lớp (CSE...), giảng viên hoặc phòng học..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-300 focus:border-blue-500 outline-none text-sm transition-all shadow-xs text-gray-800 dark:text-gray-100"
-          />
-        </div>
+          <div className="flex flex-col gap-3">
+            <div className="relative">
+              <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Tìm theo tên môn, mã môn, mã lớp (CSE...), giảng viên hoặc phòng học..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-300 focus:border-blue-500 outline-none text-sm transition-all shadow-xs text-gray-800 dark:text-gray-100"
+              />
+            </div>
 
-        {/* Quick Filter Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            <Button
-              size="sm"
-              variant={filterMode === 'all' ? 'primary' : 'outline'}
-              onClick={() => setFilterMode('all')}
-              className="rounded-xl text-xs h-8 px-3 font-medium shrink-0"
-            >
-              Tất cả ({currentPeriodCourses.length})
-            </Button>
-            <Button
-              size="sm"
-              variant={filterMode === 'available' ? 'primary' : 'outline'}
-              onClick={() => setFilterMode('available')}
-              className="rounded-xl text-xs h-8 px-3 font-medium shrink-0"
-            >
-              Chỉ lớp còn chỗ
-            </Button>
-            <Button
-              size="sm"
-              variant={filterMode === 'no_conflict' ? 'primary' : 'outline'}
-              onClick={() => setFilterMode('no_conflict')}
-              className="rounded-xl text-xs h-8 px-3 font-medium shrink-0 gap-1.5"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              Không trùng TKB hiện tại
-            </Button>
+            {/* Quick Filter Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <button
+                  onClick={() => setFilterMode('all')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    filterMode === 'all'
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  Tất cả ({currentPeriodCourses.length})
+                </button>
+                <button
+                  onClick={() => setFilterMode('available')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    filterMode === 'available'
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  Chỉ lớp còn chỗ
+                </button>
+                <button
+                  onClick={() => setFilterMode('no_conflict')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1",
+                    filterMode === 'no_conflict'
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
+                  )}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Không trùng TKB hiện tại
+                </button>
+              </div>
+
+              {departments.length > 0 && (
+                <div className="ml-auto flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-gray-400" />
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-500 text-gray-700 dark:text-gray-200"
+                  >
+                    <option value="all">Mọi Khoa / Bộ môn</option>
+                    {departments.map((dep) => (
+                      <option key={dep} value={dep}>
+                        {dep}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-gray-400" />
-            <select
-              value={selectedDepartment}
-              onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs rounded-xl px-2.5 py-1.5 text-gray-700 dark:text-gray-300 outline-none focus:border-blue-400"
-            >
-              <option value="all">Mọi Khoa / Bộ môn</option>
-              {departments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Course List */}
-      <div className="flex flex-col gap-3">
-        {filteredCourses.length === 0 ? (
-          <div className="py-12 text-center text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-            Không tìm thấy lớp học phần phù hợp với điều kiện tìm kiếm.
-          </div>
-        ) : (
-          filteredCourses.map((course) => {
-            const isFull = course.enrolled >= course.maxCapacity;
-            const remaining = Math.max(0, course.maxCapacity - course.enrolled);
-            const fillPercentage = Math.round((course.enrolled / course.maxCapacity) * 100);
-            const { conflict, conflictingSubject } = checkScheduleConflict(course);
-            const isAlreadyAdded = addedClassIds.has(course.id);
-
-            return (
-              <Card 
-                key={course.id} 
-                className={cn(
-                  "p-4 transition-all hover:border-gray-300 dark:hover:border-gray-600 shadow-xs flex flex-col gap-3",
-                  conflict ? "border-amber-200/80 bg-amber-50/20 dark:bg-amber-950/10" : ""
-                )}
-              >
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300">
-                        {course.classCode}
-                      </span>
-                      <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base">
-                        {course.subjectName}
-                      </h4>
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
-                      <span>{course.subjectCode}</span>
-                      <span>•</span>
-                      <span>{course.credits} tín chỉ</span>
-                      <span>•</span>
-                      <span className="text-gray-600 dark:text-gray-300 font-medium">{course.department}</span>
-                    </div>
-                  </div>
-
-                  {/* Badges */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {isFull ? (
-                      <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-                        Đã hết chỗ (Đầy)
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                        Còn {remaining} chỗ
-                      </span>
-                    )}
-
-                    {conflict && (
-                      <span className="px-2 py-1 rounded-xl text-[11px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        Trùng TKB
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details Bar */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs bg-gray-50 dark:bg-gray-800/80 p-3 rounded-xl border border-gray-100 dark:border-gray-700/80">
-                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                    <Clock className="w-4 h-4 text-blue-500 shrink-0" />
-                    <span>
-                      <b>{getDayText(course.dayOfWeek)}</b>, Tiết {Math.min(...course.periods)}-{Math.max(...course.periods)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                    <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
-                    <span>Phòng: <b>{course.room}</b></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                    <Users className="w-4 h-4 text-indigo-500 shrink-0" />
-                    <span className="truncate">GV: <b>{course.lecturer}</b></span>
-                  </div>
-                </div>
-
-                {/* Enrollment Bar & Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                  {/* Sĩ số progress bar */}
-                  <div className="flex-1 max-w-sm">
-                    <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1">
-                      <span>Sĩ số đăng ký: <b>{course.enrolled} / {course.maxCapacity}</b></span>
-                      <span>{fillPercentage}%</span>
-                    </div>
-                    <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div 
-                        className={cn(
-                          "h-full rounded-full transition-all",
-                          isFull 
-                            ? "bg-rose-500" 
-                            : fillPercentage > 80 
-                            ? "bg-amber-500" 
-                            : "bg-emerald-500"
-                        )}
-                        style={{ width: `${Math.min(100, fillPercentage)}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Actions & Conflicts message */}
-                  <div className="flex items-center gap-2 self-end sm:self-center">
-                    {conflict && conflictingSubject && (
-                      <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                        Trùng với "{conflictingSubject.name}"
-                      </span>
-                    )}
-
-                    <Button
-                      size="sm"
-                      variant={isAlreadyAdded ? "outline" : "primary"}
-                      onClick={() => handleEnrollCourse(course)}
-                      disabled={isAlreadyAdded}
-                      className={cn(
-                        "text-xs gap-1.5 h-8 px-3 rounded-xl",
-                        isAlreadyAdded ? "text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30" : ""
-                      )}
-                    >
-                      {isAlreadyAdded ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Đã thêm
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3.5 h-3.5" />
-                          Thêm vào TKB
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
+          {/* Courses List */}
+          <div className="flex flex-col gap-3">
+            {filteredCourses.length === 0 ? (
+              <Card className="p-8 text-center flex flex-col items-center justify-center gap-2 bg-white dark:bg-gray-800 border-dashed">
+                <Search className="w-8 h-8 text-gray-300" />
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                  Không tìm thấy lớp học phần phù hợp
+                </p>
+                <p className="text-xs text-gray-400">
+                  Thử thay đổi từ khóa tìm kiếm hoặc bỏ các bộ lọc
+                </p>
               </Card>
-            );
-          })
-        )}
+            ) : (
+              filteredCourses.map((course) => {
+                const { conflict, conflictingSubject } = checkScheduleConflict(course);
+                const isFull = course.enrolled >= course.maxCapacity;
+                const isAlreadyAdded = addedClassIds.has(course.id) || currentSubjects.some(s => s.code === course.classCode);
+                const fillPercentage = Math.round((course.enrolled / course.maxCapacity) * 100);
+
+                return (
+                  <Card
+                    key={course.id}
+                    className={cn(
+                      "p-4 transition-all duration-200 border flex flex-col gap-3 bg-white dark:bg-gray-800",
+                      conflict
+                        ? "border-amber-200/80 dark:border-amber-900/50 bg-amber-50/20"
+                        : "border-gray-200 dark:border-gray-700 hover:border-blue-300"
+                    )}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-700/60 pb-3">
+                      <div className="flex items-start gap-2.5">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0 mt-0.5">
+                          {course.classCode}
+                        </span>
+                        <div>
+                          <h4 className="font-bold text-sm text-gray-900 dark:text-gray-100">
+                            {course.subjectName}
+                          </h4>
+                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            <span>{course.subjectCode}</span>
+                            <span>•</span>
+                            <span>{course.credits} tín chỉ</span>
+                            <span>•</span>
+                            <span>{course.department}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                        {isFull ? (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                            Đã hết chỗ (Đầy)
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            Còn {course.maxCapacity - course.enrolled} chỗ
+                          </span>
+                        )}
+
+                        {conflict && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            Trùng TKB
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-750/50 p-2.5 rounded-xl">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-blue-500 shrink-0" />
+                        <span><b>{getDayText(course.dayOfWeek)}</b>, Tiết {course.periods.join('-')}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
+                        <span>Phòng: <b>{course.room}</b></span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <span className="truncate">GV: <b>{course.lecturer}</b></span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                      <div className="flex-1 max-w-sm">
+                        <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1">
+                          <span>Sĩ số đăng ký: <b>{course.enrolled} / {course.maxCapacity}</b></span>
+                          <span>{fillPercentage}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              isFull 
+                                ? "bg-rose-500" 
+                                : fillPercentage > 80 
+                                ? "bg-amber-500" 
+                                : "bg-emerald-500"
+                            )}
+                            style={{ width: `${Math.min(100, fillPercentage)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        {conflict && conflictingSubject && (
+                          <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                            Trùng với "{conflictingSubject.name}"
+                          </span>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant={isAlreadyAdded ? "outline" : "primary"}
+                          onClick={() => handleEnrollCourse(course)}
+                          disabled={isAlreadyAdded}
+                          className={cn(
+                            "text-xs gap-1.5 h-8 px-3 rounded-xl",
+                            isAlreadyAdded ? "text-emerald-600 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30" : ""
+                          )}
+                        >
+                          {isAlreadyAdded ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Đã thêm
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3.5 h-3.5" />
+                              Thêm vào TKB
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })
+            )}
           </div>
         </>
       )}
