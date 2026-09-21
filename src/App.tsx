@@ -172,6 +172,14 @@ export default function App() {
       }
     }
 
+    if (workspace.portal === 'sv_tlu') {
+      if (force) {
+        setActiveTab('update');
+        alert("Cổng sinh viên mới sv.tlu.edu.vn yêu cầu mã bảo vệ (CAPTCHA). Vui lòng thực hiện tại mục 'Cập nhật' -> 'Đồng bộ'.");
+      }
+      return;
+    }
+
     try {
       setIsSyncing(true);
       
@@ -253,6 +261,7 @@ export default function App() {
 
                results.push({
                  name: item.subjectName,
+                 code: item.subjectCode || '',
                  room,
                  lecturer,
                  startDate: sDate,
@@ -307,6 +316,7 @@ export default function App() {
           }
           results.push({
             name: `${item.subjectName} (THI)`,
+            code: item.subjectCode || '',
             room: item.roomName || '',
             lecturer: 'Lịch Thi',
             startDate: eDate,
@@ -640,9 +650,9 @@ export default function App() {
         <div className="hidden sm:block sm:flex-1"></div>
         
         {/* Tabs Bar */}
-        <div className="fixed bottom-2 left-2 right-2 z-50 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-auto bg-white/95 dark:bg-gray-900/95 sm:bg-transparent backdrop-blur-xl sm:backdrop-blur-none p-1 sm:p-0 rounded-2xl sm:rounded-none shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:shadow-none border border-gray-100 dark:border-gray-800 sm:border-none flex justify-center">
+        <div className="fixed bottom-2 left-2 right-2 z-50 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-auto bg-white/95 dark:bg-gray-900/95 sm:bg-transparent backdrop-blur-xl sm:backdrop-blur-none p-1.5 sm:p-0 rounded-2xl sm:rounded-none shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:shadow-none border border-gray-100 dark:border-gray-800 sm:border-none flex justify-center">
           <Tabs
-            className="w-full sm:w-auto bg-transparent dark:bg-transparent border-none sm:border-solid sm:bg-gray-100/50 sm:dark:bg-gray-800/50 sm:border-gray-100 sm:dark:border-gray-700 sm:min-w-[450px]"
+            className="w-full sm:w-auto bg-transparent dark:bg-transparent border-none sm:border-solid sm:bg-gray-100/60 sm:dark:bg-gray-800/60 sm:border-gray-200/80 sm:dark:border-gray-700 sm:min-w-[560px] md:min-w-[620px]"
             activeTab={activeTab}
             onChange={handleTabChange}
             tabs={[
