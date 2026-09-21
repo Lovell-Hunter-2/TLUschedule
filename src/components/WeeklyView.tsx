@@ -68,6 +68,10 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
   const nextWeek = () => setCurrentDate(addWeeks(currentDate, 1));
   const prevWeek = () => setCurrentDate(subWeeks(currentDate, 1));
 
+  const isExamSubject = (s: Subject) => {
+    return s.name.toUpperCase().includes('(THI)') || s.lecturer === 'Lịch Thi' || (s as any).isExam;
+  };
+
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
       <div className="flex items-center justify-between">
@@ -106,23 +110,45 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
             {weekDays.map(day => {
               const dayStr = format(day, 'yyyy-MM-dd');
               const dayNotes = weekNotes[dayStr] || [];
+              const dayAllSubjects = weekSchedule[dayStr] ? Object.values(weekSchedule[dayStr]).flat() : [];
+              const hasExamOnDay = dayAllSubjects.some(isExamSubject);
+              const isToday = isSameDay(day, new Date());
               
               return (
                 <div 
                   key={day.toString()} 
                   className={cn(
-                    "p-1 sm:p-3 text-center border-l border-gray-100 dark:border-gray-700 flex flex-col",
-                    isSameDay(day, new Date()) && "bg-blue-100/60 dark:bg-blue-900/40"
+                    "p-1 sm:p-3 text-center border-l border-gray-100 dark:border-gray-700 flex flex-col transition-all relative",
+                    hasExamOnDay && "bg-rose-50/80 dark:bg-rose-950/40 border-t-4 border-t-rose-500 shadow-inner",
+                    isToday && !hasExamOnDay && "bg-blue-100/60 dark:bg-blue-900/40",
+                    isToday && hasExamOnDay && "ring-2 ring-rose-400 inset-0"
                   )}
                 >
-                  <div className="text-[8px] sm:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase hidden sm:block">{format(day, 'EEEE', { locale: vi })}</div>
-                  <div className="text-[8px] sm:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase sm:hidden">{format(day, 'E', { locale: vi }).replace('Th ', 'T')}</div>
                   <div className={cn(
-                    "text-[10px] sm:text-sm font-bold",
-                    isSameDay(day, new Date()) ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"
+                    "text-[8px] sm:text-[10px] font-bold uppercase hidden sm:block",
+                    hasExamOnDay ? "text-rose-600 dark:text-rose-400 font-extrabold" : "text-gray-400 dark:text-gray-500"
+                  )}>
+                    {format(day, 'EEEE', { locale: vi })}
+                  </div>
+                  <div className={cn(
+                    "text-[8px] sm:text-[10px] font-bold uppercase sm:hidden",
+                    hasExamOnDay ? "text-rose-600 dark:text-rose-400 font-extrabold" : "text-gray-400 dark:text-gray-500"
+                  )}>
+                    {format(day, 'E', { locale: vi }).replace('Th ', 'T')}
+                  </div>
+                  <div className={cn(
+                    "text-[10px] sm:text-sm font-bold mt-0.5",
+                    hasExamOnDay ? "text-rose-700 dark:text-rose-300 font-black" : (isToday ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300")
                   )}>
                     {format(day, 'dd/MM')}
                   </div>
+
+                  {hasExamOnDay && (
+                    <span className="mt-1 px-1.5 py-0.5 rounded-md bg-rose-500 text-white font-black text-[7.5px] sm:text-[9px] tracking-wider animate-pulse shadow-xs self-center">
+                      LỊCH THI
+                    </span>
+                  )}
+
                   <button 
                     onClick={() => onAddNote(day)}
                     className="mt-1 text-[10px] text-blue-400 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 font-bold"
@@ -169,7 +195,9 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                   
                   return (
                     <div key={day.toString()} className={cn("border-l border-gray-100 dark:border-gray-700 p-0.5 relative group", isToday && "bg-blue-50/50 dark:bg-blue-900/20")}>
-                      {subjectsAtPeriod.map((s, i) => (
+                      {subjectsAtPeriod.map((s, i) => {
+                        const isExam = isExamSubject(s);
+                        return (
                         <div 
                           key={s.id + i}
                           onClick={(e) => {
@@ -179,21 +207,27 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                           }}
                           className={cn(
                             // Mobile styling (flex, centered, smaller text)
-                            "absolute inset-[1px] rounded-sm p-0.5 text-[7.5px] font-bold leading-[1.1] overflow-hidden shadow-sm border cursor-pointer hover:opacity-90 flex flex-col justify-center items-center text-center",
+                            "absolute inset-[1px] rounded-sm p-0.5 text-[7.5px] font-bold leading-[1.1] overflow-hidden shadow-sm border cursor-pointer hover:opacity-90 flex flex-col justify-center items-center text-center transition-all",
                             // Desktop styling (block, original styling)
                             "sm:inset-0.5 sm:rounded-md sm:p-1 sm:text-[9px] sm:leading-tight sm:block sm:text-left",
-                            getSubjectColor(s.name)
+                            isExam 
+                              ? "ring-2 ring-rose-500 border-2 border-rose-500 bg-rose-100 dark:bg-rose-950 text-rose-900 dark:text-rose-100 font-black shadow-md z-10 animate-pulse" 
+                              : getSubjectColor(s.name)
                           )}
                         >
                           {/* Mobile Content */}
-                          <span className="sm:hidden line-clamp-2 w-full leading-tight">{s.name}</span>
+                          <span className="sm:hidden line-clamp-2 w-full leading-tight">
+                            {isExam ? `[THI] ${s.name.replace(/\(THI\)/gi, '').trim()}` : s.name}
+                          </span>
                           {s.room && <span className="sm:hidden block mt-0.5 font-medium opacity-90 truncate w-full text-center">{s.room}</span>}
                           
                           {/* Desktop Content */}
-                          <span className="hidden sm:inline font-semibold">{s.name}</span>
+                          <span className="hidden sm:inline font-bold">
+                            {isExam ? `[THI] ${s.name.replace(/\(THI\)/gi, '').trim()}` : s.name}
+                          </span>
                           {s.code && <span className="hidden sm:block text-[8px] opacity-85 font-normal truncate">{s.code}</span>}
                         </div>
-                      ))}
+                      )})}
                     </div>
                   );
                 })}
