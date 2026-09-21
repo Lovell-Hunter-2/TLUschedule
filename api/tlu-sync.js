@@ -535,6 +535,64 @@ export default async function handler(req, res) {
                     }
                   }
 
+                  // 1. Calculate fallback semester start and end dates based on semester name
+                  let semStartDate = '';
+                  let semEndDate = '';
+                  const yearMatch = semesterName.match(/năm học\s*(\d{4})\s*[-–]\s*(\d{4})/i);
+                  if (yearMatch) {
+                    const startYear = parseInt(yearMatch[1]);
+                    const endYear = parseInt(yearMatch[2]);
+                    const semMatch = semesterName.match(/học\s*kỳ\s*(\d)/i);
+                    const semNumber = semMatch ? parseInt(semMatch[1]) : 1;
+                    if (semNumber === 1) {
+                      semStartDate = `${startYear}-09-01`;
+                      semEndDate = `${startYear}-12-31`;
+                    } else if (semNumber === 2) {
+                      semStartDate = `${endYear}-01-15`;
+                      semEndDate = `${endYear}-06-15`;
+                    } else { // Semester 3 / Summer
+                      semStartDate = `${endYear}-06-16`;
+                      semEndDate = `${endYear}-08-31`;
+                    }
+                  } else {
+                    semStartDate = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0];
+                    semEndDate = new Date(Date.now() + 120 * 24 * 3600 * 1000).toISOString().split('T')[0];
+                  }
+
+                  // 2. Scan all td elements in the row to find explicit dates (e.g. "Từ 21/10/24 đến 15/12/24" or "21/10/2024")
+                  let parsedStartDate = '';
+                  let parsedEndDate = '';
+                  tds.each((idx, td) => {
+                    const text = $s(td).text().trim();
+                    const dateMatches = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+                    if (dateMatches && dateMatches.length >= 2) {
+                      const parseCustomDate = (str) => {
+                        const parts = str.split('/');
+                        let day = parseInt(parts[0], 10);
+                        let month = parseInt(parts[1], 10);
+                        let year = parseInt(parts[2], 10);
+                        if (year < 100) year += 2000;
+                        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      };
+                      parsedStartDate = parseCustomDate(dateMatches[0]);
+                      parsedEndDate = parseCustomDate(dateMatches[1]);
+                    } else if (dateMatches && dateMatches.length === 1) {
+                      const parseCustomDate = (str) => {
+                        const parts = str.split('/');
+                        let day = parseInt(parts[0], 10);
+                        let month = parseInt(parts[1], 10);
+                        let year = parseInt(parts[2], 10);
+                        if (year < 100) year += 2000;
+                        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      };
+                      parsedStartDate = parseCustomDate(dateMatches[0]);
+                      parsedEndDate = parsedStartDate;
+                    }
+                  });
+
+                  const finalStartDate = parsedStartDate || semStartDate;
+                  const finalEndDate = parsedEndDate || semEndDate;
+
                   if (!uniqueSubjectMap.has(subjKey)) {
                     uniqueSubjectMap.set(subjKey, {
                       subjectName: tenMon,
@@ -548,8 +606,8 @@ export default async function handler(req, res) {
                           startHour: { name: startPeriod },
                           endHour: { name: endPeriod },
                           weekIndex: weekIndex,
-                          startDate: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
-                          endDate: new Date(Date.now() + 120 * 24 * 3600 * 1000).toISOString().split('T')[0]
+                          startDate: finalStartDate,
+                          endDate: finalEndDate
                         }
                       ]
                     });
