@@ -190,7 +190,8 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                           {s.room && <span className="sm:hidden block mt-0.5 font-medium opacity-90 truncate w-full text-center">{s.room}</span>}
                           
                           {/* Desktop Content */}
-                          <span className="hidden sm:inline">{s.name}</span>
+                          <span className="hidden sm:inline font-semibold">{s.name}</span>
+                          {s.code && <span className="hidden sm:block text-[8px] opacity-85 font-normal truncate">{s.code}</span>}
                         </div>
                       ))}
                     </div>
@@ -231,6 +232,11 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
               </div>
               <div className="flex-1">
                 <h4 className="font-bold text-sm leading-tight">{activeSubject.subject.name}</h4>
+                {activeSubject.subject.code && (
+                  <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-300 mt-0.5">
+                    Mã lớp: {activeSubject.subject.code}
+                  </p>
+                )}
                 <p className="text-xs font-semibold opacity-90 mt-0.5">{activeSubject.subject.room}</p>
               </div>
             </div>
