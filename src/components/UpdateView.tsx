@@ -101,12 +101,10 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                const weekIndex = tb?.weekIndex || 2;
                const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; // 2(Monday)->1, 1(Sunday)->0
                
-               let sDate = new Date().toISOString().split('T')[0];
-               let eDate = new Date().toISOString().split('T')[0];
-               try {
-                 if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
-                 if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
-               } catch (e) {}
+               let sDate = tb?.startDate || new Date().toISOString().split('T')[0];
+               let eDate = tb?.endDate || new Date().toISOString().split('T')[0];
+               if (sDate.includes('T')) sDate = sDate.split('T')[0];
+               if (eDate.includes('T')) eDate = eDate.split('T')[0];
 
                const cleanSubjectName = normalizeSubjectName(item.subjectName);
 
