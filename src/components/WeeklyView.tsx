@@ -323,7 +323,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
               <p>Giảng viên: <span className="font-bold">
                 {(() => {
                   const raw = (activeSubject.subject.lecturer || '').trim();
-                  const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(raw);
+                  const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(raw);
                   return (!raw || isType) ? 'Chưa cập nhật' : raw;
                 })()}
               </span></p>
