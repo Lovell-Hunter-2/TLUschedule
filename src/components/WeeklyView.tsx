@@ -4,7 +4,7 @@ import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
 import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2, BookOpen } from 'lucide-react';
 import { Button } from './Button';
-import { cn, getSubjectColor, getSubjectBadgeColor } from '../lib/utils';
+import { cn, getSubjectColor, getSubjectBadgeColor, normalizeSubjectName } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface WeeklyViewProps {
@@ -197,6 +197,11 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                     <div key={day.toString()} className={cn("border-l border-gray-100 dark:border-gray-700 p-0.5 relative group", isToday && "bg-blue-50/50 dark:bg-blue-900/20")}>
                       {subjectsAtPeriod.map((s, i) => {
                         const isExam = isExamSubject(s);
+                        const cleanName = normalizeSubjectName(isExam ? s.name.replace(/\(THI\)/gi, '').trim() : s.name);
+                        const rawLec = (s.lecturer || '').trim();
+                        const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(rawLec);
+                        const lecDisplay = isType ? '' : rawLec;
+
                         return (
                         <div 
                           key={s.id + i}
@@ -217,22 +222,22 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                         >
                           {/* Mobile Content */}
                           <span className="sm:hidden line-clamp-2 w-full leading-tight">
-                            {isExam ? `[THI] ${s.name.replace(/\(THI\)/gi, '').trim()}` : s.name}
+                            {isExam ? `[THI] ${cleanName}` : cleanName}
                           </span>
                           {s.room && <span className="sm:hidden block mt-0.5 font-medium opacity-90 truncate w-full text-center">{s.room}</span>}
                           
                           {/* Desktop Content */}
                           <span className="hidden sm:inline font-bold">
-                            {isExam ? `[THI] ${s.name.replace(/\(THI\)/gi, '').trim()}` : s.name}
+                            {isExam ? `[THI] ${cleanName}` : cleanName}
                           </span>
                           {s.room && (
                             <span className="hidden sm:block text-[8px] font-semibold opacity-90 truncate mt-0.5">
                               {s.room}
                             </span>
                           )}
-                          {s.lecturer && (
+                          {lecDisplay && (
                             <span className="hidden sm:block text-[8px] opacity-80 truncate">
-                              {s.lecturer}
+                              {lecDisplay}
                             </span>
                           )}
                         </div>
@@ -274,7 +279,9 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                 <BookOpen className="w-4 h-4 opacity-80" />
               </div>
               <div className="flex-1">
-                <h4 className="font-bold text-sm leading-tight">{activeSubject.subject.name}</h4>
+                <h4 className="font-bold text-sm leading-tight">
+                  {normalizeSubjectName(activeSubject.subject.name)}
+                </h4>
                 {activeSubject.subject.code && (
                   <div className="mt-1">
                     <span className={cn(
@@ -290,7 +297,13 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
             </div>
             
             <div className="mt-4 pt-3 border-t border-current/10 text-xs opacity-90">
-              <p>Giảng viên: <span className="font-bold">{activeSubject.subject.lecturer || 'Chưa cập nhật'}</span></p>
+              <p>Giảng viên: <span className="font-bold">
+                {(() => {
+                  const raw = (activeSubject.subject.lecturer || '').trim();
+                  const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(raw);
+                  return (!raw || isType) ? 'Chưa cập nhật' : raw;
+                })()}
+              </span></p>
             </div>
           </div>
         </div>
