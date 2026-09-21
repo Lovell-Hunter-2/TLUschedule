@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Subject, PERIODS } from '../types';
 import { Card } from './Card';
 import { MapPin, User, Clock, Map as MapIcon, X, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
-import { cn, getSubjectColor, getSubjectBadgeColor } from '../lib/utils';
+import { cn, getSubjectColor, getSubjectBadgeColor, normalizeSubjectName } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { getWeatherIcon, getWeatherText } from './WeatherWidget';
@@ -81,6 +81,12 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
   const endPeriod = PERIODS.find(p => p.id === Math.max(...subject.periods));
   const targetBuilding = getBuildingFromRoom(subject.room);
   const isExam = subject.name.toUpperCase().includes('(THI)') || subject.lecturer === 'Lịch Thi' || (subject as any).isExam;
+  const displayName = normalizeSubjectName(isExam ? subject.name.replace(/\(THI\)/gi, '').trim() : subject.name);
+
+  // Check if lecturer is mistakenly filled with schedule type (e.g., 'Lý thuyết', 'Thực hành', 'Bài tập')
+  const rawLecturer = (subject.lecturer || '').trim();
+  const isTypeOnly = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(rawLecturer);
+  const lecturerDisplay = isTypeOnly ? '' : rawLecturer;
 
   useEffect(() => {
     if (showMap && targetBuilding && BUILDING_PINS[targetBuilding]) {
@@ -115,7 +121,7 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col gap-0.5 min-w-0">
               <h4 className={cn("font-bold text-lg leading-tight", isExam && "text-rose-900 dark:text-rose-100 font-extrabold")}>
-                {isExam ? subject.name.replace(/\(THI\)/gi, '').trim() : subject.name}
+                {displayName}
               </h4>
               {subject.code && (
                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -160,12 +166,12 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
             )}
             
             <div className="flex items-start sm:items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 flex-1">
-              {subject.lecturer && (
+              {lecturerDisplay ? (
                 <>
                   <User className="w-4 h-4 text-blue-300 dark:text-blue-400 shrink-0 mt-[3px] sm:mt-0" />
-                  <span className="leading-tight">{subject.lecturer}</span>
+                  <span className="leading-tight">{lecturerDisplay}</span>
                 </>
-              )}
+              ) : null}
               {weather && (
                 <div className="hidden sm:flex items-center gap-1.5 ml-auto pl-2 border-l border-gray-200 dark:border-gray-700 text-xs shrink-0" title={getWeatherText(weather.code)}>
                   {getWeatherIcon(weather.code)}
