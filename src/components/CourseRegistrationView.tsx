@@ -21,6 +21,7 @@ import {
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { RegistrationPeriodSelection } from './RegistrationPeriodSelection';
+import { RegistrationSimulationModal } from './RegistrationSimulationModal';
 import { 
   SemesterRegisterPeriod, 
   SCHOOL_YEAR_REGISTRATIONS, 
@@ -76,6 +77,7 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
   });
 
   const [isSelectingPeriod, setIsSelectingPeriod] = useState(false);
+  const [isSimulationOpen, setIsSimulationOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'available' | 'no_conflict'>('all');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
@@ -235,6 +237,16 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
             </div>
 
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSimulationOpen(true)}
+              className="rounded-xl text-xs h-10 px-3.5 font-semibold shrink-0 gap-1.5 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 w-full sm:w-auto"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-500" />
+              <span>Đăng ký mô phỏng</span>
+            </Button>
+
+            <Button
               variant="primary"
               size="sm"
               onClick={() => setIsSelectingPeriod(true)}
@@ -332,6 +344,16 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
           )}
 
           <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSimulationOpen(true)}
+              className="rounded-xl text-xs font-semibold px-4 py-2 flex items-center gap-1.5 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            >
+              <Sparkles className="w-4 h-4 text-indigo-500" />
+              <span>Thử Đăng ký mô phỏng (Xếp TKB)</span>
+            </Button>
+
             <Button
               variant="primary"
               size="sm"
@@ -559,6 +581,18 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
           </div>
         </>
       )}
+
+      {/* 3-Layout Registration Simulation Modal */}
+      <RegistrationSimulationModal
+        isOpen={isSimulationOpen}
+        onClose={() => setIsSimulationOpen(false)}
+        currentSubjects={currentSubjects}
+        onApplyToTimetable={(subjectsToAdd) => {
+          subjectsToAdd.forEach(s => onAddSubject(s));
+          setNotification(`Đã thêm ${subjectsToAdd.length} môn học từ mô phỏng vào Thời khóa biểu!`);
+          setTimeout(() => setNotification(null), 4000);
+        }}
+      />
     </div>
   );
 }
