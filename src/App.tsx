@@ -20,7 +20,7 @@ import { HeaderMenu } from './components/HeaderMenu';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Subject, Note, UserProfile, Workspace } from './types';
 import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
-import { cn } from './lib/utils';
+import { cn, isInvalidSubject, normalizeSubjectName } from './lib/utils';
 import { format } from 'date-fns';
 import { Toaster } from 'react-hot-toast';
 import { useClassNotifications } from './hooks/useClassNotifications';
@@ -240,6 +240,10 @@ export default function App() {
       // Map lịch học
       if (json.data && Array.isArray(json.data)) {
         json.data.forEach((item: any) => {
+          if (isInvalidSubject(item?.subjectName, item?.subjectCode)) return;
+          const cleanSubjectName = normalizeSubjectName(item?.subjectName);
+          if (isInvalidSubject(cleanSubjectName, item?.subjectCode)) return;
+
           if (item.timetables && Array.isArray(item.timetables)) {
             item.timetables.forEach((tb: any) => {
                const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
@@ -260,7 +264,7 @@ export default function App() {
                } catch (e) {}
 
                results.push({
-                 name: item.subjectName,
+                 name: cleanSubjectName,
                  code: item.subjectCode || '',
                  room,
                  lecturer,
@@ -450,7 +454,10 @@ export default function App() {
     const unsubscribeSubjects = onSnapshot(query(subjectsRef), (snapshot) => {
       const loadedSubjects: Subject[] = [];
       snapshot.forEach((doc) => {
-        loadedSubjects.push(doc.data() as Subject);
+        const s = doc.data() as Subject;
+        if (!isInvalidSubject(s.name, s.code)) {
+          loadedSubjects.push(s);
+        }
       });
       setSubjects(loadedSubjects);
     }, (error) => {
