@@ -630,6 +630,9 @@ export default async function handler(req, res) {
               if (weekIndex === null || startPeriod === null) {
                 return;
               }
+              if (startPeriod > 16 || startPeriod < 1) return;
+              if (endPeriod === null || endPeriod > 16 || endPeriod < startPeriod) endPeriod = startPeriod;
+              if (endPeriod - startPeriod > 6) endPeriod = startPeriod + 2;
 
               // Extract real teacher name (MUST NOT be "Lý thuyết" or "Thực hành" or schedule type)
               let teacherName = '';
