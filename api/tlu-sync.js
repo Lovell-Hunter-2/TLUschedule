@@ -44,6 +44,16 @@ function decrypt(text) {
   return decrypted.toString();
 }
 
+function isInvalidSubject(name, code) {
+  const n = String(name || '').trim().toUpperCase();
+  const c = String(code || '').trim().toUpperCase();
+  if (!n && !c) return true;
+  if (n === 'BC11110' || c.includes('BC11110') || /^BC\d{4,}/i.test(n) || /^BC\d{4,}/i.test(c)) {
+    return true;
+  }
+  return false;
+}
+
 // Cookie Jar for session handling
 class CookieJar {
   constructor() {
@@ -402,7 +412,7 @@ export default async function handler(req, res) {
                 const phong = tds.length > 7 ? $s(tds[7]).text().trim() : '';
                 const nhom = tds.length > 8 ? $s(tds[8]).text().trim() : '';
 
-                if (tenMon) {
+                if (tenMon && !isInvalidSubject(tenMon, maHocPhan)) {
                   // Parse day of week: 2 (T2) -> 2, 3 -> 3, ..., 7 -> 7, CN/1 -> 1
                   let weekIndex = 2;
                   const thuNum = parseInt(thuStr);
@@ -768,7 +778,7 @@ export default async function handler(req, res) {
         semesterId: item._semesterId,
         semesterName: item._semesterName
       };
-    }).filter(s => s.subjectName);
+    }).filter(s => s.subjectName && !isInvalidSubject(s.subjectName, s.subjectCode));
 
     const cleanedExams = allExams.map(item => ({
       id: item.id || Math.random().toString(36).substr(2, 9),
