@@ -564,7 +564,132 @@ export default async function handler(req, res) {
       }
     }
 
-    // Step F: Scrape grades from /SinhVien/ThongKeKetQuaHocTapTheoDot
+    // Step F: Scrape Weekly Schedule from /SinhVien/GetDanhSachLichTheoTuan to extract Lecturer (GV) names!
+    // As shown in the student portal, /SinhVien/GetDanhSachLichTheoTuan returns cells containing:
+    // Tên môn \n Mã lớp \n Tiết: ... \n Giờ: ... \n Phòng: ... \n GV: <Tên Giảng Viên>
+    const lecturerBySubjectMap = new Map(); // key -> teacherName
+
+    try {
+      // Check current week and nearby weeks (e.g., this week, previous 2 weeks, next 3 weeks)
+      const nowMs = Date.now();
+      const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+      const weekTimestamps = [
+        nowMs,
+        nowMs + oneWeekMs,
+        nowMs - oneWeekMs,
+        nowMs + 2 * oneWeekMs,
+        nowMs + 3 * oneWeekMs
+      ];
+
+      for (const ts of weekTimestamps) {
+        try {
+          const weekBody = new URLSearchParams({
+            pNgayHienTai: String(ts),
+            pLoaiLich: '1' // 1 = Lịch học
+          }).toString();
+
+          const weekRes = await httpsPostRaw('sv.tlu.edu.vn', '/SinhVien/GetDanhSachLichTheoTuan', weekBody, {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Content-Length': Buffer.byteLength(weekBody),
+            'Cookie': jar.getCookieHeader(),
+            'Referer': 'https://sv.tlu.edu.vn/lich-theo-tuan.html?pLoaiLich=1',
+            'User-Agent': 'Mozilla/5.0'
+          });
+
+          if (weekRes.status === 200 && weekRes.data && weekRes.data.includes('GV:')) {
+            const $w = loadCheerio(weekRes.data);
+            
+            // In ASP.NET WebForms table, each calendar event is inside a td or a container div
+            // Let's inspect td elements or cards containing 'GV:'
+            $w('td, div.calendar-item, div.fc-event, div.lop-hoc-phan').each((_, cell) => {
+              const cellHtml = $w(cell).html() || '';
+              const text = $w(cell).text();
+              if (text && text.includes('GV:')) {
+                // If this is a parent containing other elements with 'GV:', only process leaf-most blocks
+                if ($w(cell).find('div:contains("GV:"), td:contains("GV:")').length > 0) {
+                  return;
+                }
+
+                // Split by <br> or newlines
+                const cleanLines = cellHtml
+                  .replace(/<br\s*[\/]?>/gi, '\n')
+                  .replace(/<\/p>/gi, '\n')
+                  .replace(/<\/div>/gi, '\n')
+                  .replace(/<[^>]+>/g, '')
+                  .split('\n')
+                  .map(l => l.trim())
+                  .filter(Boolean);
+
+                const gvLine = cleanLines.find(l => /^GV\s*:\s*/i.test(l));
+                if (gvLine) {
+                  const teacher = gvLine.replace(/^GV\s*:\s*/i, '').trim();
+                  if (teacher && !/^(lý\s*thuyết|thực\s*hành|bài\s*tập)$/i.test(teacher)) {
+                    // Extract subject name (usually the 1st line)
+                    const subNameLine = cleanLines.find(l => 
+                      !l.startsWith('Tiết:') && 
+                      !l.startsWith('Giờ:') && 
+                      !l.startsWith('Phòng:') && 
+                      !l.startsWith('GV:') && 
+                      !/^\d+KTS\s*-\s*/i.test(l) &&
+                      l.length > 2
+                    );
+
+                    if (subNameLine) {
+                      const cleanSub = subNameLine
+                        .replace(/Triết\s*học\s*Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Triết học Mác - Lê-nin')
+                        .replace(/Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Mác - Lê-nin')
+                        .replace(/\bL[\uFFFD?]{1,3}nin\b/gi, 'Lê-nin')
+                        .replace(/[\uFFFD]+/g, '')
+                        .trim();
+                      lecturerBySubjectMap.set(cleanSub.toLowerCase(), teacher);
+                    }
+
+                    // Look for course code like "68KTS - ECON33511" or "ECON33511"
+                    const codeLine = cleanLines.find(l => /([0-9]+[A-Z0-9]+\s*-\s*[A-Z0-9]+|[A-Z]{3,}[0-9]{3,})/i.test(l));
+                    if (codeLine) {
+                      const codeMatch = codeLine.match(/([0-9]+[A-Z0-9]+\s*-\s*[A-Z0-9]+|[A-Z]{3,}[0-9]{3,})/i);
+                      if (codeMatch) {
+                        lecturerBySubjectMap.set(codeMatch[1].toLowerCase().replace(/\s+/g, ''), teacher);
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch (we) {
+          console.warn('Error fetching week schedule:', we.message);
+        }
+      }
+    } catch (e) {}
+
+    // Apply discovered lecturers to subjects if teacher was missing
+    if (lecturerBySubjectMap.size > 0) {
+      for (const subj of uniqueSubjectMap.values()) {
+        const subNameLower = subj.subjectName.toLowerCase().trim();
+        const subCodeLower = (subj.subjectCode || '').toLowerCase().trim();
+        
+        let foundLecturer = lecturerBySubjectMap.get(subNameLower);
+        if (!foundLecturer && subCodeLower) {
+          for (const [key, lec] of lecturerBySubjectMap.entries()) {
+            if (subCodeLower.includes(key) || key.includes(subCodeLower)) {
+              foundLecturer = lec;
+              break;
+            }
+          }
+        }
+
+        if (foundLecturer) {
+          subj.timetables.forEach(tb => {
+            if (!tb.teacher || !tb.teacher.displayName || /^(lý\s*thuyết|thực\s*hành)$/i.test(tb.teacher.displayName)) {
+              tb.teacher = { displayName: foundLecturer };
+            }
+          });
+        }
+      }
+    }
+
+    // Step G: Scrape grades from /SinhVien/ThongKeKetQuaHocTapTheoDot
     let detailedMarks = [];
     for (const dot of [15, 14, 16, 13]) {
       try {
