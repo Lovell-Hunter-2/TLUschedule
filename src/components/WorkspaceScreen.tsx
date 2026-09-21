@@ -1,19 +1,19 @@
-import { syncTluWithChunks } from "../lib/tlu-client";
+import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
 import React, { useState, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
-import { Users, Key, CheckCircle2, ChevronRight, RefreshCw, Trash2 } from 'lucide-react';
+import { Users, Key, CheckCircle2, ChevronRight, RefreshCw, Trash2, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence, useAnimation, PanInfo } from 'motion/react';
 import { collection, setDoc, doc, onSnapshot, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Workspace } from '../types';
+import { cn } from '../lib/utils';
 
 interface WorkspaceScreenProps {
   userId: string;
   onWorkspaceSelect: (workspace: Workspace) => void;
 }
-
 
 const SwipeableWorkspace = ({ workspace, onSelect, onDelete, isSyncing }: any) => {
   const controls = useAnimation();
@@ -53,8 +53,19 @@ const SwipeableWorkspace = ({ workspace, onSelect, onDelete, isSyncing }: any) =
         >
           <div className="p-4 flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-gray-900 dark:text-white">{workspace.name}</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tiếp tục đồng bộ và xem lịch</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-gray-900 dark:text-white">{workspace.name}</h3>
+                {workspace.portal === 'sv_tlu' ? (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
+                    Khóa mới K68+
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                    Khóa cũ
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tiếp tục xem và quản lý lịch học</p>
             </div>
             {isSyncing ? (
               <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
@@ -71,11 +82,34 @@ const SwipeableWorkspace = ({ workspace, onSelect, onDelete, isSyncing }: any) =
 export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenProps) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   
+  // Form states
+  const [portalType, setPortalType] = useState<'sinhvien1' | 'sv_tlu'>('sinhvien1');
   const [studentCode, setStudentCode] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [syncingWorkspaceId, setSyncingWorkspaceId] = useState<string | null>(null);
+
+  // CAPTCHA states for sv.tlu.edu.vn
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaImg, setCaptchaImg] = useState<string | null>(null);
+  const [captchaSession, setCaptchaSession] = useState<string | null>(null);
+  const [isCaptchaLoading, setIsCaptchaLoading] = useState(false);
+
+  const loadNewCaptcha = async () => {
+    setIsCaptchaLoading(true);
+    try {
+      const data = await fetchTluCaptcha();
+      setCaptchaImg(data.captchaDataUrl);
+      setCaptchaSession(data.sessionState);
+      setCaptchaCode('');
+    } catch (err: any) {
+      console.error("Captcha fetch error:", err);
+      setError('Không tải được mã CAPTCHA từ TLU. Vui lòng bấm nút tròn để tải lại.');
+    } finally {
+      setIsCaptchaLoading(false);
+    }
+  };
 
   useEffect(() => {
     const workspacesRef = collection(db, 'users', userId, 'workspaces');
@@ -106,7 +140,6 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     return () => unsubscribe();
   }, [userId, onWorkspaceSelect]);
 
-  
   const handleDeleteWorkspace = async (workspace: Workspace) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản ${workspace.name} không?`)) {
       try {
@@ -124,7 +157,15 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
   const handleSelectWorkspace = async (workspace: Workspace) => {
     setSyncingWorkspaceId(workspace.id);
     
-    // Fetch password from secure subcollection
+    // If workspace is from sv_tlu, enter directly (schedule is already saved in Firestore)
+    if (workspace.portal === 'sv_tlu') {
+      localStorage.setItem('savedWorkspaceId', workspace.id);
+      onWorkspaceSelect(workspace);
+      setSyncingWorkspaceId(null);
+      return;
+    }
+
+    // Fetch password from secure subcollection for sinhvien1
     let secretData: any = null;
     try {
         const { getDoc } = await import('firebase/firestore');
@@ -132,7 +173,6 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         if (secretSnap.exists()) {
             secretData = secretSnap.data();
         } else if (workspace.password) {
-            // Fallback for older data before migration
             secretData = { password: workspace.password, isEncrypted: (workspace as any).isEncrypted };
         }
     } catch(e) {}
@@ -141,13 +181,12 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     if (secretData && secretData.password) {
       try {
         if (secretData.isEncrypted) {
-            await handleSyncRequest(workspace.id, secretData.password, workspace, true);
+            await handleSyncRequest(workspace.id, secretData.password, workspace, true, 'sinhvien1');
         } else {
             let decodedRaw = secretData.password; try { decodedRaw = decodeURIComponent(atob(secretData.password)); } catch(e) {}
-            await handleSyncRequest(workspace.id, decodedRaw, workspace, false);
+            await handleSyncRequest(workspace.id, decodedRaw, workspace, false, 'sinhvien1');
         }
       } catch (err) {
-        // If sync fails, just enter anyway
         console.error("Auto sync on select failed:", err);
         localStorage.setItem('savedWorkspaceId', workspace.id);
         onWorkspaceSelect(workspace);
@@ -158,18 +197,34 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     }
   };
 
-  const handleSyncRequest = async (code: string, pass: string, existingWp?: Workspace, isEncrypted: boolean = false) => {
+  const handleSyncRequest = async (
+    code: string, 
+    pass: string, 
+    existingWp?: Workspace, 
+    isEncrypted: boolean = false,
+    portal: 'sinhvien1' | 'sv_tlu' = portalType,
+    captcha: string = captchaCode,
+    sessionState: string = captchaSession || ''
+  ) => {
     const { auth } = await import('../firebase');
     const idToken = await auth.currentUser?.getIdToken();
     
-    const bodyParams: any = { studentCode: code };
+    const bodyParams: any = { 
+      studentCode: code,
+      portal 
+    };
+
+    if (portal === 'sv_tlu') {
+      bodyParams.captcha = captcha;
+      bodyParams.sessionState = sessionState;
+    }
+
     if (isEncrypted) {
        bodyParams.encryptedPassword = pass;
     } else {
        bodyParams.password = pass;
     }
 
-    
     const { json } = await syncTluWithChunks(bodyParams, idToken);
 
     const results: any[] = [];
@@ -185,7 +240,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
              const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
              
              const periods = [];
-             for(let i = sPeriod; i <= ePeriod; i++) periods.push(i);
+             for(let i = sPeriod; i <= ePeriod && periods.length < 20; i++) periods.push(i);
              
              const weekIndex = tb?.weekIndex || 2;
              const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
@@ -200,6 +255,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
              results.push({
                id: Math.random().toString(36).substr(2, 9),
                name: item.subjectName,
+               code: item.subjectCode || '',
                room,
                lecturer,
                startDate: sDate,
@@ -240,22 +296,23 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         } else if (timeStr) {
             const hsMatch = timeStr.match(/(\d+):/);
             if (hsMatch) {
-               const h = parseInt(hsMatch[1]);
-               if (h === 7) periods = [1, 2, 3];
-               else if (h === 8) periods = [3, 4];
-               else if (h === 9) periods = [4, 5, 6];
-               else if (h === 10) periods = [5, 6];
-               else if (h === 12 || h === 13) periods = [7, 8, 9];
-               else if (h === 14) periods = [9, 10];
-               else if (h === 15) periods = [10, 11, 12];
-               else if (h === 16) periods = [11, 12];
-               else if (h >= 17) periods = [13, 14, 15];
+                const h = parseInt(hsMatch[1]);
+                if (h === 7) periods = [1, 2, 3];
+                else if (h === 8) periods = [3, 4];
+                else if (h === 9) periods = [4, 5, 6];
+                else if (h === 10) periods = [5, 6];
+                else if (h === 12 || h === 13) periods = [7, 8, 9];
+                else if (h === 14) periods = [9, 10];
+                else if (h === 15) periods = [10, 11, 12];
+                else if (h === 16) periods = [11, 12];
+                else if (h >= 17) periods = [13, 14, 15];
             }
         }
 
         results.push({
           id: Math.random().toString(36).substr(2, 9),
           name: `${item.subjectName} (THI)`,
+          code: item.subjectCode || '',
           room: item.roomName || '',
           lecturer: 'Lịch Thi',
           startDate: eDate,
@@ -270,7 +327,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     }
     
     if (results.length === 0) {
-       throw new Error('Đăng nhập thành công nhưng không có dữ liệu lịch học.');
+       throw new Error('Đăng nhập thành công nhưng không tìm thấy dữ liệu lịch học.');
     }
 
     const name = json.studentName ? `${json.studentName} (${code})` : `Sinh viên ${code}`;
@@ -278,18 +335,19 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       id: code,
       name: name,
       password: json.encryptedPassword || btoa(encodeURIComponent(pass)),
-      isEncrypted: !!json.encryptedPassword
+      isEncrypted: !!json.encryptedPassword,
+      portal: portal
     };
     
-    // Auto upgrade old base64 password to encrypted password
-    if (existingWp && json.encryptedPassword && !existingWp.isEncrypted) {
-        newWorkspace.password = json.encryptedPassword;
-        newWorkspace.isEncrypted = true;
+    if (existingWp) {
+        newWorkspace.portal = portal;
+        if (json.encryptedPassword && !existingWp.isEncrypted) {
+            newWorkspace.password = json.encryptedPassword;
+            newWorkspace.isEncrypted = true;
+        }
         await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace, { merge: true });
-    }
-
-        if (!existingWp) {
-      await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace);
+    } else {
+        await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace);
     }
     
     // Save grades
@@ -305,15 +363,17 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       }
     }
     
-    const batch = writeBatch(db);
-    
-    results.forEach(subject => {
-       const deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
-       subject.id = deterministicId;
-       const docRef = doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'subjects', subject.id);
-       batch.set(docRef, subject);
-    });
-    await batch.commit();
+    for (const subject of results) {
+       try {
+           let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+           deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-');
+           subject.id = deterministicId;
+           const docRef = doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'subjects', subject.id);
+           await setDoc(docRef, subject);
+       } catch (err) {
+           console.error("FAIL ON SUBJECT:", JSON.stringify(subject), err);
+       }
+    }
 
     localStorage.setItem('savedWorkspaceId', newWorkspace.id);
     onWorkspaceSelect(newWorkspace);
@@ -326,12 +386,20 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       return;
     }
 
+    if (portalType === 'sv_tlu' && !captchaCode.trim()) {
+      setError('Vui lòng nhập 4 ký tự mã bảo vệ (CAPTCHA)');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     try {
-      await handleSyncRequest(studentCode, password);
+      await handleSyncRequest(studentCode, password, undefined, false, portalType, captchaCode, captchaSession || '');
     } catch (err: any) {
       setError(err.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
+      if (portalType === 'sv_tlu') {
+        loadNewCaptcha();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -349,7 +417,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
             <Users className="w-10 h-10 text-white -rotate-12" />
           </div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Lịch Học Của Bạn</h1>
-          <p className="text-gray-500 dark:text-gray-400 font-medium mt-2 text-center">
+          <p className="text-gray-500 dark:text-gray-400 font-medium mt-2 text-center text-sm">
             {workspaces.length > 0 ? 'Chọn tài khoản đã kết nối hoặc đăng nhập mới' : 'Đăng nhập bằng tài khoản TLU để lấy toàn bộ lịch học'}
           </p>
         </div>
@@ -373,12 +441,55 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
           </div>
         )}
 
-        <Card className="p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
-          <form onSubmit={handleTluLogin} className="flex flex-col gap-6">
+        <Card className="p-6 sm:p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
+          <form onSubmit={handleTluLogin} className="flex flex-col gap-5">
             
+            {/* Cổng đăng nhập: Khóa cũ vs Khóa mới */}
+            <div>
+              <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                Chọn cổng sinh viên
+              </label>
+              <div className="grid grid-cols-2 bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPortalType('sinhvien1');
+                    setError('');
+                  }}
+                  className={cn(
+                    "py-2 px-2 text-xs font-bold rounded-lg transition-all text-center",
+                    portalType === 'sinhvien1'
+                      ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  )}
+                >
+                  <div>Khóa cũ (K67 trở về trước)</div>
+                  <span className="text-[10px] font-normal opacity-70 block">sinhvien1.tlu.edu.vn</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPortalType('sv_tlu');
+                    setError('');
+                    if (!captchaImg) loadNewCaptcha();
+                  }}
+                  className={cn(
+                    "py-2 px-2 text-xs font-bold rounded-lg transition-all text-center relative",
+                    portalType === 'sv_tlu'
+                      ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                  )}
+                >
+                  <div>Khóa mới (K68 trở đi)</div>
+                  <span className="text-[10px] font-normal opacity-70 block">sv.tlu.edu.vn</span>
+                </button>
+              </div>
+            </div>
+
             <Input
               label="Mã sinh viên"
-              placeholder="Nhập mã sinh viên"
+              placeholder="Ví dụ: 2351060123"
               value={studentCode}
               onChange={(e) => setStudentCode(e.target.value)}
               icon={<Users className="w-4 h-4" />}
@@ -393,13 +504,73 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
               icon={<Key className="w-4 h-4" />}
             />
 
+            {/* CAPTCHA section for Khóa mới (sv.tlu.edu.vn) */}
+            {portalType === 'sv_tlu' && (
+              <div className="flex flex-col gap-2 p-3.5 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/50">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    Mã xác nhận bảo vệ
+                  </label>
+                  <span className="text-[11px] text-blue-600 dark:text-blue-400">
+                    Nhập 4 chữ cái trong ảnh
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  {/* Image container */}
+                  <div className="relative h-12 w-32 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                    {isCaptchaLoading ? (
+                      <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+                    ) : captchaImg ? (
+                      <img 
+                        src={captchaImg} 
+                        alt="Mã CAPTCHA" 
+                        className="h-full w-full object-contain select-none"
+                      />
+                    ) : (
+                      <span className="text-[11px] text-gray-400">Đang tải...</span>
+                    )}
+                  </div>
+
+                  {/* Circular refresh button */}
+                  <button
+                    type="button"
+                    onClick={loadNewCaptcha}
+                    disabled={isCaptchaLoading}
+                    title="Bấm để đổi mã khác nếu chữ khó nhìn"
+                    className="w-11 h-11 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 transition-all hover:scale-105 active:scale-95 shrink-0 shadow-sm"
+                  >
+                    <RefreshCw className={cn("w-4 h-4 transition-transform", isCaptchaLoading && "animate-spin text-blue-500")} />
+                  </button>
+
+                  {/* Input field */}
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="text"
+                      maxLength={4}
+                      autoComplete="off"
+                      value={captchaCode}
+                      onChange={(e) => setCaptchaCode(e.target.value.toUpperCase())}
+                      placeholder="MÃ"
+                      className="w-full h-12 px-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-center font-mono font-black text-lg tracking-widest uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-gray-400"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  Bấm nút tròn để đổi mã khác nếu chữ khó nhìn. Khi sai, hệ thống sẽ tự động đổi mã mới.
+                </p>
+              </div>
+            )}
+
             {error && (
               <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm font-medium">
                 {error}
               </div>
             )}
 
-            <Button type="submit" disabled={isLoading} className="w-full h-12 text-lg shadow-lg font-bold">
+            <Button type="submit" disabled={isLoading} className="w-full h-12 text-base shadow-lg font-bold">
               {isLoading ? 'Đang đồng bộ lấy lịch...' : 'Đồng bộ'}
             </Button>
           </form>
