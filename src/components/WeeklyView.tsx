@@ -21,29 +21,6 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeSubject, setActiveSubject] = useState<{subject: Subject, x: number, y: number} | null>(null);
 
-  // When subjects change, adjust currentDate to center on the active semester's dates
-  useEffect(() => {
-    if (subjects.length === 0) return;
-    
-    const startDates = subjects.map(s => s.startDate).filter(Boolean);
-    if (startDates.length === 0) return;
-    
-    startDates.sort();
-    const earliestDateStr = startDates[0];
-    const latestDateStr = [...subjects.map(s => s.endDate).filter(Boolean)].sort().pop();
-    
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    
-    if (todayStr >= earliestDateStr && todayStr <= (latestDateStr || earliestDateStr)) {
-      setCurrentDate(new Date());
-    } else {
-      const earliestDate = new Date(earliestDateStr);
-      if (!isNaN(earliestDate.getTime())) {
-        setCurrentDate(earliestDate);
-      }
-    }
-  }, [subjects]);
-
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     if (activeSubject) {
@@ -323,7 +300,7 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
               <p>Giảng viên: <span className="font-bold">
                 {(() => {
                   const raw = (activeSubject.subject.lecturer || '').trim();
-                  const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(raw);
+                  const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(raw);
                   return (!raw || isType) ? 'Chưa cập nhật' : raw;
                 })()}
               </span></p>
@@ -334,4 +311,3 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
     </div>
   );
 }
-
