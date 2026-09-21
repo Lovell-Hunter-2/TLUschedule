@@ -1,4 +1,4 @@
-import { syncTluWithChunks } from "../lib/tlu-client";
+import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -6,7 +6,7 @@ import { cn } from '../lib/utils';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
 import { auth } from '../firebase';
-import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw, ShieldCheck } from 'lucide-react';
 import { parseScheduleText } from '../services/geminiService';
 import { syncToGoogleCalendar } from '../services/googleCalendarService';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,23 +24,58 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
   const [isSyncing, setIsSyncing] = useState(false);
   const [showSuccessIndicator, setShowSuccessIndicator] = useState(false);
 
-  
   // TLU Sync states
+  const [portalType, setPortalType] = useState<'sinhvien1' | 'sv_tlu'>('sinhvien1');
   const [tluStudentCode, setTluStudentCode] = useState('');
   const [tluPassword, setTluPassword] = useState('');
   const [isTluSyncing, setIsTluSyncing] = useState(false);
+
+  // CAPTCHA states for sv.tlu.edu.vn
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaImg, setCaptchaImg] = useState<string | null>(null);
+  const [captchaSession, setCaptchaSession] = useState<string | null>(null);
+  const [isCaptchaLoading, setIsCaptchaLoading] = useState(false);
+
+  const loadNewCaptcha = async () => {
+    setIsCaptchaLoading(true);
+    try {
+      const data = await fetchTluCaptcha();
+      setCaptchaImg(data.captchaDataUrl);
+      setCaptchaSession(data.sessionState);
+      setCaptchaCode('');
+    } catch (err: any) {
+      console.error("Captcha fetch error:", err);
+      alert('Không tải được mã CAPTCHA từ TLU. Vui lòng bấm nút tròn để thử lại.');
+    } finally {
+      setIsCaptchaLoading(false);
+    }
+  };
 
   const handleTluSync = async () => {
     if (!tluStudentCode || !tluPassword) {
       alert('Vui lòng nhập mã sinh viên và mật khẩu');
       return;
     }
+    if (portalType === 'sv_tlu' && !captchaCode.trim()) {
+      alert('Vui lòng nhập mã xác nhận bảo vệ (CAPTCHA)');
+      return;
+    }
     
     setIsTluSyncing(true);
     try {
-      
       const idToken = await auth.currentUser?.getIdToken();
-      const { json } = await syncTluWithChunks({ studentCode: tluStudentCode, password: tluPassword }, idToken);
+      const bodyParams: any = {
+        studentCode: tluStudentCode,
+        password: tluPassword,
+        portal: portalType
+      };
+
+      if (portalType === 'sv_tlu') {
+        bodyParams.captcha = captchaCode;
+        bodyParams.sessionState = captchaSession;
+      }
+
+      const { json } = await syncTluWithChunks(bodyParams, idToken);
 
       const results: Subject[] = [];
       if (json.data && Array.isArray(json.data)) {
@@ -71,6 +106,7 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                results.push({
                  id: Math.random().toString(36).substr(2, 9),
                  name: item.subjectName,
+                 code: item.subjectCode || '',
                  room,
                  lecturer,
                  startDate: sDate,
@@ -94,10 +130,14 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
       setEditingSubjects([...editingSubjects, ...results]);
       setMode('list');
       setTluPassword('');
+      setCaptchaCode('');
       alert(`Đã đồng bộ ${results.length} môn học từ TLU!`);
 
     } catch (e: any) {
        alert(e.message || 'Lỗi khi đồng bộ kết quả');
+       if (portalType === 'sv_tlu') {
+         loadNewCaptcha();
+       }
     } finally {
       setIsTluSyncing(false);
     }
@@ -258,14 +298,55 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                 <RefreshCw className="w-5 h-5 text-blue-500" />
                 Đồng bộ trực tiếp từ web trường
               </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Đăng nhập bằng tài khoản sinh viên (sinhvien1.tlu.edu.vn) để tự động lấy toàn bộ kết quả đăng ký học.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+                Đăng nhập bằng tài khoản sinh viên Thủy Lợi để tự động lấy toàn bộ môn học và thời khóa biểu.
+              </p>
+
+              {/* Portal Selector */}
+              <div className="mb-5">
+                <label className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 block">
+                  Chọn cổng sinh viên
+                </label>
+                <div className="grid grid-cols-2 bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPortalType('sinhvien1')}
+                    className={cn(
+                      "py-2 px-2 text-xs font-bold rounded-lg transition-all text-center",
+                      portalType === 'sinhvien1'
+                        ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    )}
+                  >
+                    <div>Khóa cũ (K67 trở về trước)</div>
+                    <span className="text-[10px] font-normal opacity-70 block">sinhvien1.tlu.edu.vn</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPortalType('sv_tlu');
+                      if (!captchaImg) loadNewCaptcha();
+                    }}
+                    className={cn(
+                      "py-2 px-2 text-xs font-bold rounded-lg transition-all text-center relative",
+                      portalType === 'sv_tlu'
+                        ? "bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    )}
+                  >
+                    <div>Khóa mới (K68 trở đi)</div>
+                    <span className="text-[10px] font-normal opacity-70 block">sv.tlu.edu.vn</span>
+                  </button>
+                </div>
+              </div>
               
-              <div className="flex flex-col gap-4 mb-6">
+              <div className="flex flex-col gap-4 mb-5">
                 <Input 
                   label="Mã sinh viên" 
                   value={tluStudentCode} 
                   onChange={e => setTluStudentCode(e.target.value)} 
-                  placeholder="Ví dụ: A31234"
+                  placeholder="Ví dụ: 2351060123"
                 />
                 <Input 
                   label="Mật khẩu" 
@@ -274,16 +355,76 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                   onChange={e => setTluPassword(e.target.value)} 
                   placeholder="Nhập mật khẩu trang sinh viên"
                 />
+
+                {/* CAPTCHA section for Khóa mới */}
+                {portalType === 'sv_tlu' && (
+                  <div className="flex flex-col gap-2 p-3.5 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/50">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        Mã xác nhận bảo vệ
+                      </label>
+                      <span className="text-[11px] text-blue-600 dark:text-blue-400">
+                        Nhập 4 chữ cái trong ảnh
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      {/* Image container */}
+                      <div className="relative h-12 w-32 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                        {isCaptchaLoading ? (
+                          <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
+                        ) : captchaImg ? (
+                          <img 
+                            src={captchaImg} 
+                            alt="Mã CAPTCHA" 
+                            className="h-full w-full object-contain select-none"
+                          />
+                        ) : (
+                          <span className="text-[11px] text-gray-400">Đang tải...</span>
+                        )}
+                      </div>
+
+                      {/* Circular refresh button */}
+                      <button
+                        type="button"
+                        onClick={loadNewCaptcha}
+                        disabled={isCaptchaLoading}
+                        title="Bấm để đổi mã khác nếu chữ khó nhìn"
+                        className="w-11 h-11 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-600 transition-all hover:scale-105 active:scale-95 shrink-0 shadow-sm"
+                      >
+                        <RefreshCw className={cn("w-4 h-4 transition-transform", isCaptchaLoading && "animate-spin text-blue-500")} />
+                      </button>
+
+                      {/* Input field */}
+                      <div className="flex-1 min-w-0">
+                        <input
+                          type="text"
+                          maxLength={4}
+                          autoComplete="off"
+                          value={captchaCode}
+                          onChange={(e) => setCaptchaCode(e.target.value.toUpperCase())}
+                          placeholder="MÃ"
+                          className="w-full h-12 px-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-center font-mono font-black text-lg tracking-widest uppercase text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-gray-400"
+                        />
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                      Bấm nút tròn để đổi mã khác nếu chữ khó nhìn.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-xs text-blue-800 dark:text-blue-200 rounded-lg mb-4 leading-relaxed border border-blue-100 dark:border-blue-900/50">
-                <strong>🔒 Lưu ý bảo mật:</strong> Mật khẩu của bạn được gửi mã hóa trực tiếp đến máy chủ trường Đại học Thủy Lợi để lấy token, chúng tôi tuyệt đối không lưu trữ tài khoản/mật khẩu của bạn dưới bất kỳ hình thức nào.
+                <strong>🔒 Lưu ý bảo mật:</strong> Mật khẩu của bạn được gửi mã hóa trực tiếp đến máy chủ trường Đại học Thủy Lợi để đồng bộ, chúng tôi tuyệt đối không lưu trữ tài khoản/mật khẩu dạng văn bản thô.
               </div>
 
               <Button 
                 onClick={handleTluSync} 
                 disabled={isTluSyncing || !tluStudentCode || !tluPassword}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-11"
               >
                 {isTluSyncing ? "Đang đồng bộ..." : "Đăng nhập và Đồng bộ"}
               </Button>
