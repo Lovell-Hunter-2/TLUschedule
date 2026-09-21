@@ -102,13 +102,16 @@ async function httpsPostRaw(hostname, path, bodyData, headers = {}) {
       }
     };
     const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => body += chunk);
-      res.on('end', () => resolve({
-        status: res.statusCode,
-        headers: res.headers,
-        data: body
-      }));
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      res.on('end', () => {
+        const fullBuffer = Buffer.concat(chunks);
+        resolve({
+          status: res.statusCode,
+          headers: res.headers,
+          data: fullBuffer.toString('utf8')
+        });
+      });
     });
     req.on('error', (e) => reject(e));
     req.setTimeout(12000, () => { req.destroy(); reject(new Error('Timeout')); });
@@ -125,9 +128,12 @@ async function httpsPost(hostname, path, data, headers = {}) {
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData), 'Connection': 'close', ...headers }
     };
     const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => body += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, data: body }));
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      res.on('end', () => {
+        const fullBuffer = Buffer.concat(chunks);
+        resolve({ status: res.statusCode, headers: res.headers, data: fullBuffer.toString('utf8') });
+      });
     });
     req.on('error', (e) => reject(e));
     req.setTimeout(5000, () => { req.destroy(); reject(new Error('Timeout')); });
@@ -140,9 +146,12 @@ async function httpsGet(hostname, path, headers = {}) {
   return new Promise((resolve, reject) => {
     const options = { hostname, port: 443, path, method: 'GET', rejectUnauthorized: false, headers: { 'Connection': 'close', ...headers } };
     const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => body += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, data: body }));
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      res.on('end', () => {
+        const fullBuffer = Buffer.concat(chunks);
+        resolve({ status: res.statusCode, headers: res.headers, data: fullBuffer.toString('utf8') });
+      });
     });
     req.on('error', (e) => reject(e));
     req.setTimeout(5000, () => { req.destroy(); reject(new Error('Timeout')); });
@@ -358,22 +367,48 @@ export default async function handler(req, res) {
     }
 
     // LOGIN SUCCESSFUL!
-    // Step D: Scrape student name from /dashboard.html
+    // Step D: Scrape student name and available semesters from /lich-hoc-lich-thi.html and /dashboard.html
     let studentName = '';
+    const discoveredSemesters = new Map(); // id -> name (e.g., '15' -> 'Học kỳ 1 Năm học 2024-2025')
+
     try {
-      const dashRes = await httpsGet('sv.tlu.edu.vn', '/dashboard.html', {
+      const pageRes = await httpsGet('sv.tlu.edu.vn', '/lich-hoc-lich-thi.html', {
         'Cookie': jar.getCookieHeader(),
         'User-Agent': 'Mozilla/5.0'
       });
-      if (dashRes.status === 200 && dashRes.data) {
-        const $d = loadCheerio(dashRes.data);
-        studentName = $d('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name').first().text().trim();
+      if (pageRes.status === 200 && pageRes.data) {
+        const $p = loadCheerio(pageRes.data);
+        studentName = $p('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name').first().text().trim();
+        
+        // Find semester dropdown/options (e.g., select#pIDDot, select[name="pIDDot"], #drpDot, select.dot-hoc, etc.)
+        $p('select option').each((i, opt) => {
+          const val = $p(opt).attr('value');
+          const txt = $p(opt).text().trim();
+          if (val && /^\d+$/.test(val.trim()) && txt && (txt.toLowerCase().includes('học kỳ') || txt.toLowerCase().includes('năm học') || txt.toLowerCase().includes('đợt'))) {
+            discoveredSemesters.set(val.trim(), txt);
+          }
+        });
       }
     } catch (e) {}
 
-    // Step E: Scrape schedule by progress from /SinhVien/GetDanhSachLichTheoTienDo
-    // We query semester IDs (e.g. 15, 16, 14, 17, 18, 19, 20, 1, 2)
-    const semesterDots = [15, 16, 14, 17, 18, 19, 20, 1, 2];
+    if (!studentName) {
+      try {
+        const dashRes = await httpsGet('sv.tlu.edu.vn', '/dashboard.html', {
+          'Cookie': jar.getCookieHeader(),
+          'User-Agent': 'Mozilla/5.0'
+        });
+        if (dashRes.status === 200 && dashRes.data) {
+          const $d = loadCheerio(dashRes.data);
+          studentName = $d('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name').first().text().trim();
+        }
+      } catch (e) {}
+    }
+
+    // Fallback semester IDs if none discovered dynamically
+    const semesterDots = discoveredSemesters.size > 0 
+      ? Array.from(discoveredSemesters.keys())
+      : ['15', '16', '14', '17', '18', '19', '20', '1', '2'];
+
     const uniqueSubjectMap = new Map();
 
     for (const dot of semesterDots) {
@@ -389,18 +424,78 @@ export default async function handler(req, res) {
 
         if (schedRes.status === 200 && schedRes.data && schedRes.data.includes('<table')) {
           const $s = loadCheerio(schedRes.data);
+
+          // Detect headers to know exact column indexes
+          let colIdx = {
+            maHocPhan: 1,
+            tenMon: 2,
+            thu: 4,
+            tiet: 5,
+            loaiLich: 6,
+            phong: 7,
+            nhom: 8,
+            giangVien: -1
+          };
+
+          $s('table thead tr th').each((idx, th) => {
+            const heading = $s(th).text().toLowerCase().trim();
+            if (heading.includes('mã hp') || heading.includes('mã môn') || heading.includes('mã học phần')) colIdx.maHocPhan = idx;
+            else if (heading.includes('tên môn') || heading.includes('tên học phần')) colIdx.tenMon = idx;
+            else if (heading.includes('thứ')) colIdx.thu = idx;
+            else if (heading.includes('tiết')) colIdx.tiet = idx;
+            else if (heading.includes('loại lịch') || heading.includes('hình thức')) colIdx.loaiLich = idx;
+            else if (heading.includes('phòng')) colIdx.phong = idx;
+            else if (heading.includes('nhóm') || heading.includes('lớp')) colIdx.nhom = idx;
+            else if (heading.includes('giảng viên') || heading.includes('cán bộ')) colIdx.giangVien = idx;
+          });
+
           const rows = $s('table tbody tr');
           if (rows.length > 0) {
             rows.each((i, el) => {
               const tds = $s(el).find('td');
-              if (tds.length >= 7) {
-                const maHocPhan = $s(tds[1]).text().trim();
-                const tenMon = $s(tds[2]).text().trim();
-                const thuStr = $s(tds[4]).text().trim();
-                const tietStr = $s(tds[5]).text().trim();
-                const loaiLich = $s(tds[6]).text().trim();
-                const phong = tds.length > 7 ? $s(tds[7]).text().trim() : '';
-                const nhom = tds.length > 8 ? $s(tds[8]).text().trim() : '';
+              if (tds.length >= 6) {
+                let maHocPhan = colIdx.maHocPhan >= 0 && tds[colIdx.maHocPhan] ? $s(tds[colIdx.maHocPhan]).text().trim() : '';
+                let rawTenMon = colIdx.tenMon >= 0 && tds[colIdx.tenMon] ? $s(tds[colIdx.tenMon]).text().trim() : '';
+                let thuStr = colIdx.thu >= 0 && tds[colIdx.thu] ? $s(tds[colIdx.thu]).text().trim() : '';
+                let tietStr = colIdx.tiet >= 0 && tds[colIdx.tiet] ? $s(tds[colIdx.tiet]).text().trim() : '';
+                let col6Val = colIdx.loaiLich >= 0 && tds[colIdx.loaiLich] ? $s(tds[colIdx.loaiLich]).text().trim() : '';
+                let phong = colIdx.phong >= 0 && tds[colIdx.phong] ? $s(tds[colIdx.phong]).text().trim() : '';
+                let nhom = colIdx.nhom >= 0 && tds[colIdx.nhom] ? $s(tds[colIdx.nhom]).text().trim() : '';
+                let colGv = colIdx.giangVien >= 0 && tds[colIdx.giangVien] ? $s(tds[colIdx.giangVien]).text().trim() : '';
+
+                // If tenMon is empty, fallback to index 2
+                if (!rawTenMon && tds.length > 2) rawTenMon = $s(tds[2]).text().trim();
+                if (!maHocPhan && tds.length > 1) maHocPhan = $s(tds[1]).text().trim();
+
+                // Clean and normalize subject name font/mojibake
+                let tenMon = rawTenMon
+                  .replace(/Triết\s*học\s*Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Triết học Mác - Lê-nin')
+                  .replace(/Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Mác - Lê-nin')
+                  .replace(/\bL[\uFFFD?]{1,3}nin\b/gi, 'Lê-nin')
+                  .replace(/[\uFFFD]+/g, '')
+                  .trim();
+
+                // Distinguish between lecturer and schedule type
+                // col6Val is often 'Lý thuyết' or 'Thực hành' (Schedule Type / Loại lịch)
+                // If colGv exists, use it. Otherwise, if col6Val is NOT a schedule type, it might be teacher name
+                let teacherName = '';
+                const isScheduleType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(col6Val);
+                
+                if (colGv && !/^(lý\s*thuyết|thực\s*hành)$/i.test(colGv)) {
+                  teacherName = colGv;
+                } else if (!isScheduleType && col6Val) {
+                  teacherName = col6Val;
+                }
+
+                // Check other columns if any has a teacher title (ThS, PGS, TS, GV, Thầy, Cô)
+                if (!teacherName) {
+                  tds.each((ti, tel) => {
+                    const text = $s(tel).text().trim();
+                    if (/^(th\.s|ths|ts|pgs|gs|gv|thầy|cô)\.?\s+/i.test(text)) {
+                      teacherName = text;
+                    }
+                  });
+                }
 
                 if (tenMon) {
                   // Parse day of week: 2 (T2) -> 2, 3 -> 3, ..., 7 -> 7, CN/1 -> 1
@@ -426,16 +521,30 @@ export default async function handler(req, res) {
                   const courseCode = nhom ? `${nhom} - ${maHocPhan}` : maHocPhan;
                   const subjKey = `${tenMon}_${thuStr}_${tietStr}_${dot}`;
 
+                  // Determine human-readable semester name
+                  let semesterName = discoveredSemesters.get(String(dot)) || '';
+                  if (!semesterName) {
+                    // Friendly fallback name based on current academic timeline
+                    const dotNum = parseInt(dot);
+                    if (dotNum >= 14 && dotNum <= 25) {
+                      const semNumber = ((dotNum - 14) % 3) + 1;
+                      const yearOffset = Math.floor((dotNum - 14) / 3);
+                      semesterName = `Học kỳ ${semNumber} Năm học ${2024 + yearOffset}-${2025 + yearOffset}`;
+                    } else {
+                      semesterName = `Đợt ${dot}`;
+                    }
+                  }
+
                   if (!uniqueSubjectMap.has(subjKey)) {
                     uniqueSubjectMap.set(subjKey, {
                       subjectName: tenMon,
                       subjectCode: courseCode,
                       semesterId: String(dot),
-                      semesterName: `Học kỳ ${dot}`,
+                      semesterName: semesterName,
                       timetables: [
                         {
                           room: { name: phong, code: phong },
-                          teacher: { displayName: loaiLich || '' },
+                          teacher: { displayName: teacherName },
                           startHour: { name: startPeriod },
                           endHour: { name: endPeriod },
                           weekIndex: weekIndex,
