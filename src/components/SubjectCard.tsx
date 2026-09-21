@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Subject, PERIODS } from '../types';
 import { Card } from './Card';
 import { MapPin, User, Clock, Map as MapIcon, X, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
-import { cn, getSubjectColor } from '../lib/utils';
+import { cn, getSubjectColor, getSubjectBadgeColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { getWeatherIcon, getWeatherText } from './WeatherWidget';
@@ -120,10 +120,10 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
               {subject.code && (
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={cn(
-                    "text-[11px] font-semibold px-2 py-0.5 rounded border",
+                    "text-[11px] font-semibold px-2 py-0.5 rounded border transition-colors",
                     isExam
                       ? "bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800"
-                      : "bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200/60 dark:border-blue-800/60"
+                      : getSubjectBadgeColor(subject.name)
                   )}>
                     Mã lớp: {subject.code}
                   </span>
