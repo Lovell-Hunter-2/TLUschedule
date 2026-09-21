@@ -1,9 +1,53 @@
+export async function fetchTluCaptcha(): Promise<{ captchaDataUrl: string; sessionState: string }> {
+  const r = await fetch('/api/tlu-sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'get_captcha' })
+  });
+  let data;
+  try {
+    data = await r.json();
+  } catch (e) {
+    throw new Error(`Không thể kết nối máy chủ tải mã CAPTCHA (HTTP ${r.status})`);
+  }
+  if (!r.ok) {
+    throw new Error(data?.error || 'Không thể tải mã CAPTCHA từ máy chủ TLU');
+  }
+  return data;
+}
+
 export async function syncTluWithChunks(bodyParams: any, idToken?: string) {
    let json = { data: [], exams: [], gpaSummary: [], detailedMarks: [], studentName: '', encryptedPassword: '' };
    
    const headers: any = { 'Content-Type': 'application/json' };
    if (idToken) {
       headers['Authorization'] = `Bearer ${idToken}`;
+   }
+
+   // Handle new portal (sv.tlu.edu.vn) for K68+
+   if (bodyParams.portal === 'sv_tlu') {
+      const r = await fetch('/api/tlu-sync', {
+         method: 'POST',
+         headers,
+         body: JSON.stringify(bodyParams)
+      });
+      let data;
+      try {
+         data = await r.json();
+      } catch (e) {
+         throw new Error(`Máy chủ phản hồi lỗi (Status: ${r.status}). Vui lòng thử lại.`);
+      }
+      if (!r.ok) {
+         let errorMsg = data?.error || 'Lỗi đăng nhập hoặc đồng bộ cổng sv.tlu.edu.vn';
+         if (data?.details) {
+            const detailStr = typeof data.details === 'string' ? data.details.substring(0, 500) : JSON.stringify(data.details);
+            errorMsg += `\nChi tiết: ${detailStr}`;
+         }
+         const err: any = new Error(errorMsg);
+         err.needNewCaptcha = data?.needNewCaptcha !== false;
+         throw err;
+      }
+      return { res: { ok: true, json: async () => data }, json: data };
    }
 
    const doSync = async (target: string, extraBody: any = {}) => {
@@ -16,7 +60,7 @@ export async function syncTluWithChunks(bodyParams: any, idToken?: string) {
       try {
          data = await r.json();
       } catch (e) {
-         throw new Error(`Máy chủ Vercel phản hồi lỗi (Status: ${r.status}). Vui lòng thử lại.`);
+         throw new Error(`Máy chủ phản hồi lỗi (Status: ${r.status}). Vui lòng thử lại.`);
       }
       if (!r.ok) {
          let errorMsg = data?.error || 'Lỗi đăng nhập hoặc đồng bộ';
