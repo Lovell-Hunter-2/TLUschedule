@@ -1,3 +1,42 @@
+export type PeriodStatus = 'active' | 'expired' | 'upcoming';
+
+export function getRegistrationPeriodStatus(period: SemesterRegisterPeriod): PeriodStatus {
+  if (period.isActive) return 'active';
+  if (!period.timeText || period.timeText === 'Chưa cập nhật') return 'upcoming';
+
+  const dateMatch = period.timeText.match(/(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})?\s*-\s*(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}):(\d{2})?/);
+  if (dateMatch) {
+    const endDay = parseInt(dateMatch[6], 10);
+    const endMonth = parseInt(dateMatch[7], 10) - 1;
+    const endYear = parseInt(dateMatch[8], 10);
+    const endHour = dateMatch[9] ? parseInt(dateMatch[9], 10) : 23;
+    const endMin = dateMatch[10] ? parseInt(dateMatch[10], 10) : 59;
+    const endDate = new Date(endYear, endMonth, endDay, endHour, endMin);
+
+    const startDay = parseInt(dateMatch[1], 10);
+    const startMonth = parseInt(dateMatch[2], 10) - 1;
+    const startYear = parseInt(dateMatch[3], 10);
+    const startHour = dateMatch[4] ? parseInt(dateMatch[4], 10) : 0;
+    const startMin = dateMatch[5] ? parseInt(dateMatch[5], 10) : 0;
+    const startDate = new Date(startYear, startMonth, startDay, startHour, startMin);
+
+    const now = new Date();
+    if (now > endDate) return 'expired';
+    if (now < startDate) return 'upcoming';
+    return 'active';
+  }
+
+  const yearMatch = period.yearName.match(/^(\d{4})-(\d{4})$/);
+  if (yearMatch) {
+    const endYear = parseInt(yearMatch[2], 10);
+    if (endYear < new Date().getFullYear()) {
+      return 'expired';
+    }
+  }
+
+  return 'upcoming';
+}
+
 export interface SemesterRegisterPeriod {
   id: string;
   name: string;
@@ -123,7 +162,7 @@ export const SCHOOL_YEAR_REGISTRATIONS: SchoolYearRegistration[] = [
         semesterCode: '2_2025_2026',
         yearName: '2025-2026',
         timeText: '05/01/2026 08:00 - 20/01/2026 17:00',
-        isActive: true
+        isActive: false
       },
       {
         id: '2526_2_sub',
