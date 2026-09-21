@@ -4,7 +4,7 @@ import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
 import { SubjectCard } from './SubjectCard';
 import { Card } from './Card';
-import { StickyNote, Plus, Edit2, Trash2, Timer, PlayCircle } from 'lucide-react';
+import { StickyNote, Plus, Edit2, Trash2, Timer, PlayCircle, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -129,6 +129,25 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
       .sort((a, b) => Math.min(...a.periods) - Math.min(...b.periods));
   }, [subjects, selectedDate]);
 
+  const hasExamOnSelectedDate = useMemo(() => {
+    return daySchedule.some(s => s.name.toUpperCase().includes('(THI)') || s.lecturer === 'Lịch Thi' || (s as any).isExam);
+  }, [daySchedule]);
+
+  const examDatesSet = useMemo(() => {
+    const set = new Set<string>();
+    subjects.forEach(s => {
+      const isExam = s.name.toUpperCase().includes('(THI)') || s.lecturer === 'Lịch Thi' || (s as any).isExam;
+      if (!isExam) return;
+      dates.forEach(d => {
+        const dStr = format(d, 'yyyy-MM-dd');
+        if (dStr >= s.startDate && dStr <= s.endDate && s.daysOfWeek.includes(d.getDay())) {
+          set.add(dStr);
+        }
+      });
+    });
+    return set;
+  }, [subjects, dates]);
+
   const nextClassInfo = useMemo(() => {
     if (!isSameDay(selectedDate, new Date())) return null;
 
@@ -195,20 +214,25 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
         onMouseMove={handleMouseMove}
       >
         {dates.map((date) => {
+          const dateStr = format(date, 'yyyy-MM-dd');
           const isSelected = isSameDay(date, selectedDate);
           const isToday = isSameDay(date, new Date());
+          const hasExam = examDatesSet.has(dateStr);
+
           return (
           <button
             key={date.toString()}
-            id={`date-btn-${format(date, 'yyyy-MM-dd')}`}
+            id={`date-btn-${dateStr}`}
             data-today={isToday}
             onClick={() => handleDateClick(date)}
             className={cn(
-              "flex flex-col items-center min-w-[64px] p-3 rounded-2xl transition-all border",
+              "flex flex-col items-center min-w-[64px] p-2.5 rounded-2xl transition-all border relative",
               isSelected
                 ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100 dark:shadow-none scale-105"
                 : isToday
                 ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700"
+                : hasExam
+                ? "bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 hover:border-rose-400"
                 : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-500"
             )}
           >
@@ -218,12 +242,45 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
             <span className="text-lg font-bold">
               {format(date, 'dd')}
             </span>
+            {hasExam && (
+              <span className={cn(
+                "text-[8px] font-black px-1.5 py-0.2 rounded-full mt-0.5 tracking-tighter",
+                isSelected
+                  ? "bg-rose-500 text-white animate-pulse"
+                  : "bg-rose-500 text-white"
+              )}>
+                THI
+              </span>
+            )}
           </button>
         );
         })}
       </div>
 
       <div className="flex flex-col gap-3 sm:gap-4">
+        {hasExamOnSelectedDate && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-200 dark:shadow-none flex items-center gap-3 border border-rose-400"
+          >
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-6 h-6 text-white animate-bounce" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="bg-white text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  LỊCH THI HỌC KỲ
+                </span>
+                <span className="text-xs font-semibold text-rose-100">Đặc biệt lưu ý</span>
+              </div>
+              <p className="text-sm font-bold mt-1 text-white leading-snug">
+                Hôm nay bạn có ca thi kết thúc học phần! Vui lòng kiểm tra kỹ phòng thi, số báo danh và mang theo Thẻ SV/CCCD.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-xl text-gray-800 dark:text-gray-100">
             {isSameDay(selectedDate, new Date()) ? "Hôm nay" : format(selectedDate, 'EEEE, dd/MM', { locale: vi })}
