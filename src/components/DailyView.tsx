@@ -100,48 +100,23 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
   const dateKey = format(selectedDate, 'yyyy-MM-dd');
   const dayForecast = forecast[dateKey];
 
-  const anchorDate = useMemo(() => {
-    if (subjects.length === 0) return startOfDay(new Date());
-    
-    const startDates = subjects.map(s => s.startDate).filter(Boolean);
-    if (startDates.length === 0) return startOfDay(new Date());
-    
-    startDates.sort();
-    const earliestDateStr = startDates[0];
-    const latestDateStr = [...subjects.map(s => s.endDate).filter(Boolean)].sort().pop();
-    
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    
-    if (todayStr >= earliestDateStr && todayStr <= (latestDateStr || earliestDateStr)) {
-      return startOfDay(new Date());
-    } else {
-      const earliestDate = new Date(earliestDateStr);
-      return !isNaN(earliestDate.getTime()) ? startOfDay(earliestDate) : startOfDay(new Date());
-    }
-  }, [subjects]);
-
   const dates = useMemo(() => {
-    // Generate dates relative to the active anchor date (instead of hardcoded today)
-    return Array.from({ length: 90 }, (_, i) => addDays(anchorDate, i - 30));
-  }, [anchorDate]);
+    // Generate dates from 30 days ago to 60 days in the future
+    return Array.from({ length: 90 }, (_, i) => addDays(startOfDay(new Date()), i - 30));
+  }, []);
 
   useEffect(() => {
-    setSelectedDate(anchorDate);
-  }, [anchorDate]);
-
-  useEffect(() => {
-    // Scroll to active/today's date on initial load or anchor change
+    // Scroll to today's date on initial load
     const timer = setTimeout(() => {
       if (scrollRef.current) {
-        const activeElement = scrollRef.current.querySelector('[data-active="true"]') || 
-                            scrollRef.current.querySelector('[data-today="true"]');
-        if (activeElement) {
-          activeElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        const todayElement = scrollRef.current.querySelector('[data-today="true"]');
+        if (todayElement) {
+          todayElement.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
         }
       }
     }, 200);
     return () => clearTimeout(timer);
-  }, [anchorDate]);
+  }, []);
 
   const daySchedule = useMemo(() => {
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -249,7 +224,6 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
             key={date.toString()}
             id={`date-btn-${dateStr}`}
             data-today={isToday}
-            data-active={isSelected}
             onClick={() => handleDateClick(date)}
             className={cn(
               "flex flex-col items-center min-w-[64px] p-2.5 rounded-2xl transition-all border relative",
@@ -415,4 +389,3 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
     </div>
   );
 }
-
