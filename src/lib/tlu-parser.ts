@@ -1,7 +1,7 @@
 import { Subject } from '../types';
 import { normalizeSubjectName } from './utils';
 
-export function parseTluTimetable(tb: any): {
+export function parseTluTimetable(tb: any, defaultSemesterName?: string): {
   room: string;
   lecturer: string;
   startDate: string;
@@ -11,20 +11,59 @@ export function parseTluTimetable(tb: any): {
 } | null {
   if (!tb) return null;
 
-  // 1. Day of week (CMC weekIndex: 1=Sun, 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri, 7=Sat)
-  const rawWeek = tb.weekIndex;
-  if (rawWeek === null || rawWeek === undefined || typeof rawWeek !== 'number' || rawWeek < 1 || rawWeek > 7) {
+  // 1. Day of week (0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday)
+  let dayIndex: number | null = null;
+
+  // Check direct dayIndex property (0..6)
+  if (tb.dayIndex !== undefined && tb.dayIndex !== null) {
+    const d = Number(tb.dayIndex);
+    if (!isNaN(d) && d >= 0 && d <= 6) dayIndex = d;
+  }
+
+  // Check CMC weekIndex (1=Sun, 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri, 7=Sat)
+  if (dayIndex === null && (tb.weekIndex !== undefined && tb.weekIndex !== null)) {
+    const rawVal = typeof tb.weekIndex === 'object' ? (tb.weekIndex.index ?? tb.weekIndex.id ?? tb.weekIndex.name) : tb.weekIndex;
+    const w = parseInt(String(rawVal).replace(/\D/g, ''), 10);
+    if (!isNaN(w)) {
+      if (w === 1) dayIndex = 0; // Sun
+      else if (w >= 2 && w <= 7) dayIndex = w - 1; // 2 -> 1 (Mon), 3 -> 2 (Tue), ..., 7 -> 6 (Sat)
+    }
+  }
+
+  // Check dayOfWeek (0=Sun, 1=Mon... or 1=Sun, 2=Mon...)
+  if (dayIndex === null && (tb.dayOfWeek !== undefined && tb.dayOfWeek !== null)) {
+    const rawDow = typeof tb.dayOfWeek === 'object' ? (tb.dayOfWeek.id ?? tb.dayOfWeek.index) : tb.dayOfWeek;
+    const dow = parseInt(String(rawDow).replace(/\D/g, ''), 10);
+    if (!isNaN(dow)) {
+      if (dow >= 0 && dow <= 6) dayIndex = dow;
+      else if (dow === 7) dayIndex = 0;
+    }
+  }
+
+  // Check text column like 'Thứ 2', 'Thứ hai', 'Chủ nhật'
+  if (dayIndex === null) {
+    const thuText = String(tb.thu || tb.dayName || tb.thuText || tb.thuTrongTuan || '').toLowerCase();
+    if (thuText.includes('hai') || thuText.includes('2')) dayIndex = 1;
+    else if (thuText.includes('ba') || thuText.includes('3')) dayIndex = 2;
+    else if (thuText.includes('tư') || thuText.includes('tu') || thuText.includes('4')) dayIndex = 3;
+    else if (thuText.includes('năm') || thuText.includes('nam') || thuText.includes('5')) dayIndex = 4;
+    else if (thuText.includes('sáu') || thuText.includes('sau') || thuText.includes('6')) dayIndex = 5;
+    else if (thuText.includes('bảy') || thuText.includes('bay') || thuText.includes('7')) dayIndex = 6;
+    else if (thuText.includes('nhật') || thuText.includes('nhat') || thuText.includes('cn') || thuText.includes('chủ')) dayIndex = 0;
+  }
+
+  if (dayIndex === null) {
     return null; // Skip invalid or unscheduled day
   }
-  const dayIndex = rawWeek === 1 ? 0 : rawWeek - 1;
 
   // 2. Periods (strictly 1 to 16)
   const extractPeriod = (hourObj: any): number | null => {
     if (hourObj === null || hourObj === undefined) return null;
     if (typeof hourObj === 'number' && hourObj >= 1 && hourObj <= 16) return hourObj;
     if (typeof hourObj === 'object') {
-      const idx = hourObj.index ?? hourObj.id;
-      if (typeof idx === 'number' && idx >= 1 && idx <= 16) return idx;
+      const idx = hourObj.index ?? hourObj.id ?? hourObj.name;
+      const parsed = parseInt(String(idx).replace(/\D/g, ''), 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 16) return parsed;
       hourObj = hourObj.name || hourObj.index || '';
     }
     const str = String(hourObj).trim();
@@ -37,8 +76,17 @@ export function parseTluTimetable(tb: any): {
     return null;
   };
 
-  let sPeriod = extractPeriod(tb.startHour);
-  let ePeriod = extractPeriod(tb.endHour);
+  let sPeriod = extractPeriod(tb.startHour ?? tb.fromHour ?? tb.startPeriod);
+  let ePeriod = extractPeriod(tb.endHour ?? tb.toHour ?? tb.endPeriod);
+
+  // If periods were in a single string like "1-3" or "7,8,9"
+  if (sPeriod === null && tb.tiet) {
+    const nums = String(tb.tiet).match(/\d+/g)?.map(Number).filter(n => n >= 1 && n <= 16) || [];
+    if (nums.length > 0) {
+      sPeriod = Math.min(...nums);
+      ePeriod = Math.max(...nums);
+    }
+  }
 
   if (sPeriod === null && ePeriod === null) {
     return null; // Skip if no period info
@@ -62,18 +110,30 @@ export function parseTluTimetable(tb: any): {
   }
 
   // 3. Lecturer
-  const rawLecturer = (tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '').trim();
+  const rawLecturer = (tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || tb?.lecturer || '').trim();
   const isInvalidLecturer = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(rawLecturer);
   const lecturer = isInvalidLecturer ? '' : rawLecturer;
 
   // 4. Room
-  const room = (tb?.room?.name || tb?.room?.code || tb?.roomName || '').trim();
+  const room = (tb?.room?.name || tb?.room?.code || tb?.roomName || tb?.room || '').trim();
 
   // 5. Start and End Date
-  let sDate = tb?.startDate ? String(tb.startDate).split('T')[0] : '';
-  let eDate = tb?.endDate ? String(tb.endDate).split('T')[0] : '';
-  if (!sDate) sDate = new Date().toISOString().split('T')[0];
-  if (!eDate) eDate = sDate;
+  let sDate = '';
+  let eDate = '';
+  try {
+    if (tb.startDate) {
+      const d = new Date(tb.startDate);
+      if (!isNaN(d.getTime())) sDate = d.toISOString().split('T')[0];
+    }
+    if (tb.endDate) {
+      const d = new Date(tb.endDate);
+      if (!isNaN(d.getTime())) eDate = d.toISOString().split('T')[0];
+    }
+  } catch (e) {}
+
+  const currentYear = new Date().getFullYear();
+  if (!sDate) sDate = `${currentYear}-08-15`;
+  if (!eDate) eDate = `${currentYear + 1}-01-31`;
 
   return {
     room,
@@ -88,12 +148,29 @@ export function parseTluTimetable(tb: any): {
 export function parseTluSyncResponse(json: any): Subject[] {
   const results: Subject[] = [];
 
+  // Determine current semester default name based on real date
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth() + 1; // 1-12
+  let defaultSemName = '';
+  if (curMonth >= 8 || curMonth === 1) {
+    const startY = curMonth === 1 ? curYear - 1 : curYear;
+    defaultSemName = `Học kỳ 1 Năm học ${startY}-${startY + 1}`;
+  } else if (curMonth >= 2 && curMonth <= 6) {
+    defaultSemName = `Học kỳ 2 Năm học ${curYear - 1}-${curYear}`;
+  } else {
+    defaultSemName = `Học kỳ phụ Năm học ${curYear - 1}-${curYear}`;
+  }
+
   // 1. Schedules
   if (json.data && Array.isArray(json.data)) {
     json.data.forEach((item: any) => {
+      let semName = item.semesterName ? String(item.semesterName).trim() : defaultSemName;
+      let semId = item.semesterId != null ? String(item.semesterId) : '1';
+
       if (item.timetables && Array.isArray(item.timetables)) {
         item.timetables.forEach((tb: any) => {
-          const parsed = parseTluTimetable(tb);
+          const parsed = parseTluTimetable(tb, semName);
           if (!parsed) return; // Skip invalid or unscheduled entries
 
           const cleanSubjectName = normalizeSubjectName(item.subjectName || '');
@@ -110,8 +187,8 @@ export function parseTluSyncResponse(json: any): Subject[] {
             daysOfWeek: [parsed.dayIndex],
             periods: parsed.periods,
             color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
-            semesterId: item.semesterId == null ? '' : String(item.semesterId),
-            semesterName: item.semesterName == null ? '' : String(item.semesterName)
+            semesterId: semId,
+            semesterName: semName
           });
         });
       }
@@ -126,8 +203,10 @@ export function parseTluSyncResponse(json: any): Subject[] {
       try {
         if (item.examDate) {
           const d = new Date(item.examDate);
-          eDate = d.toISOString().split('T')[0];
-          dayIndex = d.getDay();
+          if (!isNaN(d.getTime())) {
+            eDate = d.toISOString().split('T')[0];
+            dayIndex = d.getDay();
+          }
         }
       } catch (e) {}
 
@@ -162,6 +241,9 @@ export function parseTluSyncResponse(json: any): Subject[] {
       const cleanName = normalizeSubjectName(item.subjectName || '');
       if (!cleanName) return;
 
+      let semName = item.semesterName ? String(item.semesterName).trim() : defaultSemName;
+      let semId = item.semesterId != null ? String(item.semesterId) : '1';
+
       results.push({
         id: Math.random().toString(36).substr(2, 9),
         name: `${cleanName} (THI)`,
@@ -173,8 +255,8 @@ export function parseTluSyncResponse(json: any): Subject[] {
         daysOfWeek: [dayIndex],
         periods: periods,
         color: 'border-l-red-500',
-        semesterId: item.semesterId == null ? '' : String(item.semesterId),
-        semesterName: item.semesterName == null ? '' : String(item.semesterName)
+        semesterId: semId,
+        semesterName: semName
       });
     });
   }
@@ -195,3 +277,4 @@ export function parseTluSyncResponse(json: any): Subject[] {
 
   return uniqueResults;
 }
+
