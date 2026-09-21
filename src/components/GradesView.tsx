@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Award, BookOpen, ChevronDown, ChevronUp, AlertCircle, BarChart3, TrendingUp, Medal } from 'lucide-react';
-import { cn, normalizeSubjectName } from '../lib/utils';
+import { cn } from '../lib/utils';
 
 interface GradesViewProps {
   userId: string;
@@ -290,8 +290,7 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
               <div className="grid gap-3">
                 {filteredMarks.map((mark: any, i: number) => {
                   const score = getScore(mark);
-                  const rawSubName = mark.subject?.subjectName || mark.subjectName || 'Môn học';
-                  const subName = normalizeSubjectName(rawSubName);
+                  const subName = mark.subject?.subjectName || mark.subjectName || 'Môn học';
                   const subCode = mark.subject?.subjectCode || mark.subjectCode || '';
                   const credits = mark.subject?.numberOfCredit || mark.numberOfCredit || 0;
                   const isUncounted = mark.isCounted === false || isPhysicalOrDefense(subName, mark.isCounted);
