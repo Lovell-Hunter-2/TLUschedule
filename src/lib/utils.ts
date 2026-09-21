@@ -93,3 +93,34 @@ export const getSubjectBadgeColor = (subjectName: string) => {
   const index = getSubjectPaletteIndex(subjectName);
   return COLOR_PALETTES[index].badge;
 };
+
+/**
+ * Normalizes subject names and fixes common Unicode/encoding mojibake
+ * e.g., 'Triết học Mác - Lnin' -> 'Triết học Mác - Lê-nin'
+ */
+export function normalizeSubjectName(rawName: string): string {
+  if (!rawName) return '';
+  let str = String(rawName).trim();
+
+  // Fix Unicode replacement characters (\uFFFD or ?)
+  // Pattern: Triết học Mác - Lnin / Lnin / L?nin -> Triết học Mác - Lê-nin
+  str = str.replace(/Triết\s*học\s*Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Triết học Mác - Lê-nin');
+  str = str.replace(/Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Mác - Lê-nin');
+  str = str.replace(/\bL[\uFFFD?]{1,3}nin\b/gi, 'Lê-nin');
+
+  // Generic replacement character \uFFFD in common Vietnamese university subjects
+  str = str.replace(/Kinh\s*t[\uFFFD?]\s*ch[\uFFFD?]/gi, 'Kinh tế chính trị');
+  str = str.replace(/Ch[\uFFFD?]\s*ngh[\uFFFD?]\s*x[\uFFFD?]\s*h[\uFFFD?]/gi, 'Chủ nghĩa xã hội');
+  str = str.replace(/T[\uFFFD?]\s*t[\uFFFD?]\s*ng\s*H[\uFFFD?]\s*Ch[\uFFFD?]\s*Minh/gi, 'Tư tưởng Hồ Chí Minh');
+  str = str.replace(/Đ[\uFFFD?]\s*ng\s*C[\uFFFD?]\s*ng\s*s[\uFFFD?]/gi, 'Đảng Cộng sản');
+  str = str.replace(/L[\uFFFD?]\s*thuy[\uFFFD?]/gi, 'Lý thuyết');
+  str = str.replace(/Th[\uFFFD?]\s*c\s*h[\uFFFD?]/gi, 'Thực hành');
+
+  // If there are still lone \uFFFD characters between valid Vietnamese consonants, clean up
+  str = str.replace(/[\uFFFD]+/g, '');
+
+  // Normalize multiple spaces
+  str = str.replace(/\s+/g, ' ').trim();
+
+  return str;
+}
