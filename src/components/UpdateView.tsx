@@ -1,5 +1,5 @@
 import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { cn, normalizeSubjectName } from '../lib/utils';
@@ -9,6 +9,7 @@ import { auth } from '../firebase';
 import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw, ShieldCheck, BookOpen, List } from 'lucide-react';
 import { parseScheduleText } from '../services/geminiService';
 import { syncToGoogleCalendar } from '../services/googleCalendarService';
+import { parseTluSyncResponse } from '../lib/tlu-parser';
 import { CourseRegistrationView } from './CourseRegistrationView';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -77,66 +78,19 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
       }
 
       const { json } = await syncTluWithChunks(bodyParams, idToken);
-
-      const results: Subject[] = [];
-      if (json.data && Array.isArray(json.data)) {
-        json.data.forEach((item: any) => {
-          if (item.timetables && Array.isArray(item.timetables)) {
-            item.timetables.forEach((tb: any) => {
-               // Parse standard CMC format
-               const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
-               const rawLecturer = (tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '').trim();
-               // Filter out schedule type or placeholder if mistakenly assigned as lecturer name
-               const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(rawLecturer);
-               const lecturer = isType ? '' : rawLecturer;
-
-               const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
-               const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
-               const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
-               const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
-               
-               const periods = [];
-               for(let i = sPeriod; i <= ePeriod; i++) periods.push(i);
-               
-               const weekIndex = tb?.weekIndex || 2;
-               const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; // 2(Monday)->1, 1(Sunday)->0
-               
-               let sDate = tb?.startDate || new Date().toISOString().split('T')[0];
-               let eDate = tb?.endDate || new Date().toISOString().split('T')[0];
-               if (sDate.includes('T')) sDate = sDate.split('T')[0];
-               if (eDate.includes('T')) eDate = eDate.split('T')[0];
-
-               const cleanSubjectName = normalizeSubjectName(item.subjectName);
-
-               results.push({
-                 id: Math.random().toString(36).substr(2, 9),
-                 name: cleanSubjectName,
-                 code: item.subjectCode || '',
-                 room,
-                 lecturer,
-                 startDate: sDate,
-                 endDate: eDate,
-                 daysOfWeek: [dayIndex],
-                 periods,
-                 color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
-                 semesterId: item.semesterId == null ? '' : String(item.semesterId),
-                 semesterName: item.semesterName == null ? '' : String(item.semesterName)
-               });
-            });
-          }
-        });
-      }
+      const results = parseTluSyncResponse(json);
       
       if (results.length === 0) {
-         alert('Đăng nhập thành công nhưng không tìm thấy lịch học nào trong dữ liệu trả về!');
+         alert('Đăng nhập thành công nhưng không tìm thấy lịch học hợp lệ trong dữ liệu trả về!');
          return;
       }
       
       setEditingSubjects(results);
+      setHasUnsavedChanges?.(true);
       setMode('list');
       setTluPassword('');
       setCaptchaCode('');
-      alert(`Đã đồng bộ thành công ${results.length} lớp học phần từ TLU!`);
+      alert(`Đã đồng bộ thành công ${results.length} lớp học phần từ TLU! Hãy bấm "Lưu tất cả" để hoàn tất.`);
 
     } catch (e: any) {
        alert(e.message || 'Lỗi khi đồng bộ kết quả');
@@ -150,12 +104,16 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
   const [editingSubjects, setEditingSubjects] = useState<Subject[]>(subjects);
   const [subjectToEdit, setSubjectToEdit] = useState<Subject | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
-    if (setHasUnsavedChanges) {
-      setHasUnsavedChanges(JSON.stringify(editingSubjects) !== JSON.stringify(subjects));
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
     }
-  }, [editingSubjects, subjects, setHasUnsavedChanges]);
+    setEditingSubjects(subjects);
+    setHasUnsavedChanges?.(false);
+  }, [subjects]);
 
   const handleAiParse = async () => {
     if (!aiText.trim()) return;
@@ -167,7 +125,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
         id: Math.random().toString(36).substr(2, 9),
         color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`
       }));
-      setEditingSubjects([...editingSubjects, ...newSubjects]);
+      setEditingSubjects(prev => [...prev, ...newSubjects]);
+      setHasUnsavedChanges?.(true);
       setMode('list');
       setAiText('');
     } catch (e) {
@@ -210,10 +169,15 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
   };
 
   const removeSubject = (id: string) => {
-    setEditingSubjects(editingSubjects.filter(s => s.id !== id));
+    setEditingSubjects(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      setHasUnsavedChanges?.(true);
+      return updated;
+    });
   };
 
   const saveAll = () => {
+    setHasUnsavedChanges?.(false);
     onUpdate(editingSubjects);
     setMode('list');
     setShowSuccessIndicator(true);
@@ -645,7 +609,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
             exit={{ opacity: 0, y: -10 }}
           >
             <ManualAddForm onAdd={(s) => {
-              setEditingSubjects([...editingSubjects, s]);
+              setEditingSubjects(prev => [...prev, s]);
+              setHasUnsavedChanges?.(true);
               setMode('list');
             }} />
           </motion.div>
@@ -661,7 +626,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
             <ManualAddForm 
               initialData={subjectToEdit}
               onAdd={(updatedSubject) => {
-                setEditingSubjects(editingSubjects.map(s => s.id === updatedSubject.id ? updatedSubject : s));
+                setEditingSubjects(prev => prev.map(s => s.id === updatedSubject.id ? updatedSubject : s));
+                setHasUnsavedChanges?.(true);
                 setMode('list');
                 setSubjectToEdit(null);
               }} 
