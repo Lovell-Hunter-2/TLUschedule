@@ -26,6 +26,7 @@ export const PERIODS: Period[] = [
 export interface Subject {
   id: string;
   name: string;
+  code?: string;
   room?: string;
   lecturer?: string;
   startDate: string; // ISO date
@@ -56,4 +57,5 @@ export interface Workspace {
   name: string;
   password?: string;
   isEncrypted?: boolean;
+  portal?: 'sinhvien1' | 'sv_tlu';
 }
