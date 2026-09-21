@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Search, ChevronDown, ChevronUp, ChevronRight, Calendar, Clock, ArrowLeft, Check, Sparkles } from 'lucide-react';
 import { Card } from './Card';
 import { cn } from '../lib/utils';
-import { SemesterRegisterPeriod, SCHOOL_YEAR_REGISTRATIONS } from '../data/registrationData';
+import { SemesterRegisterPeriod, SCHOOL_YEAR_REGISTRATIONS, getRegistrationPeriodStatus } from '../data/registrationData';
 
 interface RegistrationPeriodSelectionProps {
   currentPeriodId?: string;
@@ -57,6 +57,8 @@ export function RegistrationPeriodSelection({
   const renderPeriodItem = (period: SemesterRegisterPeriod, isInsideAccordion = false) => {
     const isSelected = period.id === currentPeriodId;
 
+    const status = getRegistrationPeriodStatus(period);
+
     return (
       <div
         key={period.id}
@@ -65,7 +67,7 @@ export function RegistrationPeriodSelection({
           "cursor-pointer transition-all p-3 sm:p-3.5 rounded-xl flex items-center justify-between gap-3 border",
           isSelected
             ? "bg-blue-50/90 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700 shadow-xs"
-            : period.isActive
+            : status === 'active'
             ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-50/70"
             : isInsideAccordion
             ? "bg-transparent border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60"
@@ -80,9 +82,19 @@ export function RegistrationPeriodSelection({
             )}>
               {period.name}
             </h4>
-            {period.isActive && (
+            {status === 'active' && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700">
                 Đang mở
+              </span>
+            )}
+            {status === 'expired' && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+                Đã kết thúc
+              </span>
+            )}
+            {status === 'upcoming' && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                Chưa mở đăng ký
               </span>
             )}
             {isSelected && (
