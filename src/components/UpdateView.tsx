@@ -2,11 +2,11 @@ import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
-import { cn } from '../lib/utils';
+import { cn, normalizeSubjectName } from '../lib/utils';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
 import { auth } from '../firebase';
-import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw, ShieldCheck, BookOpen } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw, ShieldCheck, BookOpen, List } from 'lucide-react';
 import { parseScheduleText } from '../services/geminiService';
 import { syncToGoogleCalendar } from '../services/googleCalendarService';
 import { CourseRegistrationView } from './CourseRegistrationView';
@@ -85,7 +85,11 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
             item.timetables.forEach((tb: any) => {
                // Parse standard CMC format
                const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
-               const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
+               const rawLecturer = (tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '').trim();
+               // Filter out schedule type if mistakenly assigned as lecturer name
+               const isType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(rawLecturer);
+               const lecturer = isType ? '' : rawLecturer;
+
                const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
                const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
                const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
@@ -104,9 +108,11 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                  if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
                } catch (e) {}
 
+               const cleanSubjectName = normalizeSubjectName(item.subjectName);
+
                results.push({
                  id: Math.random().toString(36).substr(2, 9),
-                 name: item.subjectName,
+                 name: cleanSubjectName,
                  code: item.subjectCode || '',
                  room,
                  lecturer,
@@ -251,53 +257,60 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
         )}
       </AnimatePresence>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1.5 pt-0.5">
+      <div className="grid grid-cols-3 sm:flex sm:overflow-x-auto sm:no-scrollbar gap-1.5 sm:gap-2 pb-1.5 pt-0.5" id="update-view-tabs">
         <Button 
+          id="btn-tab-list"
           variant={mode === 'list' ? 'primary' : 'outline'} 
           onClick={() => setMode('list')}
-          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm"
+          className="w-full sm:w-auto sm:shrink-0 rounded-xl sm:rounded-2xl font-semibold px-2 sm:px-4 h-11 sm:h-10 text-[11px] sm:text-sm flex items-center justify-center gap-1.5 shadow-xs"
         >
-          Danh sách
+          <List className="w-3.5 h-3.5 shrink-0" />
+          <span>Danh sách</span>
         </Button>
         <Button 
+          id="btn-tab-sync"
           variant={mode === 'sync' ? 'primary' : 'outline'} 
           onClick={() => setMode('sync')}
-          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
+          className="w-full sm:w-auto sm:shrink-0 rounded-xl sm:rounded-2xl font-semibold px-2 sm:px-4 h-11 sm:h-10 text-[11px] sm:text-sm flex items-center justify-center gap-1.5 shadow-xs"
         >
-          <RefreshCw className="w-4 h-4" />
-          Đồng bộ TLU
+          <RefreshCw className="w-3.5 h-3.5 shrink-0" />
+          <span>Đồng bộ</span>
         </Button>
         <Button 
+          id="btn-tab-registration"
           variant={mode === 'registration' ? 'primary' : 'outline'} 
           onClick={() => setMode('registration')}
-          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
+          className="w-full sm:w-auto sm:shrink-0 rounded-xl sm:rounded-2xl font-semibold px-2 sm:px-4 h-11 sm:h-10 text-[11px] sm:text-sm flex items-center justify-center gap-1.5 shadow-xs"
         >
-          <BookOpen className="w-4 h-4" />
-          Đăng ký môn học
+          <BookOpen className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Đăng ký</span>
         </Button>
         <Button 
+          id="btn-tab-ai"
           variant={mode === 'ai' ? 'primary' : 'outline'} 
           onClick={() => setMode('ai')}
-          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
+          className="w-full sm:w-auto sm:shrink-0 rounded-xl sm:rounded-2xl font-semibold px-2 sm:px-4 h-11 sm:h-10 text-[11px] sm:text-sm flex items-center justify-center gap-1.5 shadow-xs"
         >
-          <Sparkles className="w-4 h-4" />
-          AI Import
+          <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-500 dark:text-amber-400" />
+          <span>AI Import</span>
         </Button>
         <Button 
+          id="btn-tab-gcal"
           variant={mode === 'google_calendar' ? 'primary' : 'outline'} 
           onClick={() => setMode('google_calendar')}
-          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
+          className="w-full sm:w-auto sm:shrink-0 rounded-xl sm:rounded-2xl font-semibold px-2 sm:px-4 h-11 sm:h-10 text-[11px] sm:text-sm flex items-center justify-center gap-1.5 shadow-xs"
         >
-          <CalendarIcon className="w-4 h-4" />
-          Google Calendar
+          <CalendarIcon className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">Lịch Google</span>
         </Button>
         <Button 
+          id="btn-tab-manual"
           variant={mode === 'manual' ? 'primary' : 'outline'} 
           onClick={() => setMode('manual')}
-          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
+          className="w-full sm:w-auto sm:shrink-0 rounded-xl sm:rounded-2xl font-semibold px-2 sm:px-4 h-11 sm:h-10 text-[11px] sm:text-sm flex items-center justify-center gap-1.5 shadow-xs"
         >
-          <Plus className="w-4 h-4" />
-          + Thủ công
+          <Plus className="w-3.5 h-3.5 shrink-0" />
+          <span>Thủ công</span>
         </Button>
       </div>
 
