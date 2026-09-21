@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Subject } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
-import { Search, BookOpen, Users, Clock, MapPin, AlertTriangle, CheckCircle2, Plus, Filter, Calendar, ChevronRight, Sparkles } from 'lucide-react';
+import { Search, BookOpen, Users, Clock, MapPin, AlertTriangle, CheckCircle2, Plus, Filter, Calendar, ChevronRight, Sparkles, CalendarOff, Info } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { RegistrationPeriodSelection } from './RegistrationPeriodSelection';
@@ -267,6 +267,11 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
 
   // Dynamically tailor courses for selected period (e.g. general courses, English boost, graduation thesis)
   const currentPeriodCourses = useMemo(() => {
+    // If the period is not active (past semester or not yet open), no courses are open on TLU
+    if (!selectedPeriod.isActive) {
+      return [];
+    }
+
     const pName = selectedPeriod.name.toLowerCase();
     const pId = selectedPeriod.id.toLowerCase();
     
@@ -520,6 +525,10 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
               Tra cứu danh sách lớp học phần đang mở tại TLU, theo dõi sĩ số chỗ trống trực tiếp và tự động đối chiếu xem có bị trùng lịch với TKB của bạn hay không.
             </p>
+            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-blue-700 dark:text-blue-300 font-medium">
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              <span>Dữ liệu môn học mô phỏng theo cấu trúc thực tế của cổng đăng ký tín chỉ Đại học Thủy Lợi (TLU).</span>
+            </div>
           </div>
 
           {/* Current Period Card & Select Period Action */}
@@ -575,7 +584,45 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
         )}
       </AnimatePresence>
 
-      {/* Search & Filter Bar */}
+      {!selectedPeriod.isActive ? (
+        <Card className="p-8 sm:p-10 text-center flex flex-col items-center justify-center gap-4 bg-white dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-700/60 text-gray-400 dark:text-gray-400 flex items-center justify-center">
+            <CalendarOff className="w-7 h-7" />
+          </div>
+          <div className="max-w-md">
+            <h3 className="font-bold text-base text-gray-800 dark:text-gray-100">
+              Đợt đăng ký này đã kết thúc hoặc chưa mở
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
+              Học kỳ <strong className="text-gray-700 dark:text-gray-200">{selectedPeriod.name} ({selectedPeriod.semesterCode})</strong> - Năm học {selectedPeriod.yearName} hiện không có môn học nào mở đăng ký trên hệ thống.
+            </p>
+            <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 bg-gray-50 dark:bg-gray-900/50 rounded-lg text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+              <Clock className="w-3.5 h-3.5 text-gray-400" />
+              <span>Thời gian: <strong>{selectedPeriod.timeText}</strong></span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2.5 mt-2">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => handleSelectPeriod(defaultPeriod)}
+              className="rounded-xl text-xs font-semibold px-4 py-2"
+            >
+              Chuyển sang đợt đang mở ({defaultPeriod.name})
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSelectingPeriod(true)}
+              className="rounded-xl text-xs font-medium px-4 py-2"
+            >
+              Chọn đợt khác
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <>
+          {/* Search & Filter Bar */}
       <div className="flex flex-col gap-3">
         <div className="relative">
           <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -774,7 +821,9 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
             );
           })
         )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
