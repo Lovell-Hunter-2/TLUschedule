@@ -83,9 +83,9 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
   const isExam = subject.name.toUpperCase().includes('(THI)') || subject.lecturer === 'Lịch Thi' || (subject as any).isExam;
   const displayName = normalizeSubjectName(isExam ? subject.name.replace(/\(THI\)/gi, '').trim() : subject.name);
 
-  // Check if lecturer is mistakenly filled with schedule type or placeholder
+  // Check if lecturer is mistakenly filled with schedule type (e.g., 'Lý thuyết', 'Thực hành', 'Bài tập')
   const rawLecturer = (subject.lecturer || '').trim();
-  const isTypeOnly = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(rawLecturer);
+  const isTypeOnly = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(rawLecturer);
   const lecturerDisplay = isTypeOnly ? '' : rawLecturer;
 
   useEffect(() => {
