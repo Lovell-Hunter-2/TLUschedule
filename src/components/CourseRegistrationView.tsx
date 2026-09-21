@@ -2,9 +2,11 @@ import { useState, useMemo } from 'react';
 import { Subject } from '../types';
 import { Card } from './Card';
 import { Button } from './Button';
-import { Search, BookOpen, Users, Clock, MapPin, AlertTriangle, CheckCircle2, Plus, Filter, Calendar } from 'lucide-react';
+import { Search, BookOpen, Users, Clock, MapPin, AlertTriangle, CheckCircle2, Plus, Filter, Calendar, ChevronRight, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { RegistrationPeriodSelection } from './RegistrationPeriodSelection';
+import { SemesterRegisterPeriod, SCHOOL_YEAR_REGISTRATIONS } from '../data/registrationData';
 
 export interface OpenClassSection {
   id: string;
@@ -21,6 +23,8 @@ export interface OpenClassSection {
   department: string;
   startDate: string;
   endDate: string;
+  semesterCode?: string;
+  category?: string;
 }
 
 // Sample representative course registration catalog for TLU (Semester 2, 2025-2026)
@@ -225,17 +229,199 @@ interface CourseRegistrationViewProps {
 }
 
 export function CourseRegistrationView({ currentSubjects, onAddSubject }: CourseRegistrationViewProps) {
+  // Find default active period from SCHOOL_YEAR_REGISTRATIONS
+  const defaultPeriod = useMemo(() => {
+    for (const group of SCHOOL_YEAR_REGISTRATIONS) {
+      const active = group.periods.find(p => p.isActive);
+      if (active) return active;
+    }
+    return SCHOOL_YEAR_REGISTRATIONS[0].periods[0];
+  }, []);
+
+  const [selectedPeriod, setSelectedPeriod] = useState<SemesterRegisterPeriod>(() => {
+    const savedId = localStorage.getItem('tlu_selected_reg_period_id');
+    if (savedId) {
+      for (const group of SCHOOL_YEAR_REGISTRATIONS) {
+        const found = group.periods.find(p => p.id === savedId);
+        if (found) return found;
+      }
+    }
+    return defaultPeriod;
+  });
+
+  const [isSelectingPeriod, setIsSelectingPeriod] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'available' | 'no_conflict'>('all');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [addedClassIds, setAddedClassIds] = useState<Set<string>>(new Set());
   const [notification, setNotification] = useState<string | null>(null);
 
+  const handleSelectPeriod = (period: SemesterRegisterPeriod) => {
+    setSelectedPeriod(period);
+    localStorage.setItem('tlu_selected_reg_period_id', period.id);
+    setIsSelectingPeriod(false);
+    setSearchTerm('');
+    setFilterMode('all');
+    setSelectedDepartment('all');
+  };
+
+  // Dynamically tailor courses for selected period (e.g. general courses, English boost, graduation thesis)
+  const currentPeriodCourses = useMemo(() => {
+    const pName = selectedPeriod.name.toLowerCase();
+    const pId = selectedPeriod.id.toLowerCase();
+    
+    if (pName.includes('tiếng anh tăng cường') || pId.includes('en_boost')) {
+      return [
+        {
+          id: 'reg-en-1',
+          classCode: 'ENGBOOST_01',
+          subjectCode: 'ENGBOOST',
+          subjectName: 'Tiếng Anh tăng cường B1 (Kỹ năng Nghe - Đọc)',
+          credits: 3,
+          lecturer: 'ThS. Nguyễn Quỳnh Trang',
+          dayOfWeek: 6,
+          periods: [1, 2, 3],
+          room: '301-K1',
+          enrolled: 32,
+          maxCapacity: 40,
+          department: 'Ngoại ngữ',
+          startDate: '2025-02-15',
+          endDate: '2025-05-15',
+        },
+        {
+          id: 'reg-en-2',
+          classCode: 'ENGBOOST_02',
+          subjectCode: 'ENGBOOST',
+          subjectName: 'Tiếng Anh tăng cường B1 (Kỹ năng Nói - Viết)',
+          credits: 3,
+          lecturer: 'Mr. David Miller',
+          dayOfWeek: 6,
+          periods: [7, 8, 9],
+          room: '302-K1',
+          enrolled: 38,
+          maxCapacity: 40,
+          department: 'Ngoại ngữ',
+          startDate: '2025-02-15',
+          endDate: '2025-05-15',
+        },
+        {
+          id: 'reg-en-3',
+          classCode: 'ENGBOOST_03',
+          subjectCode: 'ENGBOOST',
+          subjectName: 'Luyện đề chuẩn B1 Vstep cấp tốc',
+          credits: 2,
+          lecturer: 'ThS. Đỗ Thị Thu Hiền',
+          dayOfWeek: 0,
+          periods: [1, 2, 3, 4],
+          room: '305-K1',
+          enrolled: 25,
+          maxCapacity: 35,
+          department: 'Ngoại ngữ',
+          startDate: '2025-02-20',
+          endDate: '2025-05-20',
+        }
+      ];
+    }
+
+    if (pName.includes('tốt nghiệp') || pId.includes('grad')) {
+      return [
+        {
+          id: 'reg-grad-1',
+          classCode: 'GRAD_CSE_01',
+          subjectCode: 'GRAD_CSE',
+          subjectName: 'Đồ án tốt nghiệp Kỹ sư CNTT & KTPM',
+          credits: 10,
+          lecturer: 'Hội đồng Khoa CNTT',
+          dayOfWeek: 5,
+          periods: [1, 2, 3],
+          room: 'Hội trường T45',
+          enrolled: 42,
+          maxCapacity: 50,
+          department: 'Công nghệ thông tin',
+          startDate: '2025-02-10',
+          endDate: '2025-06-15',
+        },
+        {
+          id: 'reg-grad-2',
+          classCode: 'INTERN_01',
+          subjectCode: 'INTERN_01',
+          subjectName: 'Thực tập tốt nghiệp Doanh nghiệp CNTT',
+          credits: 4,
+          lecturer: 'TS. Hoàng Đức Long',
+          dayOfWeek: 6,
+          periods: [1, 2],
+          room: 'VP Khoa CNTT',
+          enrolled: 52,
+          maxCapacity: 60,
+          department: 'Công nghệ thông tin',
+          startDate: '2025-02-10',
+          endDate: '2025-05-10',
+        },
+        {
+          id: 'reg-grad-3',
+          classCode: 'GRAD_CIE_01',
+          subjectCode: 'GRAD_CIE',
+          subjectName: 'Đồ án tốt nghiệp Kỹ sư Xây dựng & Thủy lợi',
+          credits: 10,
+          lecturer: 'Hội đồng Khoa Công trình',
+          dayOfWeek: 5,
+          periods: [4, 5, 6],
+          room: '301-A1',
+          enrolled: 30,
+          maxCapacity: 45,
+          department: 'Công trình',
+          startDate: '2025-02-10',
+          endDate: '2025-06-15',
+        }
+      ];
+    }
+
+    if (pName.includes('chuẩn đầu ra') || pId.includes('exit') || pId.includes('review')) {
+      return [
+        {
+          id: 'reg-exit-1',
+          classCode: 'EXIT_ENG_01',
+          subjectCode: 'EXIT_ENG',
+          subjectName: 'Sát hạch Chuẩn đầu ra Ngoại ngữ B1 (Đợt 1)',
+          credits: 0,
+          lecturer: 'Trung tâm Ngoại ngữ TLU',
+          dayOfWeek: 0,
+          periods: [1, 2, 3, 4],
+          room: 'K1 - Phòng máy tính',
+          enrolled: 110,
+          maxCapacity: 120,
+          department: 'Ngoại ngữ',
+          startDate: '2025-03-15',
+          endDate: '2025-03-15',
+        },
+        {
+          id: 'reg-exit-2',
+          classCode: 'EXIT_IT_01',
+          subjectCode: 'EXIT_IT',
+          subjectName: 'Sát hạch Chuẩn đầu ra Tin học ứng dụng (MOS/IC3)',
+          credits: 0,
+          lecturer: 'Trung tâm Tin học TLU',
+          dayOfWeek: 6,
+          periods: [1, 2, 3, 4],
+          room: 'Lab 401-A4',
+          enrolled: 85,
+          maxCapacity: 100,
+          department: 'Công nghệ thông tin',
+          startDate: '2025-03-20',
+          endDate: '2025-03-20',
+        }
+      ];
+    }
+
+    // Default regular courses
+    return MOCK_TLU_OPEN_COURSES;
+  }, [selectedPeriod]);
+
   const departments = useMemo(() => {
     const set = new Set<string>();
-    MOCK_TLU_OPEN_COURSES.forEach(c => set.add(c.department));
+    currentPeriodCourses.forEach(c => set.add(c.department));
     return Array.from(set);
-  }, []);
+  }, [currentPeriodCourses]);
 
   // Check if a section conflicts with student's current timetable
   const checkScheduleConflict = (section: OpenClassSection): { conflict: boolean; conflictingSubject?: Subject } => {
@@ -253,7 +439,7 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
   };
 
   const filteredCourses = useMemo(() => {
-    return MOCK_TLU_OPEN_COURSES.filter(c => {
+    return currentPeriodCourses.filter(c => {
       const matchSearch = 
         c.subjectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.subjectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -278,7 +464,7 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
 
       return true;
     });
-  }, [searchTerm, filterMode, selectedDepartment, currentSubjects]);
+  }, [currentPeriodCourses, searchTerm, filterMode, selectedDepartment, currentSubjects]);
 
   const handleEnrollCourse = (section: OpenClassSection) => {
     const newSubject: Subject = {
@@ -291,6 +477,7 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
       periods: section.periods,
       startDate: section.startDate,
       endDate: section.endDate,
+      color: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 border-l-blue-500',
     };
 
     onAddSubject(newSubject);
@@ -304,11 +491,23 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
     return `Thứ ${d + 1}`;
   };
 
+  // If user is currently choosing a period, show RegistrationPeriodSelection view
+  if (isSelectingPeriod) {
+    return (
+      <RegistrationPeriodSelection
+        currentPeriodId={selectedPeriod.id}
+        onSelectPeriod={handleSelectPeriod}
+        onBack={() => setIsSelectingPeriod(false)}
+        showBackButton={true}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Header Info Banner */}
+      {/* Header Info Banner with Selected Period Info */}
       <Card className="p-4 sm:p-5 bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-blue-50/60 dark:from-blue-950/30 dark:via-gray-800 dark:to-indigo-950/20 border-blue-200/70 dark:border-blue-800/60">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <div className="p-2 bg-blue-600 text-white rounded-xl shadow-xs">
@@ -322,10 +521,41 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
               Tra cứu danh sách lớp học phần đang mở tại TLU, theo dõi sĩ số chỗ trống trực tiếp và tự động đối chiếu xem có bị trùng lịch với TKB của bạn hay không.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-semibold px-2.5 py-1 bg-white/90 dark:bg-gray-700/90 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-700 shadow-xs">
-              Kỳ 2 (2025 - 2026)
-            </span>
+
+          {/* Current Period Card & Select Period Action */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 w-full lg:w-auto shrink-0">
+            <div className="p-2.5 px-3.5 bg-white/90 dark:bg-gray-800/90 rounded-xl border border-blue-200/80 dark:border-blue-700/80 shadow-xs flex flex-col gap-1 w-full sm:w-auto">
+              <div className="flex items-center justify-between sm:justify-start gap-2">
+                <span className="text-xs font-bold text-blue-900 dark:text-blue-100">
+                  {selectedPeriod.name}
+                </span>
+                {selectedPeriod.isActive ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                    Đang mở
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                    {selectedPeriod.timeText === 'Chưa cập nhật' ? 'Chưa mở' : 'Đã kết thúc'}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <span>Học kỳ: <strong className="font-mono text-gray-700 dark:text-gray-300">{selectedPeriod.semesterCode}</strong></span>
+                <span>•</span>
+                <span>Năm: {selectedPeriod.yearName}</span>
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsSelectingPeriod(true)}
+              className="rounded-xl text-xs h-10 px-3.5 font-semibold shrink-0 gap-1.5 shadow-xs w-full sm:w-auto"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Chọn đợt đăng ký</span>
+              <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
+            </Button>
           </div>
         </div>
       </Card>
@@ -367,7 +597,7 @@ export function CourseRegistrationView({ currentSubjects, onAddSubject }: Course
               onClick={() => setFilterMode('all')}
               className="rounded-xl text-xs h-8 px-3 font-medium shrink-0"
             >
-              Tất cả ({MOCK_TLU_OPEN_COURSES.length})
+              Tất cả ({currentPeriodCourses.length})
             </Button>
             <Button
               size="sm"
