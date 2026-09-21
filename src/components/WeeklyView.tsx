@@ -4,7 +4,7 @@ import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
 import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2, BookOpen } from 'lucide-react';
 import { Button } from './Button';
-import { cn, getSubjectColor } from '../lib/utils';
+import { cn, getSubjectColor, getSubjectBadgeColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface WeeklyViewProps {
@@ -276,9 +276,14 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
               <div className="flex-1">
                 <h4 className="font-bold text-sm leading-tight">{activeSubject.subject.name}</h4>
                 {activeSubject.subject.code && (
-                  <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-300 mt-0.5">
-                    Mã lớp: {activeSubject.subject.code}
-                  </p>
+                  <div className="mt-1">
+                    <span className={cn(
+                      "text-[10px] font-semibold px-2 py-0.5 rounded border inline-block",
+                      getSubjectBadgeColor(activeSubject.subject.name)
+                    )}>
+                      Mã lớp: {activeSubject.subject.code}
+                    </span>
+                  </div>
                 )}
                 <p className="text-xs font-semibold opacity-90 mt-0.5">{activeSubject.subject.room}</p>
               </div>
