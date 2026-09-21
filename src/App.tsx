@@ -1,5 +1,4 @@
 import { syncTluWithChunks } from "./lib/tlu-client";
-import { parseTluSyncResponse } from "./lib/tlu-parser";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -124,23 +123,13 @@ export default function App() {
     });
     const arr = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
     arr.sort((a, b) => {
+      // Parse semester name format like "1_2026_2027" -> year: 2026, sem: 1 -> 20261
       const parseSem = (name: string) => {
-        // Match "Học kỳ 2 Năm học 2024-2025"
-        const hocKyMatch = name.match(/học\s*kỳ\s*(\d)\s*năm\s*học\s*(\d{4})/i);
-        if (hocKyMatch) {
-          return parseInt(hocKyMatch[2]) * 10 + parseInt(hocKyMatch[1]);
+        const match = name.match(/^(\d)_(\d{4})/);
+        if (match) {
+          return parseInt(match[2]) * 10 + parseInt(match[1]);
         }
-        // Match "1_2026_2027" or similar
-        const underMatch = name.match(/^(\d)_(\d{4})/);
-        if (underMatch) {
-          return parseInt(underMatch[2]) * 10 + parseInt(underMatch[1]);
-        }
-        // Match general year
-        const yearOnly = name.match(/(\d{4})/);
-        if (yearOnly) {
-          return parseInt(yearOnly[1]) * 10;
-        }
-        return 0;
+        return (Number(b.id) || 0) - (Number(a.id) || 0);
       };
       const valA = parseSem(a.name);
       const valB = parseSem(b.name);
@@ -165,7 +154,7 @@ export default function App() {
 
   const filteredSubjects = useMemo(() => {
     if (selectedSemesterId === 'all') return subjects;
-    return subjects.filter(s => s.semesterId === selectedSemesterId || String(s.semesterId) === String(selectedSemesterId));
+    return subjects.filter(s => s.semesterId === selectedSemesterId);
   }, [subjects, selectedSemesterId]);
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -246,9 +235,102 @@ export default function App() {
          return;
       }
 
-      const results = parseTluSyncResponse(json);
+      const results: any[] = [];
+      
+      // Map lịch học
+      if (json.data && Array.isArray(json.data)) {
+        json.data.forEach((item: any) => {
+          if (item.timetables && Array.isArray(item.timetables)) {
+            item.timetables.forEach((tb: any) => {
+               const room = tb?.room?.name || tb?.room?.code || tb?.roomName || '';
+               const lecturer = tb?.teacher?.displayName || tb?.teacher?.name || tb?.teacherName || '';
+               const startStr = tb?.startHour?.name || tb?.startHour?.index || tb?.startHour || 1;
+               const endStr = tb?.endHour?.name || tb?.endHour?.index || tb?.endHour || 1;
+               const sPeriod = parseInt(String(startStr).replace(/\D/g, '')) || 1;
+               const ePeriod = parseInt(String(endStr).replace(/\D/g, '')) || 1;
+               const periods = [];
+               for(let i = sPeriod; i <= ePeriod && periods.length < 20; i++) periods.push(i);
+               const weekIndex = tb?.weekIndex || 2;
+               const dayIndex = weekIndex === 1 ? 0 : weekIndex - 1; 
+               let sDate = new Date().toISOString().split('T')[0];
+               let eDate = new Date().toISOString().split('T')[0];
+               try {
+                 if (tb?.startDate) sDate = new Date(tb.startDate).toISOString().split('T')[0];
+                 if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
+               } catch (e) {}
 
-      // Save grades
+               results.push({
+                 name: item.subjectName,
+                 code: item.subjectCode || '',
+                 room,
+                 lecturer,
+                 startDate: sDate,
+                 endDate: eDate,
+                 daysOfWeek: [dayIndex],
+                 periods,
+                 color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`,
+                 semesterId: item.semesterId == null ? '' : String(item.semesterId),
+                 semesterName: item.semesterName == null ? '' : String(item.semesterName)
+               });
+            });
+          }
+        });
+      }
+      
+      // Map lịch thi
+      if (json.exams && Array.isArray(json.exams)) {
+        json.exams.forEach((item: any) => {
+          let eDate = new Date().toISOString().split('T')[0];
+          let dayIndex = 0;
+          try {
+            if (item.examDate) {
+               const d = new Date(item.examDate);
+               eDate = d.toISOString().split('T')[0];
+               dayIndex = d.getDay();
+            }
+          } catch (e) {}
+          let periods = [1, 2, 3];
+          const timeStr = String(item.examTime || '');
+          const shiftStr = String(item.examShift || item.shift || item.caThi || '');
+          let shiftMatch = shiftStr.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+          
+          if (shiftMatch) {
+              const s = parseInt(shiftMatch[1]);
+              const e = parseInt(shiftMatch[2] || shiftMatch[1]);
+              periods = [];
+              for (let i = s; i <= e; i++) periods.push(i);
+          } else if (timeStr) {
+              const hsMatch = timeStr.match(/(\d+):/);
+              if (hsMatch) {
+                 const h = parseInt(hsMatch[1]);
+                 if (h === 7) periods = [1, 2, 3];
+                 else if (h === 8) periods = [3, 4];
+                 else if (h === 9) periods = [4, 5, 6];
+                 else if (h === 10) periods = [5, 6];
+                 else if (h === 12 || h === 13) periods = [7, 8, 9];
+                 else if (h === 14) periods = [9, 10];
+                 else if (h === 15) periods = [10, 11, 12];
+                 else if (h === 16) periods = [11, 12];
+                 else if (h >= 17) periods = [13, 14, 15];
+              }
+          }
+          results.push({
+            name: `${item.subjectName} (THI)`,
+            code: item.subjectCode || '',
+            room: item.roomName || '',
+            lecturer: 'Lịch Thi',
+            startDate: eDate,
+            endDate: eDate, 
+            daysOfWeek: [dayIndex],
+            periods: periods,
+            color: 'border-l-red-500',
+            semesterId: item.semesterId == null ? '' : String(item.semesterId),
+            semesterName: item.semesterName == null ? '' : String(item.semesterName)
+          });
+        });
+      }
+
+            // Save grades
       if (json.gpaSummary || json.detailedMarks) {
         try {
           await setDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id, 'grades', 'data'), {
@@ -262,27 +344,25 @@ export default function App() {
       }
 
       if (results.length > 0 || json.gpaSummary || json.detailedMarks) {
-        if (results.length > 0) {
-          const batch = writeBatch(db);
-          // Delete old subjects so outdated phantom/corrupted subjects are cleared
-          subjects.forEach(oldSub => {
-            const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', oldSub.id);
-            batch.delete(docRef);
-          });
-          for (const subject of results) {
-            const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
-            batch.set(docRef, subject);
-          }
-          await batch.commit();
-        }
+        // Debug loop
+    for (const subject of results) {
+       try {
+           let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+           deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-'); // FIX URL SAFE
+           subject.id = deterministicId;
+           const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
+           await setDoc(docRef, subject);
+       } catch (err) {
+           console.error("FAIL ON SUBJECT:", JSON.stringify(subject), err);
+       }
+    }
         localStorage.setItem(lastSyncKey, Date.now().toString());
-        setHasUnsavedChanges(false);
         console.log("Đã đồng bộ thành công!");
         if (force) alert("Đồng bộ lịch học, thi và điểm số thành công!");
       } else {
         if (force) alert("Không tìm thấy môn học nào.");
       }
-    } catch (err: any) {
+    } catch (err) {
       console.log("Auto sync failed:", err);
       if (force) alert("Lỗi hệ thống: " + (err.message || "Có lỗi khi đồng bộ."));
     } finally {
@@ -451,7 +531,6 @@ export default function App() {
       });
       
       await batch.commit();
-      setHasUnsavedChanges(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/workspaces/${workspace.id}/subjects`);
     }
@@ -591,7 +670,7 @@ export default function App() {
             <div className="relative w-full sm:w-auto">
               <select
                 value={selectedSemesterId}
-                onChange={(e) => setSelectedSemesterId(e.target.value)}
+                onChange={(e) => setSelectedSemesterId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                 className="w-full sm:w-auto appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               >
                 <option value="all">Tất cả kỳ học</option>
