@@ -6,9 +6,10 @@ import { cn } from '../lib/utils';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
 import { auth } from '../firebase';
-import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as CalendarIcon, RefreshCw, ShieldCheck, BookOpen } from 'lucide-react';
 import { parseScheduleText } from '../services/geminiService';
 import { syncToGoogleCalendar } from '../services/googleCalendarService';
+import { CourseRegistrationView } from './CourseRegistrationView';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface UpdateViewProps {
@@ -18,7 +19,7 @@ interface UpdateViewProps {
 }
 
 export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateViewProps) {
-  const [mode, setMode] = useState<'manual' | 'ai' | 'list' | 'edit' | 'sync'>('list');
+  const [mode, setMode] = useState<'manual' | 'ai' | 'list' | 'edit' | 'sync' | 'registration' | 'google_calendar'>('list');
   const [aiText, setAiText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -250,37 +251,53 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
         )}
       </AnimatePresence>
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1.5 pt-0.5">
         <Button 
           variant={mode === 'list' ? 'primary' : 'outline'} 
           onClick={() => setMode('list')}
-          className="flex-1 min-w-[120px]"
+          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm"
         >
           Danh sách
         </Button>
         <Button 
           variant={mode === 'sync' ? 'primary' : 'outline'} 
           onClick={() => setMode('sync')}
-          className="flex-1 min-w-[120px] gap-2"
+          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
         >
           <RefreshCw className="w-4 h-4" />
           Đồng bộ TLU
         </Button>
         <Button 
+          variant={mode === 'registration' ? 'primary' : 'outline'} 
+          onClick={() => setMode('registration')}
+          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
+        >
+          <BookOpen className="w-4 h-4" />
+          Đăng ký môn học
+        </Button>
+        <Button 
           variant={mode === 'ai' ? 'primary' : 'outline'} 
           onClick={() => setMode('ai')}
-          className="flex-1 min-w-[120px] gap-2"
+          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
         >
           <Sparkles className="w-4 h-4" />
           AI Import
         </Button>
         <Button 
+          variant={mode === 'google_calendar' ? 'primary' : 'outline'} 
+          onClick={() => setMode('google_calendar')}
+          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
+        >
+          <CalendarIcon className="w-4 h-4" />
+          Google Calendar
+        </Button>
+        <Button 
           variant={mode === 'manual' ? 'primary' : 'outline'} 
           onClick={() => setMode('manual')}
-          className="flex-1 min-w-[120px] gap-2"
+          className="shrink-0 rounded-2xl font-semibold px-4 h-10 text-xs sm:text-sm gap-2"
         >
           <Plus className="w-4 h-4" />
-          Thủ công
+          + Thủ công
         </Button>
       </div>
 
@@ -463,6 +480,73 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
           </motion.div>
         )}
 
+        {mode === 'registration' && (
+          <motion.div
+            key="registration"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <CourseRegistrationView 
+              currentSubjects={editingSubjects} 
+              onAddSubject={(newSub) => {
+                setEditingSubjects(prev => [...prev, newSub]);
+                setHasUnsavedChanges?.(true);
+              }} 
+            />
+          </motion.div>
+        )}
+
+        {mode === 'google_calendar' && (
+          <motion.div
+            key="google_calendar"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex flex-col gap-4"
+          >
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl">
+                  <CalendarIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-gray-900 dark:text-gray-100">
+                    Đồng bộ Google Calendar
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Tự động tạo sự kiện lịch học trên Google Calendar kèm nhắc nhở trước giờ vào lớp
+                  </p>
+                </div>
+              </div>
+
+              <div className="my-4 p-4 bg-gray-50 dark:bg-gray-800/80 rounded-2xl border border-gray-100 dark:border-gray-700/80 text-sm space-y-2.5 text-gray-600 dark:text-gray-300">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Môn học sẵn sàng đồng bộ:</span>
+                  <span className="font-bold text-gray-800 dark:text-gray-200">{editingSubjects.length} môn</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Thông báo nhắc nhở tự động:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Trước giờ học 15 phút</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Nền tảng hỗ trợ:</span>
+                  <span className="font-semibold text-blue-600 dark:text-blue-400">Google Calendar App & Web</span>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSyncCalendar}
+                disabled={isSyncing || editingSubjects.length === 0}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-11 rounded-xl flex items-center justify-center gap-2 shadow-xs"
+              >
+                <CalendarIcon className="w-4 h-4" />
+                {isSyncing ? "Đang đồng bộ sang Google Calendar..." : "Đồng bộ ngay sang Google Calendar"}
+              </Button>
+            </Card>
+          </motion.div>
+        )}
+
         {mode === 'list' && (
           <motion.div
             key="list"
@@ -471,24 +555,14 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
             exit={{ opacity: 0, y: -10 }}
             className="flex flex-col gap-4"
           >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h3 className="font-bold text-gray-700 dark:text-gray-200">Môn học đã thêm ({editingSubjects.length})</h3>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleSyncCalendar} 
-                  variant="outline" 
-                  size="sm" 
-                  className="gap-2 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                  disabled={isSyncing || editingSubjects.length === 0}
-                >
-                  <CalendarIcon className="w-4 h-4" />
-                  {isSyncing ? "Đang đồng bộ..." : "Đồng bộ Google Calendar"}
-                </Button>
-                <Button onClick={saveAll} variant="primary" size="sm" className="gap-2">
-                  <Save className="w-4 h-4" />
-                  Lưu tất cả
-                </Button>
-              </div>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base">
+                Môn học đã thêm ({editingSubjects.length})
+              </h3>
+              <Button onClick={saveAll} variant="primary" size="sm" className="gap-2 rounded-xl">
+                <Save className="w-4 h-4" />
+                Lưu tất cả
+              </Button>
             </div>
 
             <div className="relative">
