@@ -16,13 +16,16 @@ service cloud.firestore {
     // Fields:
     //   - id: string (required)
     //   - name: string (required)
-    //   - password: string (required)
+    //   - password: string (optional)
+    //   - isEncrypted: boolean (optional)
+    //   - portal: string (optional)
     //
     // Subcollection: users/{userId}/workspaces/{workspaceId}/subjects
     // Document ID: subjectId
     // Fields:
     //   - id: string (required)
     //   - name: string (required)
+    //   - code: string (optional)
     //   - room: string (optional)
     //   - lecturer: string (optional)
     //   - startDate: string YYYY-MM-DD (required)
@@ -82,19 +85,21 @@ service cloud.firestore {
     }
 
     function isValidWorkspace() {
-      return hasOnlyAllowedFields(['id', 'name', 'password', 'isEncrypted']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'password', 'isEncrypted', 'portal']) &&
              hasRequiredFields(['id', 'name']) &&
              request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 100 &&
              request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
              (!('password' in request.resource.data) || request.resource.data.password is string) &&
-             (!('isEncrypted' in request.resource.data) || request.resource.data.isEncrypted is bool);
+             (!('isEncrypted' in request.resource.data) || request.resource.data.isEncrypted is bool) &&
+             (!('portal' in request.resource.data) || (request.resource.data.portal is string && request.resource.data.portal.size() <= 50));
     }
 
     function isValidSubject() {
-      return hasOnlyAllowedFields(['id', 'name', 'room', 'lecturer', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color', 'semesterId', 'semesterName']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'code', 'room', 'lecturer', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color', 'semesterId', 'semesterName']) &&
              hasRequiredFields(['id', 'name', 'startDate', 'endDate', 'daysOfWeek', 'periods', 'color']) &&
              request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 500 &&
              request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 500 &&
+             (!('code' in request.resource.data) || (request.resource.data.code is string && request.resource.data.code.size() <= 200)) &&
              (!('room' in request.resource.data) || (request.resource.data.room is string && request.resource.data.room.size() <= 500)) &&
              (!('lecturer' in request.resource.data) || (request.resource.data.lecturer is string && request.resource.data.lecturer.size() <= 500)) &&
              isValidDateString(request.resource.data.startDate) &&
