@@ -225,7 +225,16 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                           <span className="hidden sm:inline font-bold">
                             {isExam ? `[THI] ${s.name.replace(/\(THI\)/gi, '').trim()}` : s.name}
                           </span>
-                          {s.code && <span className="hidden sm:block text-[8px] opacity-85 font-normal truncate">{s.code}</span>}
+                          {s.room && (
+                            <span className="hidden sm:block text-[8px] font-semibold opacity-90 truncate mt-0.5">
+                              {s.room}
+                            </span>
+                          )}
+                          {s.lecturer && (
+                            <span className="hidden sm:block text-[8px] opacity-80 truncate">
+                              {s.lecturer}
+                            </span>
+                          )}
                         </div>
                       )})}
                     </div>
