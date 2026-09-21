@@ -10,7 +10,6 @@ import { Sparkles, Plus, Trash2, Save, FileText, Edit2, Search, Calendar as Cale
 import { parseScheduleText } from '../services/geminiService';
 import { syncToGoogleCalendar } from '../services/googleCalendarService';
 import { CourseRegistrationView } from './CourseRegistrationView';
-import { RegistrationSimulationModal } from './RegistrationSimulationModal';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface UpdateViewProps {
@@ -21,7 +20,6 @@ interface UpdateViewProps {
 
 export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateViewProps) {
   const [mode, setMode] = useState<'manual' | 'ai' | 'list' | 'edit' | 'sync' | 'registration' | 'google_calendar'>('list');
-  const [isSimulationOpen, setIsSimulationOpen] = useState(false);
   const [aiText, setAiText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -557,30 +555,14 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
             exit={{ opacity: 0, y: -10 }}
             className="flex flex-col gap-4"
           >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base">
-                  Môn học đã thêm ({editingSubjects.length})
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Quản lý danh sách môn, chỉnh sửa hoặc dùng công cụ Đăng ký mô phỏng xếp lịch
-                </p>
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsSimulationOpen(true)}
-                  className="gap-1.5 rounded-xl border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-semibold flex-1 sm:flex-initial"
-                >
-                  <Sparkles className="w-4 h-4 text-indigo-500" />
-                  Đăng ký mô phỏng
-                </Button>
-                <Button onClick={saveAll} variant="primary" size="sm" className="gap-2 rounded-xl flex-1 sm:flex-initial">
-                  <Save className="w-4 h-4" />
-                  Lưu tất cả
-                </Button>
-              </div>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base">
+                Môn học đã thêm ({editingSubjects.length})
+              </h3>
+              <Button onClick={saveAll} variant="primary" size="sm" className="gap-2 rounded-xl">
+                <Save className="w-4 h-4" />
+                Lưu tất cả
+              </Button>
             </div>
 
             <div className="relative">
@@ -680,17 +662,6 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* 3-Layout Registration Simulation Modal */}
-      <RegistrationSimulationModal
-        isOpen={isSimulationOpen}
-        onClose={() => setIsSimulationOpen(false)}
-        currentSubjects={editingSubjects}
-        onApplyToTimetable={(subjectsToAdd) => {
-          setEditingSubjects(prev => [...prev, ...subjectsToAdd]);
-          setHasUnsavedChanges?.(true);
-        }}
-      />
     </div>
   );
 }
