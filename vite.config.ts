@@ -10,6 +10,41 @@ export default defineConfig(({mode}) => {
     plugins: [
       react(), 
       tailwindcss(),
+      {
+        name: 'tlu-sync-dev-api',
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            if (req.url && req.url.startsWith('/api/tlu-sync')) {
+              let body = '';
+              req.on('data', chunk => body += chunk);
+              req.on('end', async () => {
+                try {
+                  if (body) {
+                    try { (req as any).body = JSON.parse(body); } catch(e) { (req as any).body = {}; }
+                  } else {
+                    (req as any).body = {};
+                  }
+                  (res as any).status = function(code: number) { this.statusCode = code; return this; };
+                  (res as any).json = function(data: any) {
+                    this.setHeader('Content-Type', 'application/json');
+                    this.end(JSON.stringify(data));
+                    return this;
+                  };
+                  const { default: handler } = await import('./api/tlu-sync.js');
+                  await handler(req as any, res as any);
+                } catch (err: any) {
+                  console.error('API middleware error:', err);
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: err.message }));
+                }
+              });
+            } else {
+              next();
+            }
+          });
+        }
+      },
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
