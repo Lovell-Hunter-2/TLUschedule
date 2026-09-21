@@ -367,9 +367,25 @@ export default async function handler(req, res) {
     }
 
     // LOGIN SUCCESSFUL!
-    // Step D: Scrape student name and available semesters from /lich-hoc-lich-thi.html and /dashboard.html
+    // Step D: Scrape student name and available semesters from /lich-hoc-lich-thi.html, /dang-ky-hoc-phan.html, /dashboard.html
     let studentName = '';
     const discoveredSemesters = new Map(); // id -> name (e.g., '15' -> 'Học kỳ 1 Năm học 2024-2025')
+
+    // Helper to extract semesters from any HTML content
+    const extractSemestersFromHtml = (html) => {
+      if (!html) return;
+      const $page = loadCheerio(html);
+      if (!studentName) {
+        studentName = $page('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name').first().text().trim();
+      }
+      $page('select option').each((_, opt) => {
+        const val = $page(opt).attr('value');
+        const txt = $page(opt).text().trim();
+        if (val && /^\d+$/.test(val.trim()) && txt && (txt.toLowerCase().includes('học kỳ') || txt.toLowerCase().includes('năm học') || txt.toLowerCase().includes('đợt'))) {
+          discoveredSemesters.set(val.trim(), txt.replace(/\s+/g, ' ').trim());
+        }
+      });
+    };
 
     try {
       const pageRes = await httpsGet('sv.tlu.edu.vn', '/lich-hoc-lich-thi.html', {
@@ -377,17 +393,17 @@ export default async function handler(req, res) {
         'User-Agent': 'Mozilla/5.0'
       });
       if (pageRes.status === 200 && pageRes.data) {
-        const $p = loadCheerio(pageRes.data);
-        studentName = $p('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name').first().text().trim();
-        
-        // Find semester dropdown/options (e.g., select#pIDDot, select[name="pIDDot"], #drpDot, select.dot-hoc, etc.)
-        $p('select option').each((i, opt) => {
-          const val = $p(opt).attr('value');
-          const txt = $p(opt).text().trim();
-          if (val && /^\d+$/.test(val.trim()) && txt && (txt.toLowerCase().includes('học kỳ') || txt.toLowerCase().includes('năm học') || txt.toLowerCase().includes('đợt'))) {
-            discoveredSemesters.set(val.trim(), txt);
-          }
-        });
+        extractSemestersFromHtml(pageRes.data);
+      }
+    } catch (e) {}
+
+    try {
+      const dkhpRes = await httpsGet('sv.tlu.edu.vn', '/dang-ky-hoc-phan.html', {
+        'Cookie': jar.getCookieHeader(),
+        'User-Agent': 'Mozilla/5.0'
+      });
+      if (dkhpRes.status === 200 && dkhpRes.data) {
+        extractSemestersFromHtml(dkhpRes.data);
       }
     } catch (e) {}
 
@@ -398,16 +414,29 @@ export default async function handler(req, res) {
           'User-Agent': 'Mozilla/5.0'
         });
         if (dashRes.status === 200 && dashRes.data) {
-          const $d = loadCheerio(dashRes.data);
-          studentName = $d('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name').first().text().trim();
+          extractSemestersFromHtml(dashRes.data);
         }
       } catch (e) {}
     }
 
-    // Fallback semester IDs if none discovered dynamically
+    // Standard mapping of TLU CMC Dot IDs if not dynamically discovered
+    const KNOWN_SEMESTERS = {
+      '13': 'Học kỳ 2 Năm học 2023-2024',
+      '14': 'Học kỳ phụ Năm học 2023-2024',
+      '15': 'Học kỳ 1 Năm học 2024-2025',
+      '16': 'Học kỳ 2 Năm học 2024-2025',
+      '17': 'Học kỳ phụ Năm học 2024-2025',
+      '18': 'Học kỳ 1 Năm học 2025-2026',
+      '19': 'Học kỳ 2 Năm học 2025-2026',
+      '20': 'Học kỳ phụ Năm học 2025-2026',
+      '21': 'Học kỳ 1 Năm học 2026-2027',
+      '22': 'Học kỳ 2 Năm học 2026-2027'
+    };
+
+    // Priority semester IDs to fetch
     const semesterDots = discoveredSemesters.size > 0 
       ? Array.from(discoveredSemesters.keys())
-      : ['15', '16', '14', '17', '18', '19', '20', '1', '2'];
+      : ['15', '16', '14', '17', '18', '19', '20', '21', '22', '13'];
 
     const uniqueSubjectMap = new Map();
 
@@ -425,194 +454,244 @@ export default async function handler(req, res) {
         if (schedRes.status === 200 && schedRes.data && schedRes.data.includes('<table')) {
           const $s = loadCheerio(schedRes.data);
 
-          // Detect headers to know exact column indexes
+          // Detect header columns across any header or top rows
           let colIdx = {
-            maHocPhan: 1,
-            tenMon: 2,
-            thu: 4,
-            tiet: 5,
-            loaiLich: 6,
-            phong: 7,
-            nhom: 8,
-            giangVien: -1
+            maHocPhan: -1,
+            tenMon: -1,
+            thu: -1,
+            tiet: -1,
+            loaiLich: -1,
+            phong: -1,
+            nhom: -1,
+            giangVien: -1,
+            thoiGian: -1
           };
 
-          $s('table thead tr th').each((idx, th) => {
-            const heading = $s(th).text().toLowerCase().trim();
-            if (heading.includes('mã hp') || heading.includes('mã môn') || heading.includes('mã học phần')) colIdx.maHocPhan = idx;
-            else if (heading.includes('tên môn') || heading.includes('tên học phần')) colIdx.tenMon = idx;
-            else if (heading.includes('thứ')) colIdx.thu = idx;
-            else if (heading.includes('tiết')) colIdx.tiet = idx;
-            else if (heading.includes('loại lịch') || heading.includes('hình thức')) colIdx.loaiLich = idx;
-            else if (heading.includes('phòng')) colIdx.phong = idx;
-            else if (heading.includes('nhóm') || heading.includes('lớp')) colIdx.nhom = idx;
-            else if (heading.includes('giảng viên') || heading.includes('cán bộ')) colIdx.giangVien = idx;
+          $s('table tr').slice(0, 3).each((_, tr) => {
+            $s(tr).find('th, td').each((idx, cell) => {
+              const heading = $s(cell).text().toLowerCase().trim();
+              if (heading.includes('mã hp') || heading.includes('mã môn') || heading.includes('mã học phần')) colIdx.maHocPhan = idx;
+              else if (heading.includes('tên môn') || heading.includes('tên học phần') || heading.includes('tên hp')) colIdx.tenMon = idx;
+              else if (heading === 'thứ' || heading.includes('thứ')) colIdx.thu = idx;
+              else if (heading === 'tiết' || heading.includes('tiết')) colIdx.tiet = idx;
+              else if (heading.includes('loại lịch') || heading.includes('hình thức') || heading.includes('loại')) colIdx.loaiLich = idx;
+              else if (heading.includes('phòng') || heading.includes('địa điểm') || heading.includes('giảng đường')) colIdx.phong = idx;
+              else if (heading.includes('nhóm') || heading.includes('lớp')) colIdx.nhom = idx;
+              else if (heading.includes('giảng viên') || heading.includes('cán bộ') || heading.includes('cbgd') || heading.includes('gv')) colIdx.giangVien = idx;
+              else if (heading.includes('thời gian') || heading.includes('ngày') || heading.includes('tuần')) colIdx.thoiGian = idx;
+            });
           });
 
-          const rows = $s('table tbody tr');
+          // Determine exact semester name
+          let semesterName = discoveredSemesters.get(String(dot)) || KNOWN_SEMESTERS[String(dot)] || '';
+          if (!semesterName) {
+            const dotNum = parseInt(dot, 10);
+            if (!isNaN(dotNum)) {
+              if (dotNum === 15) semesterName = 'Học kỳ 1 Năm học 2024-2025';
+              else if (dotNum === 16) semesterName = 'Học kỳ 2 Năm học 2024-2025';
+              else if (dotNum === 17) semesterName = 'Học kỳ phụ Năm học 2024-2025';
+              else if (dotNum === 18) semesterName = 'Học kỳ 1 Năm học 2025-2026';
+              else if (dotNum === 19) semesterName = 'Học kỳ 2 Năm học 2025-2026';
+              else if (dotNum >= 15) {
+                const diff = dotNum - 15;
+                const semNumber = (diff % 3) + 1;
+                const yearOffset = Math.floor(diff / 3);
+                const startY = 2024 + yearOffset;
+                semesterName = `Học kỳ ${semNumber === 3 ? 'phụ' : semNumber} Năm học ${startY}-${startY + 1}`;
+              } else {
+                semesterName = `Đợt ${dot}`;
+              }
+            } else {
+              semesterName = `Đợt ${dot}`;
+            }
+          }
+
+          // Compute accurate semester date range
+          let semStartDate = '';
+          let semEndDate = '';
+          const yearMatch = semesterName.match(/năm học\s*(\d{4})\s*[-–]\s*(\d{4})/i);
+          if (yearMatch) {
+            const startYear = parseInt(yearMatch[1], 10);
+            const endYear = parseInt(yearMatch[2], 10);
+            const semMatch = semesterName.match(/học\s*kỳ\s*(\d|phụ)/i);
+            const semType = semMatch ? semMatch[1].toLowerCase() : '1';
+            if (semType === '1') {
+              semStartDate = `${startYear}-08-15`;
+              semEndDate = `${endYear}-01-15`;
+            } else if (semType === '2') {
+              semStartDate = `${endYear}-01-16`;
+              semEndDate = `${endYear}-06-15`;
+            } else { // Semester 3 / Summer
+              semStartDate = `${endYear}-06-16`;
+              semEndDate = `${endYear}-08-14`;
+            }
+          } else {
+            semStartDate = '2024-09-01';
+            semEndDate = '2025-01-15';
+          }
+
+          const rows = $s('table tbody tr, table tr');
           if (rows.length > 0) {
             rows.each((i, el) => {
+              // Skip header rows
+              if ($s(el).find('th').length > 0) return;
               const tds = $s(el).find('td');
-              if (tds.length >= 6) {
-                let maHocPhan = colIdx.maHocPhan >= 0 && tds[colIdx.maHocPhan] ? $s(tds[colIdx.maHocPhan]).text().trim() : '';
-                let rawTenMon = colIdx.tenMon >= 0 && tds[colIdx.tenMon] ? $s(tds[colIdx.tenMon]).text().trim() : '';
-                let thuStr = colIdx.thu >= 0 && tds[colIdx.thu] ? $s(tds[colIdx.thu]).text().trim() : '';
-                let tietStr = colIdx.tiet >= 0 && tds[colIdx.tiet] ? $s(tds[colIdx.tiet]).text().trim() : '';
-                let col6Val = colIdx.loaiLich >= 0 && tds[colIdx.loaiLich] ? $s(tds[colIdx.loaiLich]).text().trim() : '';
-                let phong = colIdx.phong >= 0 && tds[colIdx.phong] ? $s(tds[colIdx.phong]).text().trim() : '';
-                let nhom = colIdx.nhom >= 0 && tds[colIdx.nhom] ? $s(tds[colIdx.nhom]).text().trim() : '';
-                let colGv = colIdx.giangVien >= 0 && tds[colIdx.giangVien] ? $s(tds[colIdx.giangVien]).text().trim() : '';
+              if (tds.length < 3) return;
 
-                // If tenMon is empty, fallback to index 2
-                if (!rawTenMon && tds.length > 2) rawTenMon = $s(tds[2]).text().trim();
-                if (!maHocPhan && tds.length > 1) maHocPhan = $s(tds[1]).text().trim();
+              let maHocPhan = colIdx.maHocPhan >= 0 && tds[colIdx.maHocPhan] ? $s(tds[colIdx.maHocPhan]).text().trim() : '';
+              let rawTenMon = colIdx.tenMon >= 0 && tds[colIdx.tenMon] ? $s(tds[colIdx.tenMon]).text().trim() : '';
+              let thuStr = colIdx.thu >= 0 && tds[colIdx.thu] ? $s(tds[colIdx.thu]).text().trim() : '';
+              let tietStr = colIdx.tiet >= 0 && tds[colIdx.tiet] ? $s(tds[colIdx.tiet]).text().trim() : '';
+              let phong = colIdx.phong >= 0 && tds[colIdx.phong] ? $s(tds[colIdx.phong]).text().trim() : '';
+              let nhom = colIdx.nhom >= 0 && tds[colIdx.nhom] ? $s(tds[colIdx.nhom]).text().trim() : '';
+              let colGv = colIdx.giangVien >= 0 && tds[colIdx.giangVien] ? $s(tds[colIdx.giangVien]).text().trim() : '';
 
-                // Clean and normalize subject name font/mojibake
-                let tenMon = rawTenMon
-                  .replace(/Triết\s*học\s*Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Triết học Mác - Lê-nin')
-                  .replace(/Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Mác - Lê-nin')
-                  .replace(/\bL[\uFFFD?]{1,3}nin\b/gi, 'Lê-nin')
-                  .replace(/[\uFFFD]+/g, '')
-                  .trim();
+              // Fallbacks if columns weren't precisely indexed
+              if (!rawTenMon) {
+                tds.each((ti, td) => {
+                  const t = $s(td).text().trim();
+                  if (!rawTenMon && t.length > 3 && !/^\d+$/.test(t) && !/^[A-Z0-9_\-]{4,15}$/.test(t) && !/^(thứ|tiết|phòng|lý thuyết|thực hành)/i.test(t)) {
+                    rawTenMon = t;
+                  }
+                });
+              }
 
-                // Distinguish between lecturer and schedule type
-                // col6Val is often 'Lý thuyết' or 'Thực hành' (Schedule Type / Loại lịch)
-                // If colGv exists, use it. Otherwise, if col6Val is NOT a schedule type, it might be teacher name
-                let teacherName = '';
-                const isScheduleType = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến)$/i.test(col6Val);
-                
-                if (colGv && !/^(lý\s*thuyết|thực\s*hành)$/i.test(colGv)) {
-                  teacherName = colGv;
-                } else if (!isScheduleType && col6Val) {
-                  teacherName = col6Val;
+              if (!maHocPhan) {
+                tds.each((ti, td) => {
+                  const t = $s(td).text().trim();
+                  if (!maHocPhan && /^[A-Z0-9_\-]{4,15}$/.test(t)) {
+                    maHocPhan = t;
+                  }
+                });
+              }
+
+              if (!rawTenMon) return;
+
+              // Clean and normalize subject name
+              let tenMon = rawTenMon
+                .replace(/Triết\s*học\s*Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Triết học Mác - Lê-nin')
+                .replace(/Mác\s*-\s*L[\uFFFD?]{1,3}nin/gi, 'Mác - Lê-nin')
+                .replace(/\bL[\uFFFD?]{1,3}nin\b/gi, 'Lê-nin')
+                .replace(/[\uFFFD]+/g, '')
+                .trim();
+
+              // Parse Day of Week (Thứ 2..7, CN)
+              let weekIndex = null;
+              if (thuStr) {
+                const thuMatch = thuStr.match(/\b([2-7])\b/) || thuStr.match(/thứ\s*([2-7])/i) || thuStr.match(/t([2-7])/i);
+                if (thuMatch) {
+                  weekIndex = parseInt(thuMatch[1], 10);
+                } else if (/(cn|chủ\s*nhật)/i.test(thuStr)) {
+                  weekIndex = 1;
                 }
+              }
 
-                // Check other columns if any has a teacher title (ThS, PGS, TS, GV, Thầy, Cô)
-                if (!teacherName) {
-                  tds.each((ti, tel) => {
-                    const text = $s(tel).text().trim();
-                    if (/^(th\.s|ths|ts|pgs|gs|gv|thầy|cô)\.?\s+/i.test(text)) {
-                      teacherName = text;
-                    }
-                  });
+              // Also scan across cells if thuStr was empty
+              if (weekIndex === null) {
+                tds.each((ti, td) => {
+                  const t = $s(td).text().trim();
+                  if (/^(thứ\s*[2-7]|t[2-7]|[2-7]|chủ\s*nhật|cn)$/i.test(t)) {
+                    const m = t.match(/\b([2-7])\b/) || t.match(/thứ\s*([2-7])/i) || t.match(/t([2-7])/i);
+                    if (m) weekIndex = parseInt(m[1], 10);
+                    else if (/(cn|chủ\s*nhật)/i.test(t)) weekIndex = 1;
+                  }
+                });
+              }
+
+              // Parse Periods (Tiết học: e.g. "1-3", "7-9", "10-11", "1,2,3")
+              let startPeriod = null;
+              let endPeriod = null;
+              if (tietStr) {
+                const pNums = tietStr.match(/\d+/g)?.map(Number) || [];
+                if (pNums.length >= 2) {
+                  startPeriod = Math.min(...pNums);
+                  endPeriod = Math.max(...pNums);
+                } else if (pNums.length === 1 && pNums[0] >= 1 && pNums[0] <= 16) {
+                  startPeriod = pNums[0];
+                  endPeriod = pNums[0];
                 }
+              }
 
-                if (tenMon) {
-                  // Parse day of week: 2 (T2) -> 2, 3 -> 3, ..., 7 -> 7, CN/1 -> 1
-                  let weekIndex = 2;
-                  const thuNum = parseInt(thuStr);
-                  if (!isNaN(thuNum)) {
-                    weekIndex = thuNum;
-                  } else if (thuStr.toLowerCase().includes('cn') || thuStr.toLowerCase().includes('chủ nhật')) {
-                    weekIndex = 1;
-                  }
-
-                  // Parse periods: "10-11", "7-9", "1-3"
-                  let startPeriod = 1, endPeriod = 1;
-                  const parts = tietStr.split(/[-–]/).map(t => parseInt(t.trim())).filter(t => !isNaN(t));
-                  if (parts.length >= 2) {
-                    startPeriod = parts[0];
-                    endPeriod = parts[1];
-                  } else if (parts.length === 1) {
-                    startPeriod = parts[0];
-                    endPeriod = parts[0];
-                  }
-
-                  const courseCode = nhom ? `${nhom} - ${maHocPhan}` : maHocPhan;
-                  const subjKey = `${tenMon}_${thuStr}_${tietStr}_${dot}`;
-
-                  // Determine human-readable semester name
-                  let semesterName = discoveredSemesters.get(String(dot)) || '';
-                  if (!semesterName) {
-                    // Friendly fallback name based on current academic timeline
-                    const dotNum = parseInt(dot);
-                    if (dotNum >= 14 && dotNum <= 25) {
-                      const semNumber = ((dotNum - 14) % 3) + 1;
-                      const yearOffset = Math.floor((dotNum - 14) / 3);
-                      semesterName = `Học kỳ ${semNumber} Năm học ${2024 + yearOffset}-${2025 + yearOffset}`;
-                    } else {
-                      semesterName = `Đợt ${dot}`;
+              // Also scan across cells if tietStr was empty
+              if (startPeriod === null) {
+                tds.each((ti, td) => {
+                  const t = $s(td).text().trim();
+                  if (/^(\d{1,2}\s*[-–,->\s]+\s*\d{1,2})$/.test(t)) {
+                    const pNums = t.match(/\d+/g)?.map(Number) || [];
+                    if (pNums.length >= 2 && pNums[0] <= 16 && pNums[1] <= 16) {
+                      startPeriod = Math.min(...pNums);
+                      endPeriod = Math.max(...pNums);
                     }
                   }
+                });
+              }
 
-                  // 1. Calculate fallback semester start and end dates based on semester name
-                  let semStartDate = '';
-                  let semEndDate = '';
-                  const yearMatch = semesterName.match(/năm học\s*(\d{4})\s*[-–]\s*(\d{4})/i);
-                  if (yearMatch) {
-                    const startYear = parseInt(yearMatch[1]);
-                    const endYear = parseInt(yearMatch[2]);
-                    const semMatch = semesterName.match(/học\s*kỳ\s*(\d)/i);
-                    const semNumber = semMatch ? parseInt(semMatch[1]) : 1;
-                    if (semNumber === 1) {
-                      semStartDate = `${startYear}-09-01`;
-                      semEndDate = `${startYear}-12-31`;
-                    } else if (semNumber === 2) {
-                      semStartDate = `${endYear}-01-15`;
-                      semEndDate = `${endYear}-06-15`;
-                    } else { // Semester 3 / Summer
-                      semStartDate = `${endYear}-06-16`;
-                      semEndDate = `${endYear}-08-31`;
-                    }
-                  } else {
-                    semStartDate = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0];
-                    semEndDate = new Date(Date.now() + 120 * 24 * 3600 * 1000).toISOString().split('T')[0];
+              // IMPORTANT: If row has NO valid day or NO valid periods, SKIP creating phantom Monday classes!
+              if (weekIndex === null || startPeriod === null) {
+                return;
+              }
+
+              // Extract real teacher name (MUST NOT be "Lý thuyết" or "Thực hành" or schedule type)
+              let teacherName = '';
+              const INVALID_TEACHER_REGEX = /^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|lt|th|tbd|none|null|undefined|[\-–—._]+)$/i;
+
+              if (colGv && !INVALID_TEACHER_REGEX.test(colGv.trim())) {
+                teacherName = colGv.trim();
+              }
+
+              // Scan other columns for explicit teacher prefixes
+              if (!teacherName) {
+                tds.each((ti, tel) => {
+                  const text = $s(tel).text().trim();
+                  if (/^(th\.s|ths|ts|pgs|gs|gv|thầy|cô)\.?\s+[A-Za-zÀ-ỹ]/i.test(text) && !INVALID_TEACHER_REGEX.test(text)) {
+                    teacherName = text;
                   }
+                });
+              }
 
-                  // 2. Scan all td elements in the row to find explicit dates (e.g. "Từ 21/10/24 đến 15/12/24" or "21/10/2024")
-                  let parsedStartDate = '';
-                  let parsedEndDate = '';
-                  tds.each((idx, td) => {
-                    const text = $s(td).text().trim();
-                    const dateMatches = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
-                    if (dateMatches && dateMatches.length >= 2) {
-                      const parseCustomDate = (str) => {
-                        const parts = str.split('/');
-                        let day = parseInt(parts[0], 10);
-                        let month = parseInt(parts[1], 10);
-                        let year = parseInt(parts[2], 10);
-                        if (year < 100) year += 2000;
-                        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      };
-                      parsedStartDate = parseCustomDate(dateMatches[0]);
-                      parsedEndDate = parseCustomDate(dateMatches[1]);
-                    } else if (dateMatches && dateMatches.length === 1) {
-                      const parseCustomDate = (str) => {
-                        const parts = str.split('/');
-                        let day = parseInt(parts[0], 10);
-                        let month = parseInt(parts[1], 10);
-                        let year = parseInt(parts[2], 10);
-                        if (year < 100) year += 2000;
-                        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      };
-                      parsedStartDate = parseCustomDate(dateMatches[0]);
-                      parsedEndDate = parsedStartDate;
-                    }
-                  });
-
-                  const finalStartDate = parsedStartDate || semStartDate;
-                  const finalEndDate = parsedEndDate || semEndDate;
-
-                  if (!uniqueSubjectMap.has(subjKey)) {
-                    uniqueSubjectMap.set(subjKey, {
-                      subjectName: tenMon,
-                      subjectCode: courseCode,
-                      semesterId: String(dot),
-                      semesterName: semesterName,
-                      timetables: [
-                        {
-                          room: { name: phong, code: phong },
-                          teacher: { displayName: teacherName },
-                          startHour: { name: startPeriod },
-                          endHour: { name: endPeriod },
-                          weekIndex: weekIndex,
-                          startDate: finalStartDate,
-                          endDate: finalEndDate
-                        }
-                      ]
-                    });
-                  }
+              // Scan for explicit dates (e.g. "Từ 21/10/2024 đến 15/12/2024")
+              let parsedStartDate = '';
+              let parsedEndDate = '';
+              tds.each((idx, td) => {
+                const text = $s(td).text().trim();
+                const dateMatches = text.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/g);
+                if (dateMatches && dateMatches.length >= 2) {
+                  const parseCustomDate = (str) => {
+                    const parts = str.split('/');
+                    let day = parseInt(parts[0], 10);
+                    let month = parseInt(parts[1], 10);
+                    let year = parseInt(parts[2], 10);
+                    if (year < 100) year += 2000;
+                    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  };
+                  parsedStartDate = parseCustomDate(dateMatches[0]);
+                  parsedEndDate = parseCustomDate(dateMatches[1]);
                 }
+              });
+
+              const finalStartDate = parsedStartDate || semStartDate;
+              const finalEndDate = parsedEndDate || semEndDate;
+              const courseCode = nhom ? `${nhom} - ${maHocPhan}` : maHocPhan;
+              const subjKey = `${tenMon}_${weekIndex}_${startPeriod}-${endPeriod}_${dot}`;
+
+              if (!uniqueSubjectMap.has(subjKey)) {
+                uniqueSubjectMap.set(subjKey, {
+                  subjectName: tenMon,
+                  subjectCode: courseCode,
+                  semesterId: String(dot),
+                  semesterName: semesterName,
+                  timetables: [
+                    {
+                      room: { name: phong, code: phong },
+                      teacher: { displayName: teacherName },
+                      startHour: { name: startPeriod },
+                      endHour: { name: endPeriod || startPeriod },
+                      weekIndex: weekIndex,
+                      startDate: finalStartDate,
+                      endDate: finalEndDate
+                    }
+                  ]
+                });
               }
             });
           }
@@ -778,30 +857,33 @@ export default async function handler(req, res) {
       }
     } catch (e) {}
 
-    // Apply discovered lecturers to subjects if teacher was missing
-    if (lecturerBySubjectMap.size > 0) {
-      for (const subj of uniqueSubjectMap.values()) {
-        const subNameLower = subj.subjectName.toLowerCase().trim();
-        const subCodeLower = (subj.subjectCode || '').toLowerCase().trim();
-        
-        let foundLecturer = lecturerBySubjectMap.get(subNameLower);
-        if (!foundLecturer && subCodeLower) {
-          for (const [key, lec] of lecturerBySubjectMap.entries()) {
-            if (subCodeLower.includes(key) || key.includes(subCodeLower)) {
-              foundLecturer = lec;
-              break;
-            }
+    // Apply discovered lecturers to subjects or clean invalid placeholder values
+    for (const subj of uniqueSubjectMap.values()) {
+      const subNameLower = subj.subjectName.toLowerCase().trim();
+      const subCodeLower = (subj.subjectCode || '').toLowerCase().trim();
+      
+      let foundLecturer = lecturerBySubjectMap.get(subNameLower);
+      if (!foundLecturer && subCodeLower) {
+        for (const [key, lec] of lecturerBySubjectMap.entries()) {
+          if (subCodeLower.includes(key) || key.includes(subCodeLower)) {
+            foundLecturer = lec;
+            break;
           }
         }
-
-        if (foundLecturer) {
-          subj.timetables.forEach(tb => {
-            if (!tb.teacher || !tb.teacher.displayName || /^(lý\s*thuyết|thực\s*hành)$/i.test(tb.teacher.displayName)) {
-              tb.teacher = { displayName: foundLecturer };
-            }
-          });
-        }
       }
+
+      subj.timetables.forEach(tb => {
+        if (foundLecturer) {
+          tb.teacher = { displayName: foundLecturer };
+        } else if (tb.teacher?.displayName) {
+          const dn = tb.teacher.displayName.trim();
+          if (/^(lý\s*thuyết|thực\s*hành|bài\s*tập|tự\s*học|thao\s*trường|trực\s*tuyến|chưa\s*cập\s*nhật|chưa\s*phân\s*công|đang\s*cập\s*nhật|none|null|undefined|[\-–—._]+)$/i.test(dn)) {
+            tb.teacher = { displayName: '' };
+          }
+        } else {
+          tb.teacher = { displayName: '' };
+        }
+      });
     }
 
     // Step G: Scrape grades from /SinhVien/ThongKeKetQuaHocTapTheoDot
