@@ -17,6 +17,7 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "code": { "type": "string" },
         "room": { "type": "string" },
         "lecturer": { "type": "string" },
         "startDate": { "type": "string", "description": "YYYY-MM-DD" },
@@ -24,7 +25,7 @@
         "daysOfWeek": { "type": "array", "items": { "type": "number" } },
         "periods": { "type": "array", "items": { "type": "number" } },
         "color": { "type": "string" },
-        "semesterId": { "type": "number" },
+        "semesterId": { "type": ["number", "string"] },
         "semesterName": { "type": "string" }
       },
       "required": ["id", "name", "startDate", "endDate", "daysOfWeek", "periods", "color"]
@@ -48,9 +49,11 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "password": { "type": "string" }
+        "password": { "type": "string" },
+        "isEncrypted": { "type": "boolean" },
+        "portal": { "type": "string" }
       },
-      "required": ["id", "name", "password"]
+      "required": ["id", "name"]
     }
   },
   "firestore": {
