@@ -2,7 +2,7 @@ import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
-import { cn, normalizeSubjectName } from '../lib/utils';
+import { cn, normalizeSubjectName, isInvalidSubject } from '../lib/utils';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
 import { auth } from '../firebase';
@@ -81,6 +81,10 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
       const results: Subject[] = [];
       if (json.data && Array.isArray(json.data)) {
         json.data.forEach((item: any) => {
+          if (isInvalidSubject(item?.subjectName, item?.subjectCode)) return;
+          const cleanSubjectName = normalizeSubjectName(item?.subjectName);
+          if (isInvalidSubject(cleanSubjectName, item?.subjectCode)) return;
+
           if (item.timetables && Array.isArray(item.timetables)) {
             item.timetables.forEach((tb: any) => {
                // Parse standard CMC format
@@ -108,8 +112,6 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
                  if (tb?.endDate) eDate = new Date(tb.endDate).toISOString().split('T')[0];
                } catch (e) {}
 
-               const cleanSubjectName = normalizeSubjectName(item.subjectName);
-
                results.push({
                  id: Math.random().toString(36).substr(2, 9),
                  name: cleanSubjectName,
@@ -134,7 +136,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
          return;
       }
       
-      setEditingSubjects([...editingSubjects, ...results]);
+      setEditingSubjects(prev => [...prev, ...results]);
+      setIsDirty(true);
       setMode('list');
       setTluPassword('');
       setCaptchaCode('');
@@ -149,27 +152,37 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
       setIsTluSyncing(false);
     }
   };
-  const [editingSubjects, setEditingSubjects] = useState<Subject[]>(subjects);
+  const [editingSubjects, setEditingSubjects] = useState<Subject[]>(() => subjects.filter(s => !isInvalidSubject(s.name, s.code)));
+  const [isDirty, setIsDirty] = useState(false);
   const [subjectToEdit, setSubjectToEdit] = useState<Subject | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    if (setHasUnsavedChanges) {
-      setHasUnsavedChanges(JSON.stringify(editingSubjects) !== JSON.stringify(subjects));
+    if (!isDirty) {
+      setEditingSubjects(subjects.filter(s => !isInvalidSubject(s.name, s.code)));
     }
-  }, [editingSubjects, subjects, setHasUnsavedChanges]);
+  }, [subjects, isDirty]);
+
+  useEffect(() => {
+    if (setHasUnsavedChanges) {
+      setHasUnsavedChanges(isDirty);
+    }
+  }, [isDirty, setHasUnsavedChanges]);
 
   const handleAiParse = async () => {
     if (!aiText.trim()) return;
     setIsParsing(true);
     try {
       const parsed = await parseScheduleText(aiText);
-      const newSubjects = parsed.map((s: any) => ({
-        ...s,
-        id: Math.random().toString(36).substr(2, 9),
-        color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`
-      }));
-      setEditingSubjects([...editingSubjects, ...newSubjects]);
+      const newSubjects = parsed
+        .filter((s: any) => !isInvalidSubject(s.name, s.code))
+        .map((s: any) => ({
+          ...s,
+          id: Math.random().toString(36).substr(2, 9),
+          color: `border-l-${['blue', 'purple', 'green', 'orange', 'pink', 'indigo'][Math.floor(Math.random() * 6)]}-400`
+        }));
+      setEditingSubjects(prev => [...prev, ...newSubjects]);
+      setIsDirty(true);
       setMode('list');
       setAiText('');
     } catch (e) {
@@ -212,11 +225,14 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
   };
 
   const removeSubject = (id: string) => {
-    setEditingSubjects(editingSubjects.filter(s => s.id !== id));
+    setEditingSubjects(prev => prev.filter(s => s.id !== id));
+    setIsDirty(true);
   };
 
   const saveAll = () => {
     onUpdate(editingSubjects);
+    setIsDirty(false);
+    setHasUnsavedChanges?.(false);
     setMode('list');
     setShowSuccessIndicator(true);
     setTimeout(() => setShowSuccessIndicator(false), 2000);
@@ -504,7 +520,7 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
               currentSubjects={editingSubjects} 
               onAddSubject={(newSub) => {
                 setEditingSubjects(prev => [...prev, newSub]);
-                setHasUnsavedChanges?.(true);
+                setIsDirty(true);
               }} 
             />
           </motion.div>
@@ -647,7 +663,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
             exit={{ opacity: 0, y: -10 }}
           >
             <ManualAddForm onAdd={(s) => {
-              setEditingSubjects([...editingSubjects, s]);
+              setEditingSubjects(prev => [...prev, s]);
+              setIsDirty(true);
               setMode('list');
             }} />
           </motion.div>
@@ -663,7 +680,8 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
             <ManualAddForm 
               initialData={subjectToEdit}
               onAdd={(updatedSubject) => {
-                setEditingSubjects(editingSubjects.map(s => s.id === updatedSubject.id ? updatedSubject : s));
+                setEditingSubjects(prev => prev.map(s => s.id === updatedSubject.id ? updatedSubject : s));
+                setIsDirty(true);
                 setMode('list');
                 setSubjectToEdit(null);
               }} 
