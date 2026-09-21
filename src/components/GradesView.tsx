@@ -67,17 +67,44 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
      return nameA.localeCompare(nameB, 'vi');
   });
 
-  const getGradeColor = (charMark: string) => {
-    if (!charMark) return 'text-gray-500';
-    const char = charMark.toUpperCase();
-    if (char === 'ĐẠT' || char === 'DAT' || char === 'M' || char === 'P') return 'text-green-600 dark:text-green-400';
-    if (char === 'KHÔNG ĐẠT' || char === 'KHONG DAT') return 'text-red-600 dark:text-red-400';
-    if (char.includes('A')) return 'text-green-600 dark:text-green-400';
-    if (char.includes('B')) return 'text-blue-600 dark:text-blue-400';
-    if (char.includes('C')) return 'text-yellow-600 dark:text-yellow-400';
-    if (char.includes('D')) return 'text-orange-600 dark:text-orange-400';
-    if (char.includes('F')) return 'text-red-600 dark:text-red-400';
-    return 'text-gray-600 dark:text-gray-400';
+  const getGradeBadgeStyle = (charMark: string, isPass?: boolean) => {
+    const char = (charMark || '').toUpperCase().trim();
+    if (char === 'A' || char === 'A+') {
+      return 'border border-emerald-500/80 bg-emerald-50/70 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/80';
+    }
+    if (char === 'B' || char === 'B+') {
+      return 'border border-blue-500/80 bg-blue-50/70 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-500/80';
+    }
+    if (char === 'C' || char === 'C+') {
+      return 'border border-amber-500/80 bg-amber-50/70 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-500/80';
+    }
+    if (char === 'D' || char === 'D+') {
+      return 'border border-orange-500/80 bg-orange-50/70 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-500/80';
+    }
+    if (char === 'F' || char.includes('KHÔNG ĐẠT') || char.includes('KHONG DAT')) {
+      return 'border border-rose-500/80 bg-rose-50/70 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-500/80';
+    }
+    if (char === 'ĐẠT' || char === 'DAT' || char === 'M' || char === 'P' || isPass) {
+      return 'border border-emerald-500/80 bg-emerald-50/70 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/80';
+    }
+    return 'border border-gray-300 bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600';
+  };
+
+  const isPhysicalOrDefense = (name: string, isCounted?: boolean) => {
+    const n = (name || '').toLowerCase();
+    return (
+      isCounted === false ||
+      n.includes('thể chất') ||
+      n.includes('quần vợt') ||
+      n.includes('bóng rổ') ||
+      n.includes('bóng đá') ||
+      n.includes('bóng chuyền') ||
+      n.includes('cầu lông') ||
+      n.includes('điền kinh') ||
+      n.includes('bơi') ||
+      n.includes('gdqp') ||
+      n.includes('quốc phòng')
+    );
   };
 
   const getScore = (markObj: any) => {
@@ -262,35 +289,50 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
               <div className="grid gap-3">
                 {filteredMarks.map((mark: any, i: number) => {
                   const score = getScore(mark);
+                  const subName = mark.subject?.subjectName || mark.subjectName || 'Môn học';
+                  const subCode = mark.subject?.subjectCode || mark.subjectCode || '';
+                  const credits = mark.subject?.numberOfCredit || mark.numberOfCredit || 0;
+                  const isUncounted = mark.isCounted === false || isPhysicalOrDefense(subName, mark.isCounted);
+                  
+                  // Determine pass/fail
+                  const numSummary = parseFloat(String(score.summaryMark));
+                  const charUpper = String(score.charMark).toUpperCase();
+                  const isFail = charUpper === 'F' || charUpper.includes('KHÔNG ĐẠT') || (!isNaN(numSummary) && numSummary < 4.0);
+                  const isPass = !isFail && (['A', 'B', 'C', 'D', 'ĐẠT', 'DAT', 'M', 'P'].some(c => charUpper.includes(c)) || (!isNaN(numSummary) && numSummary >= 4.0) || score.charMark !== '-');
+
+                  let badgeLabel = score.charMark;
+                  if (badgeLabel === '-' || !badgeLabel) {
+                    badgeLabel = isUncounted ? (isPass ? 'Đạt' : 'Chưa đạt') : (isPass ? 'Đạt' : 'F');
+                  }
+
                   return (
                   <motion.div
                     key={mark?.id || i}
                     layout
-                    className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden"
+                    className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden transition-all hover:border-gray-200 dark:hover:border-gray-600"
                   >
                     <div 
-                      className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                      className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50/70 dark:hover:bg-gray-750 transition-colors"
                       onClick={() => setExpandedSubject(expandedSubject === (mark?.id || i) ? null : (mark?.id || i))}
                     >
-                      <div className="flex-1 pr-4">
-                        <h4 className="font-bold text-gray-900 dark:text-gray-100">
-                          {mark.subject?.subjectName || mark.subjectName}
-                          {mark.isCounted === false && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                              Không tính GPA
-                            </span>
-                          )}
+                      <div className="flex-1 pr-3">
+                        <h4 className="font-bold text-gray-900 dark:text-gray-100 text-base leading-snug">
+                          {subName}
                         </h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono">
-                          {mark.subject?.subjectCode || mark.subjectCode || ''} • {mark.subject?.numberOfCredit || mark.numberOfCredit || 0} tín chỉ
-                          {mark.studyTime ? ` • Lần học: ${mark.studyTime}` : ''}
-                        </p>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono">
+                          {subCode ? `${subCode} • ` : ''}{credits} tín chỉ
+                        </div>
+                        <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 italic">
+                          Lần học: {mark.studyTime || 1} • Lần thi: {mark.examTime || 1} • {isUncounted ? 'Không tính điểm' : 'Tính điểm'}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <span className={`text-xl font-black ${getGradeColor(String(score.charMark))}`}>
-                            {score.charMark}
-                          </span>
+                      
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className={cn(
+                          "px-3 py-1 rounded-xl border text-center font-bold text-sm min-w-[42px] shadow-xs",
+                          getGradeBadgeStyle(badgeLabel, isPass)
+                        )}>
+                          {badgeLabel}
                         </div>
                         {expandedSubject === (mark?.id || i) ? (
                           <ChevronUp className="w-5 h-5 text-gray-400" />
@@ -306,26 +348,37 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: 'auto', opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50"
+                          className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/50"
                         >
-                          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center sm:text-left">
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">Điểm quá trình</span>
-                              <span className="font-bold text-gray-900 dark:text-gray-100">{score.processMark}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">QT (Quá trình)</span>
+                              <span className="text-base font-bold text-gray-900 dark:text-gray-100 mt-0.5">{score.processMark}</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">Điểm thi</span>
-                              <span className="font-bold text-gray-900 dark:text-gray-100">{score.examMark}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Thi kết thúc</span>
+                              <span className="text-base font-bold text-gray-900 dark:text-gray-100 mt-0.5">{score.examMark}</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">Tổng kết (Hệ 10)</span>
-                              <span className="font-bold text-gray-900 dark:text-gray-100">{score.summaryMark}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Tổng kết (Hệ 10)</span>
+                              <span className="text-base font-bold text-blue-600 dark:text-blue-400 mt-0.5">{score.summaryMark}</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">Tổng kết (Hệ 4)</span>
-                              <span className="font-bold text-gray-900 dark:text-gray-100">{score.mark4}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Đánh giá</span>
+                              <span className={cn(
+                                "text-base font-bold mt-0.5",
+                                isPass ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                              )}>
+                                {isPass ? "Đạt" : "Không đạt"}
+                              </span>
                             </div>
                           </div>
+                          {!isUncounted && score.mark4 !== '-' && (
+                            <div className="px-4 pb-3 pt-1 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-800/60 flex justify-between items-center">
+                              <span>Quy đổi thang điểm 4:</span>
+                              <span className="font-bold text-gray-800 dark:text-gray-200">{score.mark4}</span>
+                            </div>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
