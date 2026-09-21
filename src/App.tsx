@@ -123,13 +123,23 @@ export default function App() {
     });
     const arr = Array.from(map.entries()).map(([id, name]) => ({ id, name }));
     arr.sort((a, b) => {
-      // Parse semester name format like "1_2026_2027" -> year: 2026, sem: 1 -> 20261
       const parseSem = (name: string) => {
-        const match = name.match(/^(\d)_(\d{4})/);
-        if (match) {
-          return parseInt(match[2]) * 10 + parseInt(match[1]);
+        // Match "Học kỳ 2 Năm học 2024-2025"
+        const hocKyMatch = name.match(/học\s*kỳ\s*(\d)\s*năm\s*học\s*(\d{4})/i);
+        if (hocKyMatch) {
+          return parseInt(hocKyMatch[2]) * 10 + parseInt(hocKyMatch[1]);
         }
-        return (Number(b.id) || 0) - (Number(a.id) || 0);
+        // Match "1_2026_2027" or similar
+        const underMatch = name.match(/^(\d)_(\d{4})/);
+        if (underMatch) {
+          return parseInt(underMatch[2]) * 10 + parseInt(underMatch[1]);
+        }
+        // Match general year
+        const yearOnly = name.match(/(\d{4})/);
+        if (yearOnly) {
+          return parseInt(yearOnly[1]) * 10;
+        }
+        return 0;
       };
       const valA = parseSem(a.name);
       const valB = parseSem(b.name);
@@ -154,7 +164,7 @@ export default function App() {
 
   const filteredSubjects = useMemo(() => {
     if (selectedSemesterId === 'all') return subjects;
-    return subjects.filter(s => s.semesterId === selectedSemesterId);
+    return subjects.filter(s => s.semesterId === selectedSemesterId || String(s.semesterId) === String(selectedSemesterId));
   }, [subjects, selectedSemesterId]);
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -670,7 +680,7 @@ export default function App() {
             <div className="relative w-full sm:w-auto">
               <select
                 value={selectedSemesterId}
-                onChange={(e) => setSelectedSemesterId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                onChange={(e) => setSelectedSemesterId(e.target.value)}
                 className="w-full sm:w-auto appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               >
                 <option value="all">Tất cả kỳ học</option>
