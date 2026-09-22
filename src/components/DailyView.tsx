@@ -7,7 +7,7 @@ import { Card } from './Card';
 import { StickyNote, Plus, Edit2, Trash2, Timer, PlayCircle, AlertCircle } from 'lucide-react';
 import { Button } from './Button';
 import { motion } from 'motion/react';
-import { cn } from '../lib/utils';
+import { cn, deduplicateSubjects } from '../lib/utils';
 
 interface DailyViewProps {
   subjects: Subject[];
@@ -120,13 +120,14 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
 
   const daySchedule = useMemo(() => {
     const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-    return subjects
+    const filtered = subjects
       .filter(subject => {
         return selectedDateStr >= subject.startDate && 
                selectedDateStr <= subject.endDate && 
                subject.daysOfWeek.includes(selectedDate.getDay());
       })
       .sort((a, b) => Math.min(...a.periods) - Math.min(...b.periods));
+    return deduplicateSubjects(filtered);
   }, [subjects, selectedDate]);
 
   const hasExamOnSelectedDate = useMemo(() => {
