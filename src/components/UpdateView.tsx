@@ -2,7 +2,7 @@ import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
 import { useState, useMemo, useEffect } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
-import { cn, normalizeSubjectName, isInvalidSubject } from '../lib/utils';
+import { cn, normalizeSubjectName, isInvalidSubject, deduplicateSubjects } from '../lib/utils';
 import { Card } from './Card';
 import { Subject, PERIODS } from '../types';
 import { auth } from '../firebase';
@@ -136,7 +136,7 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
          return;
       }
       
-      setEditingSubjects(prev => [...prev, ...results]);
+      setEditingSubjects(prev => deduplicateSubjects([...prev, ...results]));
       setIsDirty(true);
       setMode('list');
       setTluPassword('');
@@ -152,14 +152,14 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
       setIsTluSyncing(false);
     }
   };
-  const [editingSubjects, setEditingSubjects] = useState<Subject[]>(() => subjects.filter(s => !isInvalidSubject(s.name, s.code)));
+  const [editingSubjects, setEditingSubjects] = useState<Subject[]>(() => deduplicateSubjects(subjects));
   const [isDirty, setIsDirty] = useState(false);
   const [subjectToEdit, setSubjectToEdit] = useState<Subject | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (!isDirty) {
-      setEditingSubjects(subjects.filter(s => !isInvalidSubject(s.name, s.code)));
+      setEditingSubjects(deduplicateSubjects(subjects));
     }
   }, [subjects, isDirty]);
 
