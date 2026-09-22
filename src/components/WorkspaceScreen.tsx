@@ -5,10 +5,10 @@ import { Button } from './Button';
 import { Card } from './Card';
 import { Users, Key, CheckCircle2, ChevronRight, RefreshCw, Trash2, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence, useAnimation, PanInfo } from 'motion/react';
-import { collection, setDoc, doc, onSnapshot, writeBatch, deleteDoc } from 'firebase/firestore';
+import { collection, setDoc, doc, onSnapshot, writeBatch, deleteDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Workspace } from '../types';
-import { cn, isInvalidSubject, normalizeSubjectName } from '../lib/utils';
+import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from '../lib/utils';
 
 interface WorkspaceScreenProps {
   userId: string;
@@ -367,17 +367,21 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       }
     }
     
-    for (const subject of results) {
-       try {
-           let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
-           deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-');
-           subject.id = deterministicId;
-           const docRef = doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'subjects', subject.id);
-           await setDoc(docRef, subject);
-       } catch (err) {
-           console.error("FAIL ON SUBJECT:", JSON.stringify(subject), err);
-       }
-    }
+    const cleanResults = deduplicateSubjects(results);
+    const subjectsColl = collection(db, 'users', userId, 'workspaces', newWorkspace.id, 'subjects');
+    const existingSnap = await getDocs(subjectsColl);
+    const batch = writeBatch(db);
+    existingSnap.forEach(docSnap => {
+      batch.delete(docSnap.ref);
+    });
+    cleanResults.forEach(subject => {
+      let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+      deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-');
+      subject.id = deterministicId;
+      const docRef = doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'subjects', subject.id);
+      batch.set(docRef, subject);
+    });
+    await batch.commit();
 
     localStorage.setItem('savedWorkspaceId', newWorkspace.id);
     onWorkspaceSelect(newWorkspace);
