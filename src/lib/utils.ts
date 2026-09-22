@@ -137,3 +137,34 @@ export function isInvalidSubject(name?: string, code?: string): boolean {
   }
   return false;
 }
+
+/**
+ * Deduplicates subjects array by matching normalized name, timing, days, periods, and room
+ */
+export function deduplicateSubjects<T extends { name: string; code?: string; startDate?: string; endDate?: string; daysOfWeek?: number[]; periods?: number[]; room?: string }>(subjects: T[]): T[] {
+  const seen = new Set<string>();
+  const results: T[] = [];
+
+  for (const s of subjects) {
+    if (isInvalidSubject(s.name, s.code)) continue;
+    const cleanName = normalizeSubjectName(s.name);
+    const days = [...(s.daysOfWeek || [])].sort((a, b) => a - b).join(',');
+    const periods = [...(s.periods || [])].sort((a, b) => a - b).join(',');
+    const sDate = s.startDate || '';
+    const eDate = s.endDate || '';
+    const room = (s.room || '').trim().toLowerCase();
+    
+    // Unique signature key
+    const key = `${cleanName.toLowerCase()}|${sDate}|${eDate}|${days}|${periods}|${room}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      results.push({
+        ...s,
+        name: cleanName
+      });
+    }
+  }
+
+  return results;
+}
