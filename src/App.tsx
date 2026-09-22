@@ -20,13 +20,13 @@ import { HeaderMenu } from './components/HeaderMenu';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Subject, Note, UserProfile, Workspace } from './types';
 import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
-import { cn, isInvalidSubject, normalizeSubjectName } from './lib/utils';
+import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from './lib/utils';
 import { format } from 'date-fns';
 import { Toaster } from 'react-hot-toast';
 import { useClassNotifications } from './hooks/useClassNotifications';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -348,18 +348,23 @@ export default function App() {
       }
 
       if (results.length > 0 || json.gpaSummary || json.detailedMarks) {
-        // Debug loop
-    for (const subject of results) {
-       try {
-           let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
-           deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-'); // FIX URL SAFE
-           subject.id = deterministicId;
-           const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
-           await setDoc(docRef, subject);
-       } catch (err) {
-           console.error("FAIL ON SUBJECT:", JSON.stringify(subject), err);
-       }
-    }
+        if (results.length > 0) {
+          const cleanResults = deduplicateSubjects(results);
+          const subjectsColl = collection(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects');
+          const existingSnap = await getDocs(subjectsColl);
+          const batch = writeBatch(db);
+          existingSnap.forEach(docSnap => {
+            batch.delete(docSnap.ref);
+          });
+          cleanResults.forEach(subject => {
+            let deterministicId = btoa(encodeURIComponent(`${subject.name}_${subject.startDate}_${subject.daysOfWeek[0]}_${subject.periods[0]}`));
+            deterministicId = deterministicId.replace(/\//g, '_').replace(/\+/g, '-');
+            subject.id = deterministicId;
+            const docRef = doc(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects', subject.id);
+            batch.set(docRef, subject);
+          });
+          await batch.commit();
+        }
         localStorage.setItem(lastSyncKey, Date.now().toString());
         console.log("Đã đồng bộ thành công!");
         if (force) alert("Đồng bộ lịch học, thi và điểm số thành công!");
@@ -452,14 +457,17 @@ export default function App() {
 
     const subjectsRef = collection(db, 'users', user.uid, 'workspaces', workspace.id, 'subjects');
     const unsubscribeSubjects = onSnapshot(query(subjectsRef), (snapshot) => {
-      const loadedSubjects: Subject[] = [];
-      snapshot.forEach((doc) => {
-        const s = doc.data() as Subject;
+      const rawSubjects: Subject[] = [];
+      snapshot.forEach((docSnap) => {
+        const s = docSnap.data() as Subject;
         if (!isInvalidSubject(s.name, s.code)) {
-          loadedSubjects.push(s);
+          rawSubjects.push({
+            ...s,
+            id: s.id || docSnap.id
+          });
         }
       });
-      setSubjects(loadedSubjects);
+      setSubjects(deduplicateSubjects(rawSubjects));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `users/${user.uid}/workspaces/${workspace.id}/subjects`);
     });
