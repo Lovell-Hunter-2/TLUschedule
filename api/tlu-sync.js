@@ -723,8 +723,11 @@ export default async function handler(req, res) {
         examsArrs = await Promise.all(examPromises);
       }
 
+      const flattenedSchedules = schedulesArrs.flat();
+      const finalSchedules = flattenedSchedules.length > 0 ? flattenedSchedules : currentSchedule;
+
       return {
-        allSchedules: [...currentSchedule, ...schedulesArrs.flat()],
+        allSchedules: finalSchedules,
         allExams: examsArrs.flat()
       };
     };
@@ -792,20 +795,32 @@ export default async function handler(req, res) {
       semesterName: item._semesterName
     })).filter(e => e.subjectName && e.examDate);
 
-    // Xoá trùng lặp do trộn currentSchedule với schedulesArrs
+    // Xoá trùng lặp môn học
     const uniqueSchedules = [];
-    const seenCodes = new Set();
+    const seenSchedKeys = new Set();
     for (const s of cleanedList) {
-       if (!seenCodes.has(s.subjectCode)) {
-          seenCodes.add(s.subjectCode);
+       const key = `${s.subjectName.trim().toLowerCase()}|${(s.subjectCode || '').trim().toLowerCase()}|${JSON.stringify(s.timetables || [])}`;
+       if (!seenSchedKeys.has(key)) {
+          seenSchedKeys.add(key);
           uniqueSchedules.push(s);
+       }
+    }
+
+    // Xoá trùng lặp lịch thi
+    const uniqueExams = [];
+    const seenExamKeys = new Set();
+    for (const e of cleanedExams) {
+       const key = `${e.subjectName.trim().toLowerCase()}|${e.examDate}|${e.examTime}|${e.roomName}`;
+       if (!seenExamKeys.has(key)) {
+          seenExamKeys.add(key);
+          uniqueExams.push(e);
        }
     }
 
     return res.status(200).json({ 
       message: 'Đồng bộ thành công', 
       data: uniqueSchedules,
-      exams: cleanedExams,
+      exams: uniqueExams,
       studentName,
       gpaSummary,
       detailedMarks,
