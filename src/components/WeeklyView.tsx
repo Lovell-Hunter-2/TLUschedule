@@ -4,7 +4,7 @@ import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
 import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2, BookOpen } from 'lucide-react';
 import { Button } from './Button';
-import { cn, getSubjectColor, getSubjectBadgeColor, normalizeSubjectName } from '../lib/utils';
+import { cn, getSubjectColor, getSubjectBadgeColor, normalizeSubjectName, deduplicateSubjects } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface WeeklyViewProps {
@@ -38,16 +38,19 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
 
   const weekSchedule = useMemo(() => {
     const schedule: Record<string, Record<number, Subject[]>> = {};
+    const cleanSubjects = deduplicateSubjects(subjects);
     
     weekDays.forEach(day => {
       const dayStr = format(day, 'yyyy-MM-dd');
       schedule[dayStr] = {};
       
-      subjects.forEach(subject => {
+      cleanSubjects.forEach(subject => {
         if (dayStr >= subject.startDate && dayStr <= subject.endDate && subject.daysOfWeek.includes(day.getDay())) {
           subject.periods.forEach(p => {
             if (!schedule[dayStr][p]) schedule[dayStr][p] = [];
-            schedule[dayStr][p].push(subject);
+            if (!schedule[dayStr][p].some(existing => existing.name === subject.name && existing.room === subject.room)) {
+              schedule[dayStr][p].push(subject);
+            }
           });
         }
       });
