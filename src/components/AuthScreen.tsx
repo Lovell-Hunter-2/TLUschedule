@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Button } from './Button';
 import { Card } from './Card';
-import { Input } from './Input';
-import { GraduationCap, Mail, Lock, User, ArrowRight, KeyRound, Sparkles, AlertCircle } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { GraduationCap, Sparkles, Smartphone, CheckCircle2 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { 
   signInWithPopup, 
   signInWithRedirect, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
+  signInAnonymously,
   updateProfile,
-  sendPasswordResetEmail,
   getRedirectResult
 } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
@@ -20,13 +17,9 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
-  const [authMode, setAuthMode] = useState<'google' | 'email_login' | 'email_signup' | 'forgot_password'>('google');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const [infoMessage, setInfoMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingType, setLoadingType] = useState<'google' | 'anonymous' | null>(null);
   const [isIOSStandalone, setIsIOSStandalone] = useState(false);
 
   useEffect(() => {
@@ -34,7 +27,7 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     const isStandalone = (window.navigator as any).standalone === true || 
                          window.matchMedia('(display-mode: standalone)').matches;
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    if (isStandalone && isIOS) {
+    if (isStandalone || isIOS) {
       setIsIOSStandalone(true);
     }
 
@@ -53,8 +46,8 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
+      setLoadingType('google');
       setError('');
-      setInfoMessage('');
       
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
       const isWebview = (userAgent.indexOf('FBAV') > -1) || (userAgent.indexOf('Instagram') > -1) || (userAgent.indexOf('Zalo') > -1);
@@ -67,129 +60,97 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       }
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/popup-blocked' || isIOSStandalone) {
-        setError('Trên màn hình chính iPhone (PWA), Apple giới hạn mở popup Google. Bạn vui lòng sử dụng Đăng nhập bằng Email/Mật khẩu bên dưới để vào ứng dụng mượt mà nhất!');
-        setAuthMode('email_login');
+      if (err.code === 'auth/popup-blocked' || err.message?.includes('missing initial state') || isIOSStandalone) {
+        setError('Trên màn hình chính iPhone (PWA), Apple giới hạn mở popup Google. Vui lòng bấm "⚡ Đăng nhập nhanh" bên dưới để vào ứng dụng ngay!');
       } else {
-        setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử lại hoặc đăng nhập bằng Email.');
+        setError(err.message || 'Đăng nhập Google thất bại. Vui lòng thử nút "Đăng nhập nhanh" bên dưới.');
       }
     } finally {
       setIsLoading(false);
+      setLoadingType(null);
     }
   };
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setInfoMessage('');
-
-    if (!email.trim() || !password.trim()) {
-      setError('Vui lòng nhập đầy đủ email và mật khẩu.');
-      return;
-    }
-
+  const handleQuickLogin = async () => {
     try {
       setIsLoading(true);
-      if (authMode === 'email_login') {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-        onLoginSuccess();
-      } else if (authMode === 'email_signup') {
-        if (password.length < 6) {
-          setError('Mật khẩu phải có ít nhất 6 ký tự.');
-          setIsLoading(false);
-          return;
-        }
-        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        if (name.trim()) {
-          await updateProfile(cred.user, { displayName: name.trim() });
-        }
-        onLoginSuccess();
-      }
-    } catch (err: any) {
-      console.error("Email auth error:", err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        setError('Email hoặc mật khẩu không chính xác. Nếu chưa có tài khoản, hãy nhấn "Đăng ký tài khoản".');
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError('Email này đã được đăng ký. Vui lòng chuyển sang "Đăng nhập".');
-      } else if (err.code === 'auth/invalid-email') {
-        setError('Địa chỉ email không hợp lệ.');
-      } else if (err.code === 'auth/weak-password') {
-        setError('Mật khẩu quá yếu (cần tối thiểu 6 ký tự).');
-      } else {
-        setError(err.message || 'Xác thực không thành công. Vui lòng thử lại.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) {
-      setError('Vui lòng nhập email để nhận liên kết đặt lại mật khẩu.');
-      return;
-    }
-    try {
-      setIsLoading(true);
+      setLoadingType('anonymous');
       setError('');
-      await sendPasswordResetEmail(auth, email.trim());
-      setInfoMessage('Đã gửi email khôi phục mật khẩu! Vui lòng kiểm tra hộp thư đến (và thư mục Spam).');
-    } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/user-not-found') {
-        setError('Không tìm thấy tài khoản với email này.');
-      } else {
-        setError('Không thể gửi email khôi phục. Vui lòng thử lại.');
+      
+      const cred = await signInAnonymously(auth);
+      if (cred?.user) {
+        await updateProfile(cred.user, { displayName: 'Sinh viên TLU' });
       }
+      onLoginSuccess();
+    } catch (err: any) {
+      console.error("Quick login error:", err);
+      setError('Không thể đăng nhập nhanh: ' + (err.message || 'Vui lòng thử lại'));
     } finally {
       setIsLoading(false);
+      setLoadingType(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col items-center justify-center p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex flex-col items-center justify-center p-4 sm:p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-md flex-1 flex flex-col justify-center"
       >
         <div className="flex flex-col items-center mb-6">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-600 rounded-[2rem] sm:rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-blue-200 dark:shadow-none mb-4 rotate-12">
-            <GraduationCap className="w-8 h-8 sm:w-10 sm:h-10 text-white -rotate-12" />
+          <div className="w-18 h-18 sm:w-20 sm:h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-200 dark:shadow-none mb-4 rotate-12">
+            <GraduationCap className="w-9 h-9 sm:w-10 sm:h-10 text-white -rotate-12" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">TLU Schedule</h1>
           <p className="text-gray-500 dark:text-gray-400 font-medium text-xs sm:text-sm mt-1">Quản lý lịch học & lịch thi thông minh</p>
         </div>
 
-        {isIOSStandalone && (
-          <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-            <span>
-              <strong>iPhone PWA:</strong> Đăng nhập bằng <strong>Email/Mật khẩu</strong> bên dưới hoạt động mượt mà 100% không bị giới hạn Safari!
-            </span>
-          </div>
-        )}
-
         <Card className="p-6 sm:p-8 shadow-2xl shadow-gray-200/50 dark:shadow-none border-white/50 dark:border-gray-700/50 backdrop-blur-sm bg-white/95 dark:bg-gray-800/95 mb-6 rounded-3xl">
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4">
+            <div className="text-center mb-1">
+              <h2 className="text-lg font-bold text-gray-800 dark:text-white">Bắt đầu sử dụng</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Chọn phương thức thuận tiện nhất để lưu lịch học trên thiết bị của bạn
+              </p>
+            </div>
+
             {error && (
-              <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-xl text-xs text-red-600 dark:text-red-400 font-medium text-center">
+              <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-2xl text-xs text-red-600 dark:text-red-400 font-medium text-center">
                 {error}
               </div>
             )}
-            {infoMessage && (
-              <div className="p-3 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-900 rounded-xl text-xs text-green-600 dark:text-green-400 font-medium text-center">
-                {infoMessage}
+
+            {/* Quick 1-Click Login Button */}
+            <div className="flex flex-col gap-2">
+              <Button 
+                onClick={handleQuickLogin}
+                disabled={isLoading}
+                className="w-full h-13 text-sm sm:text-base font-bold rounded-2xl shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2.5 bg-blue-600 hover:bg-blue-700 text-white border-none transition-all cursor-pointer"
+              >
+                <Sparkles className="w-5 h-5 text-yellow-300 fill-yellow-300 shrink-0" />
+                <span>{isLoading && loadingType === 'anonymous' ? 'Đang chuẩn bị...' : '⚡ Đăng nhập nhanh (Vào ngay)'}</span>
+              </Button>
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium text-center">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Hoạt động 100% trên Màn hình chính iPhone (PWA) & máy tính</span>
               </div>
-            )}
+            </div>
+
+            <div className="relative flex items-center justify-center my-1.5">
+              <div className="border-t border-gray-200 dark:border-gray-700 w-full"></div>
+              <span className="bg-white dark:bg-gray-800 px-3 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
+                Hoặc
+              </span>
+            </div>
 
             {/* Google Sign In Button */}
             <Button 
               onClick={handleGoogleLogin} 
               disabled={isLoading}
-              className="w-full h-12 text-sm sm:text-base font-bold rounded-2xl shadow-sm flex items-center justify-center gap-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+              className="w-full h-12 text-sm sm:text-base font-bold rounded-2xl shadow-sm flex items-center justify-center gap-3 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all cursor-pointer"
             >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                   fill="#4285F4"
@@ -207,150 +168,17 @@ export function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   fill="#EA4335"
                 />
               </svg>
-              {isLoading && authMode === 'google' ? 'Đang kết nối...' : 'Tiếp tục với Google'}
+              <span>{isLoading && loadingType === 'google' ? 'Đang kết nối...' : 'Tiếp tục với Google'}</span>
             </Button>
 
-            <div className="relative flex items-center justify-center my-1">
-              <div className="border-t border-gray-200 dark:border-gray-700 w-full"></div>
-              <span className="bg-white dark:bg-gray-800 px-3 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
-                Hoặc bằng Email
-              </span>
-            </div>
-
-            {/* Email Form Modes */}
-            <AnimatePresence mode="wait">
-              {authMode === 'forgot_password' ? (
-                <motion.form 
-                  key="forgot"
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  onSubmit={handleResetPassword} 
-                  className="flex flex-col gap-3.5"
-                >
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    Nhập email của bạn để nhận liên kết khôi phục mật khẩu.
-                  </p>
-                  <Input 
-                    type="email"
-                    label="Email"
-                    placeholder="name@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    icon={<Mail className="w-4 h-4" />}
-                    required
-                  />
-                  <Button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full h-11 text-sm font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20"
-                  >
-                    {isLoading ? 'Đang gửi...' : 'Gửi liên kết khôi phục'}
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={() => { setAuthMode('email_login'); setError(''); setInfoMessage(''); }}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline text-center font-medium mt-1"
-                  >
-                    Quay lại Đăng nhập
-                  </button>
-                </motion.form>
-              ) : (
-                <motion.form 
-                  key={authMode}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  onSubmit={handleEmailAuth} 
-                  className="flex flex-col gap-3.5"
-                >
-                  {authMode === 'email_signup' && (
-                    <Input 
-                      type="text"
-                      label="Họ và tên"
-                      placeholder="Nguyễn Văn A"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      icon={<User className="w-4 h-4" />}
-                      required
-                    />
-                  )}
-
-                  <Input 
-                    type="email"
-                    label="Email"
-                    placeholder="sv@thanglong.edu.vn hoặc email cá nhân"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    icon={<Mail className="w-4 h-4" />}
-                    required
-                  />
-
-                  <div>
-                    <Input 
-                      type="password"
-                      label="Mật khẩu"
-                      placeholder={authMode === 'email_signup' ? 'Tối thiểu 6 ký tự' : 'Nhập mật khẩu'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      icon={<Lock className="w-4 h-4" />}
-                      required
-                    />
-                    {authMode === 'email_login' && (
-                      <div className="flex justify-end mt-1">
-                        <button
-                          type="button"
-                          onClick={() => { setAuthMode('forgot_password'); setError(''); setInfoMessage(''); }}
-                          className="text-xs text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
-                        >
-                          Quên mật khẩu?
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full h-11 text-sm font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 mt-1"
-                  >
-                    {isLoading ? (
-                      'Đang xử lý...'
-                    ) : authMode === 'email_login' ? (
-                      <>Đăng nhập <ArrowRight className="w-4 h-4" /></>
-                    ) : (
-                      <>Tạo tài khoản <Sparkles className="w-4 h-4" /></>
-                    )}
-                  </Button>
-
-                  <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {authMode === 'email_login' ? (
-                      <>
-                        <span>Chưa có tài khoản?</span>
-                        <button
-                          type="button"
-                          onClick={() => { setAuthMode('email_signup'); setError(''); setInfoMessage(''); }}
-                          className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          Đăng ký ngay
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span>Đã có tài khoản?</span>
-                        <button
-                          type="button"
-                          onClick={() => { setAuthMode('email_login'); setError(''); setInfoMessage(''); }}
-                          className="font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          Đăng nhập
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </motion.form>
-              )}
-            </AnimatePresence>
+            {isIOSStandalone && (
+              <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-2xl flex items-start gap-2 text-xs text-blue-800 dark:text-blue-300">
+                <Smartphone className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+                <span>
+                  <strong>Khuyên dùng:</strong> Khi dùng icon app ngoài màn hình chính, nhấn <strong>"⚡ Đăng nhập nhanh"</strong> để vào ngay lập tức mà không gặp bất kỳ xung đột Safari nào!
+                </span>
+              </div>
+            )}
           </div>
         </Card>
       </motion.div>
