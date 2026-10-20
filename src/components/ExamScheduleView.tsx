@@ -274,8 +274,8 @@ export function ExamScheduleView({
                     {daysDiff !== null && (
                       <div className="shrink-0">
                         {isToday ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse shadow-md shadow-red-500/30">
-                            🔥 Hôm nay thi!
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded-full shadow-md shadow-indigo-500/20">
+                            <GraduationCap className="w-3.5 h-3.5 text-amber-300" /> Hôm nay thi
                           </span>
                         ) : isPast ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium rounded-full">
