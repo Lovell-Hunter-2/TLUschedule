@@ -16,14 +16,14 @@ export function Tabs({ tabs, activeTab, onChange, className }: TabsProps) {
           key={tab.id}
           onClick={() => onChange(tab.id)}
           className={cn(
-            'flex-1 flex flex-row items-center justify-center gap-1.5 sm:gap-2 py-3.5 sm:py-2.5 px-2.5 sm:px-5 rounded-xl text-xs sm:text-sm font-bold sm:font-semibold transition-all whitespace-nowrap',
+            'flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-1 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all select-none',
             activeTab === tab.id
-              ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm border border-gray-100 dark:border-gray-600'
+              ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm border border-gray-100 dark:border-gray-600'
               : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
           )}
         >
           <span className="shrink-0">{tab.icon}</span>
-          <span className="truncate">{tab.label}</span>
+          <span className="truncate tracking-tight sm:tracking-normal">{tab.label}</span>
         </button>
       ))}
     </div>
