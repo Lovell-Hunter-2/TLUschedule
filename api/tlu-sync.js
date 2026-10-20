@@ -666,25 +666,42 @@ export default async function handler(req, res) {
         }).catch(() => []);
 
       try {
-        const semRes = await withTimeout(
-          httpsGet(UPSTREAM_HOST, '/education/api/schoolyear/1/10000', baseHeaders),
-          2000, 
-          { status: 504 }
-        );
-        if (semRes.status === 200) {
-          const years = JSON.parse(semRes.data);
-          const yearList = Array.isArray(years) ? years : (years.content || []);
-          yearList.forEach(y => {
-            if (y.semesters) {
-              y.semesters.forEach(s => {
-                semesterMap[s.id] = s.semesterName;
+        const [infoRes, semRes] = await Promise.all([
+          httpsGet(UPSTREAM_HOST, '/education/api/semester/semester_info', baseHeaders).catch(() => ({ status: 500 })),
+          httpsGet(UPSTREAM_HOST, '/education/api/schoolyear/1/10000', baseHeaders).catch(() => ({ status: 500 }))
+        ]);
+
+        if (infoRes && infoRes.status === 200) {
+          try {
+            const list = JSON.parse(infoRes.data);
+            (Array.isArray(list) ? list : (list.content || [])).forEach(s => {
+              if (s && s.id) {
+                semesterMap[s.id] = s.semesterName || s.semesterCode;
                 allSemesterIds.push(s.id);
-              });
-            }
-          });
+              }
+            });
+          } catch (e) {}
+        }
+
+        if (semRes && semRes.status === 200) {
+          try {
+            const years = JSON.parse(semRes.data);
+            const yearList = Array.isArray(years) ? years : (years.content || []);
+            yearList.forEach(y => {
+              if (y.semesters) {
+                y.semesters.forEach(s => {
+                  if (s && s.id) {
+                    semesterMap[s.id] = s.semesterName || s.semesterCode;
+                    allSemesterIds.push(s.id);
+                  }
+                });
+              }
+            });
+          } catch (e) {}
         }
       } catch (e) {}
 
+      allSemesterIds = Array.from(new Set(allSemesterIds));
       allSemesterIds.sort((a, b) => b - a);
       const targetSemesters = allSemesterIds.slice(0, 3); // Lấy tối đa 3 kỳ gần nhất
 
@@ -709,18 +726,45 @@ export default async function handler(req, res) {
       }
 
       if (target === 'exams' || target === 'all') {
-        const examPromises = targetSemesters.map(sId => 
-          httpsGet(UPSTREAM_HOST, `/education/api/studentExamShow/getListExamStudentBySemester/${sId}`, baseHeaders)
-            .then(res => {
-              if (res.status === 200) {
-                const dt = JSON.parse(res.data);
-                const list = Array.isArray(dt) ? dt : (dt.content || [dt]);
-                return list.map(item => ({...item, _semesterId: sId, _semesterName: semesterMap[sId]}));
-              }
-              return [];
-            }).catch(() => [])
-        );
-        examsArrs = await Promise.all(examPromises);
+        const examPromises = targetSemesters.map(async (sId) => {
+          try {
+            const periodRes = await httpsGet(UPSTREAM_HOST, `/education/api/registerperiod/find/${sId}`, baseHeaders);
+            if (periodRes && periodRes.status === 200) {
+              const periods = JSON.parse(periodRes.data);
+              const pList = Array.isArray(periods) ? periods : (periods.content || (periods.id ? [periods] : []));
+              if (!pList || pList.length === 0) return [];
+
+              const roomPromises = pList.flatMap(p => {
+                if (!p || !p.id) return [];
+                return [1, 2].map(round => 
+                  httpsGet(UPSTREAM_HOST, `/education/api/semestersubjectexamroom/getListRoomByStudentByLoginUser/${sId}/${p.id}/${round}`, baseHeaders)
+                    .then(exRes => {
+                      if (exRes && exRes.status === 200) {
+                        const data = JSON.parse(exRes.data);
+                        const list = Array.isArray(data) ? data : (data.content || []);
+                        return list.map(item => ({
+                          ...item,
+                          _semesterId: sId,
+                          _semesterName: semesterMap[sId] || '',
+                          _round: round,
+                          _periodId: p.id,
+                          _periodName: p.name || ''
+                        }));
+                      }
+                      return [];
+                    }).catch(() => [])
+                );
+              });
+
+              const rooms = await Promise.all(roomPromises);
+              return rooms.flat();
+            }
+          } catch (e) {}
+          return [];
+        });
+
+        const examResults = await Promise.all(examPromises);
+        examsArrs = examResults.flat();
       }
 
       const flattenedSchedules = schedulesArrs.flat();
@@ -728,7 +772,7 @@ export default async function handler(req, res) {
 
       return {
         allSchedules: finalSchedules,
-        allExams: examsArrs.flat()
+        allExams: examsArrs
       };
     };
 
@@ -783,17 +827,65 @@ export default async function handler(req, res) {
       };
     }).filter(s => s.subjectName && !isInvalidSubject(s.subjectName, s.subjectCode));
 
-    const cleanedExams = allExams.map(item => ({
-      id: item.id || Math.random().toString(36).substr(2, 9),
-      subjectName: item.subjectName || '',
-      subjectCode: item.examCode || '',
-      examDate: item.examRoom?.examDate || null,
-      examTime: (item.examRoom?.startHour?.startString) || (item.examRoom?.roomCode) || '',
-      examShift: item.examRoom?.examHour?.name || item.examRoom?.examHour?.startString || '',
-      roomName: item.examRoom?.room?.name || item.examRoom?.room?.code || '',
-      semesterId: item._semesterId,
-      semesterName: item._semesterName
-    })).filter(e => e.subjectName && e.examDate);
+    const cleanedExams = allExams.map(item => {
+      const er = item.examRoom || {};
+      const roomObj = er.room || {};
+      const hourObj = er.startHour || er.examHour || {};
+
+      // Parse exam date (could be milliseconds timestamp or string)
+      let rawDate = er.examDate != null ? er.examDate : item.examDate;
+      let formattedDate = '';
+      if (rawDate != null) {
+        try {
+          const d = typeof rawDate === 'number' ? new Date(rawDate) : new Date(String(rawDate));
+          if (!isNaN(d.getTime())) {
+            formattedDate = d.toISOString().split('T')[0];
+          }
+        } catch (e) {}
+      }
+
+      // Exam time (e.g., "12:55 - 14:40")
+      let examTime = hourObj.startString || '';
+      if (!examTime && er.roomCode) {
+        const parts = String(er.roomCode).split('_');
+        for (const part of parts) {
+          if (/^\d{1,2}[h:]?\d*-\d{1,2}[h:]?\d*$/.test(part)) {
+            examTime = part;
+            break;
+          }
+        }
+      }
+
+      // Ca thi (e.g. "Ca 3 (Chiều)")
+      let examShift = hourObj.name || (item._round ? `Lần ${item._round}` : '');
+
+      // Phòng thi (e.g. "302-C5")
+      let roomName = roomObj.name || er.roomCode || '';
+      if (roomObj.building && roomObj.building.name && !roomName.includes(roomObj.building.name)) {
+        roomName = `${roomName} (${roomObj.building.name})`;
+      }
+
+      // SBD (e.g. "409")
+      const examCode = item.examCode || item.studentExamRollNumber || '';
+
+      return {
+        id: item.id || Math.random().toString(36).substr(2, 9),
+        subjectName: item.subjectName || '',
+        subjectCode: item.examPeriodCode || item.subjectCode || '',
+        examCode: examCode, // Số báo danh
+        studentCode: item.studentCode || '',
+        examDate: formattedDate || rawDate,
+        examTime: examTime,
+        examShift: examShift,
+        roomName: roomName,
+        round: item._round || 1,
+        periodName: item._periodName || '',
+        numberExpectedStudent: er.numberExpectedStudent || null,
+        examMethod: er.examMethod?.name || '',
+        semesterId: item._semesterId,
+        semesterName: item._semesterName
+      };
+    }).filter(e => e.subjectName && e.examDate);
 
     // Xoá trùng lặp môn học
     const uniqueSchedules = [];
@@ -810,7 +902,7 @@ export default async function handler(req, res) {
     const uniqueExams = [];
     const seenExamKeys = new Set();
     for (const e of cleanedExams) {
-       const key = `${e.subjectName.trim().toLowerCase()}|${e.examDate}|${e.examTime}|${e.roomName}`;
+       const key = `${e.subjectName.trim().toLowerCase()}|${e.examDate}|${e.examTime}|${e.roomName}|${e.round}`;
        if (!seenExamKeys.has(key)) {
           seenExamKeys.add(key);
           uniqueExams.push(e);
