@@ -4,7 +4,7 @@ import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
 import { SubjectCard } from './SubjectCard';
 import { Card } from './Card';
-import { StickyNote, Plus, Edit2, Trash2, Timer, PlayCircle, AlertCircle } from 'lucide-react';
+import { StickyNote, Plus, Edit2, Trash2, Timer, PlayCircle, AlertCircle, GraduationCap, Sparkles } from 'lucide-react';
 import { Button } from './Button';
 import { motion } from 'motion/react';
 import { cn, deduplicateSubjects } from '../lib/utils';
@@ -233,7 +233,7 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
                 : isToday
                 ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-700"
                 : hasExam
-                ? "bg-rose-50/70 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 hover:border-rose-400"
+                ? "bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:border-indigo-400"
                 : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-500"
             )}
           >
@@ -245,10 +245,10 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
             </span>
             {hasExam && (
               <span className={cn(
-                "text-[8px] font-black px-1.5 py-0.2 rounded-full mt-0.5 tracking-tighter",
+                "text-[8px] font-black px-1.5 py-0.2 rounded-full mt-0.5 tracking-tighter shadow-2xs",
                 isSelected
-                  ? "bg-rose-500 text-white animate-pulse"
-                  : "bg-rose-500 text-white"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-indigo-600 text-white"
               )}>
                 THI
               </span>
@@ -263,20 +263,21 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-200 dark:shadow-none flex items-center gap-3 border border-rose-400"
+            className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white shadow-md shadow-indigo-200/50 dark:shadow-none flex items-center gap-3 border border-indigo-400/40"
           >
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-              <AlertCircle className="w-6 h-6 text-white animate-bounce" />
+            <div className="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20">
+              <GraduationCap className="w-6 h-6 text-amber-300" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="bg-white text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="bg-amber-400 text-indigo-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                  <Sparkles className="w-3 h-3 text-indigo-950" />
                   LỊCH THI HỌC KỲ
                 </span>
-                <span className="text-xs font-semibold text-rose-100">Đặc biệt lưu ý</span>
+                <span className="text-xs font-medium text-indigo-100">Nhắc nhở học tập</span>
               </div>
-              <p className="text-sm font-bold mt-1 text-white leading-snug">
-                Hôm nay bạn có ca thi kết thúc học phần! Vui lòng kiểm tra kỹ phòng thi, số báo danh và mang theo Thẻ SV/CCCD.
+              <p className="text-sm font-semibold mt-1 text-white leading-snug">
+                Hôm nay bạn có ca thi kết thúc học phần. Chúc bạn làm bài thật tốt! Nhớ mang theo Thẻ SV/CCCD nhé.
               </p>
             </div>
           </motion.div>
