@@ -158,6 +158,10 @@ export default function App() {
     return subjects.filter(s => s.semesterId === selectedSemesterId);
   }, [subjects, selectedSemesterId]);
 
+  const currentSemester = useMemo(() => {
+    return semestersList.find(s => String(s.id) === String(selectedSemesterId)) || semestersList[0];
+  }, [semestersList, selectedSemesterId]);
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(() => {
     try {
@@ -835,6 +839,8 @@ export default function App() {
             userId={user.uid} 
             workspaceId={workspace.id} 
             subjects={subjects} 
+            currentSemesterId={currentSemester?.id || selectedSemesterId}
+            currentSemesterName={currentSemester?.name}
             isSyncing={isSyncing} 
             onForceSync={() => runSync(true)} 
           />
