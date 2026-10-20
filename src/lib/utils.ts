@@ -80,7 +80,7 @@ const getSubjectPaletteIndex = (subjectName: string) => {
 
 export const getSubjectColor = (subjectName: string) => {
   if (!subjectName) return COLOR_PALETTES[0].card;
-  if (subjectName.includes('(THI)')) return "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800";
+  if (subjectName.includes('(THI)')) return "bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-950 dark:text-indigo-100 border-indigo-300 dark:border-indigo-800";
   
   const index = getSubjectPaletteIndex(subjectName);
   return COLOR_PALETTES[index].card;
@@ -88,7 +88,7 @@ export const getSubjectColor = (subjectName: string) => {
 
 export const getSubjectBadgeColor = (subjectName: string) => {
   if (!subjectName) return COLOR_PALETTES[0].badge;
-  if (subjectName.includes('(THI)')) return "bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800";
+  if (subjectName.includes('(THI)')) return "bg-indigo-100/90 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800";
 
   const index = getSubjectPaletteIndex(subjectName);
   return COLOR_PALETTES[index].badge;
