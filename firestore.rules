@@ -156,6 +156,10 @@ service cloud.firestore {
         match /grades/{document=**} {
           allow read, write: if isOwner(userId);
         }
+
+        match /exams/{document=**} {
+          allow read, write: if isOwner(userId);
+        }
         
         match /secrets/{secretId} {
           allow read, write: if isOwner(userId);
