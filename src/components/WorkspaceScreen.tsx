@@ -292,7 +292,17 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         const shiftStr = String(item.examShift || item.shift || item.caThi || '');
         let shiftMatch = shiftStr.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
         
-        if (shiftMatch) {
+        if (/ca\s*1/i.test(shiftStr)) {
+          periods = [1, 2, 3];
+        } else if (/ca\s*2/i.test(shiftStr)) {
+          periods = [4, 5, 6];
+        } else if (/ca\s*3/i.test(shiftStr)) {
+          periods = [7, 8, 9];
+        } else if (/ca\s*4/i.test(shiftStr)) {
+          periods = [10, 11, 12];
+        } else if (/ca\s*5/i.test(shiftStr)) {
+          periods = [13, 14, 15];
+        } else if (shiftMatch) {
             const s = parseInt(shiftMatch[1]);
             const e = parseInt(shiftMatch[2] || shiftMatch[1]);
             periods = [];
@@ -313,12 +323,16 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
             }
         }
 
+        const sbdText = item.examCode ? ` (SBD: ${item.examCode})` : '';
+        const displayRoom = item.roomName ? `${item.roomName}${sbdText}` : (item.examCode ? `SBD: ${item.examCode}` : '');
+        const displayLecturer = item.examShift ? `${item.examShift} • Lịch Thi` : 'Lịch Thi';
+
         results.push({
           id: Math.random().toString(36).substr(2, 9),
           name: `${item.subjectName} (THI)`,
-          code: item.subjectCode || '',
-          room: item.roomName || '',
-          lecturer: 'Lịch Thi',
+          code: item.subjectCode || item.examCode || '',
+          room: displayRoom,
+          lecturer: displayLecturer,
           startDate: eDate,
           endDate: eDate,
           daysOfWeek: [dayIndex],
@@ -352,6 +366,18 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace, { merge: true });
     } else {
         await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id), newWorkspace);
+    }
+
+    // Save exams
+    if (json.exams && Array.isArray(json.exams) && json.exams.length > 0) {
+      try {
+        await setDoc(doc(db, 'users', userId, 'workspaces', newWorkspace.id, 'exams', 'data'), {
+          list: json.exams,
+          updatedAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Lỗi khi lưu lịch thi:", e);
+      }
     }
     
     // Save grades
