@@ -13,7 +13,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  GraduationCap
 } from 'lucide-react';
 import { Button } from './Button';
 import { Card } from './Card';
