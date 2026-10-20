@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Subject, PERIODS } from '../types';
 import { Card } from './Card';
-import { MapPin, User, Clock, Map as MapIcon, X, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { MapPin, User, Clock, Map as MapIcon, X, ZoomIn, ZoomOut, Maximize, GraduationCap } from 'lucide-react';
 import { cn, getSubjectColor, getSubjectBadgeColor, normalizeSubjectName } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -106,21 +106,22 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
         className={cn(
           "relative overflow-hidden border-l-4 transition-all",
           isExam 
-            ? "border-l-rose-500 border-2 border-rose-400 dark:border-rose-600 bg-rose-50/80 dark:bg-rose-950/40 ring-2 ring-rose-400/50 shadow-md"
+            ? "border-l-indigo-600 border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/70 dark:bg-indigo-950/40 shadow-xs"
             : getSubjectColor(subject.name)
         )}
       >
         <div className="flex flex-col gap-2">
           {isExam && (
             <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white tracking-wide shadow-xs animate-pulse">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-600 text-white tracking-wide shadow-2xs">
+                <GraduationCap className="w-3.5 h-3.5 text-amber-300" />
                 LỊCH THI HỌC KỲ
               </span>
             </div>
           )}
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col gap-0.5 min-w-0">
-              <h4 className={cn("font-bold text-lg leading-tight", isExam && "text-rose-900 dark:text-rose-100 font-extrabold")}>
+              <h4 className={cn("font-bold text-lg leading-tight", isExam ? "text-indigo-950 dark:text-indigo-100 font-extrabold" : "text-gray-900 dark:text-gray-100")}>
                 {displayName}
               </h4>
               {subject.code && (
@@ -128,7 +129,7 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
                   <span className={cn(
                     "text-[11px] font-semibold px-2 py-0.5 rounded border transition-colors",
                     isExam
-                      ? "bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800"
+                      ? "bg-indigo-100/80 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800"
                       : getSubjectBadgeColor(subject.name)
                   )}>
                     Mã lớp: {subject.code}
@@ -137,9 +138,9 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
               )}
             </div>
             <div className={cn(
-              "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full shrink-0",
+              "flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full shrink-0",
               isExam
-                ? "bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-100 font-bold"
+                ? "bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-bold border border-indigo-200/60 dark:border-indigo-800"
                 : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
             )}>
               <Clock className="w-3 h-3" />
