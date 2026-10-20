@@ -1,4 +1,4 @@
-import { syncTluWithChunks } from "./lib/tlu-client";
+fimport { syncTluWithChunks } from "./lib/tlu-client";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -12,6 +12,7 @@ import { DailyView } from './components/DailyView';
 import { WeeklyView } from './components/WeeklyView';
 import { UpdateView } from './components/UpdateView';
 import { GradesView } from './components/GradesView';
+import { ExamScheduleView } from './components/ExamScheduleView';
 import { Tabs } from './components/Tabs';
 import { Modal } from './components/Modal';
 import { Button } from './components/Button';
@@ -19,7 +20,7 @@ import { WeatherWidget } from './components/WeatherWidget';
 import { HeaderMenu } from './components/HeaderMenu';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Subject, Note, UserProfile, Workspace } from './types';
-import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing } from 'lucide-react';
+import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing, FileText } from 'lucide-react';
 import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from './lib/utils';
 import { format } from 'date-fns';
 import { Toaster } from 'react-hot-toast';
@@ -289,8 +290,10 @@ export default function App() {
           try {
             if (item.examDate) {
                const d = new Date(item.examDate);
-               eDate = d.toISOString().split('T')[0];
-               dayIndex = d.getDay();
+               if (!isNaN(d.getTime())) {
+                 eDate = d.toISOString().split('T')[0];
+                 dayIndex = d.getDay();
+               }
             }
           } catch (e) {}
           let periods = [1, 2, 3];
@@ -298,7 +301,17 @@ export default function App() {
           const shiftStr = String(item.examShift || item.shift || item.caThi || '');
           let shiftMatch = shiftStr.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
           
-          if (shiftMatch) {
+          if (/ca\s*1/i.test(shiftStr)) {
+            periods = [1, 2, 3];
+          } else if (/ca\s*2/i.test(shiftStr)) {
+            periods = [4, 5, 6];
+          } else if (/ca\s*3/i.test(shiftStr)) {
+            periods = [7, 8, 9];
+          } else if (/ca\s*4/i.test(shiftStr)) {
+            periods = [10, 11, 12];
+          } else if (/ca\s*5/i.test(shiftStr)) {
+            periods = [13, 14, 15];
+          } else if (shiftMatch) {
               const s = parseInt(shiftMatch[1]);
               const e = parseInt(shiftMatch[2] || shiftMatch[1]);
               periods = [];
@@ -318,11 +331,16 @@ export default function App() {
                  else if (h >= 17) periods = [13, 14, 15];
               }
           }
+
+          const sbdText = item.examCode ? ` (SBD: ${item.examCode})` : '';
+          const displayRoom = item.roomName ? `${item.roomName}${sbdText}` : (item.examCode ? `SBD: ${item.examCode}` : '');
+          const displayLecturer = item.examShift ? `${item.examShift} • Lịch Thi` : 'Lịch Thi';
+
           results.push({
             name: `${item.subjectName} (THI)`,
-            code: item.subjectCode || '',
-            room: item.roomName || '',
-            lecturer: 'Lịch Thi',
+            code: item.subjectCode || item.examCode || '',
+            room: displayRoom,
+            lecturer: displayLecturer,
             startDate: eDate,
             endDate: eDate, 
             daysOfWeek: [dayIndex],
@@ -334,7 +352,19 @@ export default function App() {
         });
       }
 
-            // Save grades
+      // Save exams data
+      if (json.exams && Array.isArray(json.exams) && json.exams.length > 0) {
+        try {
+          await setDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id, 'exams', 'data'), {
+            list: json.exams,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error("Lỗi khi lưu lịch thi:", e);
+        }
+      }
+
+      // Save grades
       if (json.gpaSummary || json.detailedMarks) {
         try {
           await setDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id, 'grades', 'data'), {
@@ -665,6 +695,7 @@ export default function App() {
             tabs={[
               { id: 'daily', label: 'Ngày', icon: <Calendar className="w-4 h-4" /> },
               { id: 'weekly', label: 'Tuần', icon: <LayoutGrid className="w-4 h-4" /> },
+              { id: 'exams', label: 'Lịch thi', icon: <FileText className="w-4 h-4" /> },
               { id: 'grades', label: 'Điểm số', icon: <Award className="w-4 h-4" /> },
               { id: 'update', label: 'Cập nhật', icon: <Settings className="w-4 h-4" /> },
             ]}
@@ -673,7 +704,7 @@ export default function App() {
         
         {/* Right side (Semester Dropdown) */}
         <div className="flex items-center gap-2 justify-end sm:flex-1">
-          {semestersList.length > 0 && activeTab !== 'update' && activeTab !== 'grades' && (
+          {semestersList.length > 0 && activeTab !== 'update' && activeTab !== 'grades' && activeTab !== 'exams' && (
             <div className="relative w-full sm:w-auto">
               <select
                 value={selectedSemesterId}
@@ -724,6 +755,15 @@ export default function App() {
             onDeleteNote={deleteNote}
             isSyncing={isSyncing}
             onForceSync={() => runSync(true)}
+          />
+        )}
+        {activeTab === 'exams' && (
+          <ExamScheduleView 
+            userId={user.uid} 
+            workspaceId={workspace.id} 
+            subjects={subjects} 
+            isSyncing={isSyncing} 
+            onForceSync={() => runSync(true)} 
           />
         )}
         {activeTab === 'grades' && (
