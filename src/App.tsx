@@ -1,4 +1,4 @@
-fimport { syncTluWithChunks } from "./lib/tlu-client";
+import { syncTluWithChunks } from "./lib/tlu-client";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
