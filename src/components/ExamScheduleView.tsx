@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'motion/react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -25,6 +25,8 @@ interface ExamScheduleViewProps {
   subjects?: any[];
   isSyncing?: boolean;
   onForceSync?: () => void;
+  currentSemesterId?: string | number;
+  currentSemesterName?: string;
 }
 
 export function ExamScheduleView({ 
@@ -32,12 +34,15 @@ export function ExamScheduleView({
   workspaceId, 
   subjects = [], 
   isSyncing = false, 
-  onForceSync 
+  onForceSync,
+  currentSemesterId,
+  currentSemesterName
 }: ExamScheduleViewProps) {
   const [loading, setLoading] = useState(true);
   const [examList, setExamList] = useState<any[]>([]);
-  const [selectedSemester, setSelectedSemester] = useState<string>('all');
+  const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [selectedRound, setSelectedRound] = useState<string>('all');
+  const userHasSelectedSemesterRef = useRef(false);
 
   useEffect(() => {
     const docRef = doc(db, 'users', userId, 'workspaces', workspaceId, 'exams', 'data');
@@ -77,45 +82,188 @@ export function ExamScheduleView({
     return () => unsubscribe();
   }, [userId, workspaceId, subjects]);
 
-  // Danh sách các học kỳ có lịch thi
+  // Helper chuẩn hóa ngày thi sang Date object
+  const parseExamDate = (dateStr: any): Date | null => {
+    if (!dateStr) return null;
+    if (dateStr instanceof Date && !isNaN(dateStr.getTime())) return dateStr;
+    if (typeof dateStr === 'number') {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const str = String(dateStr).trim();
+    // Khớp định dạng DD/MM/YYYY
+    const vnMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (vnMatch) {
+      const d = new Date(parseInt(vnMatch[3]), parseInt(vnMatch[2]) - 1, parseInt(vnMatch[1]));
+      if (!isNaN(d.getTime())) return d;
+    }
+    // Khớp định dạng YYYY-MM-DD hoặc ISO
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+    return null;
+  };
+
+  // Danh sách các học kỳ có lịch thi hoặc kỳ hiện tại
   const semesters = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { id: string; name: string; semesterId?: any; semesterName?: string }>();
+
+    // 1. Thêm kỳ từ thời khóa biểu nếu có
+    if (currentSemesterId || currentSemesterName) {
+      const semIdStr = currentSemesterId ? String(currentSemesterId) : '';
+      const semNameStr = currentSemesterName ? String(currentSemesterName) : '';
+      const key = semIdStr || semNameStr;
+      if (key) {
+        map.set(key, {
+          id: key,
+          name: semNameStr || (semIdStr ? `Học kỳ ${semIdStr}` : 'Kỳ hiện tại'),
+          semesterId: currentSemesterId,
+          semesterName: currentSemesterName
+        });
+      }
+    }
+
+    // 2. Thêm các kỳ từ danh sách môn thi
     examList.forEach(e => {
-      if (e.semesterName) {
-        map.set(String(e.semesterName), String(e.semesterName));
-      } else if (e.semesterId) {
-        map.set(String(e.semesterId), `Học kỳ ${e.semesterId}`);
+      const eSemId = e.semesterId != null ? String(e.semesterId) : '';
+      const eSemName = e.semesterName != null ? String(e.semesterName) : '';
+      
+      let existingKey: string | null = null;
+      for (const [k, v] of map.entries()) {
+        if (
+          (eSemId && (k === eSemId || String(v.semesterId) === eSemId)) ||
+          (eSemName && (k === eSemName || String(v.name).toLowerCase() === eSemName.toLowerCase()))
+        ) {
+          existingKey = k;
+          break;
+        }
+      }
+
+      if (existingKey) {
+        const item = map.get(existingKey)!;
+        if (eSemId && !item.semesterId) item.semesterId = eSemId;
+        if (eSemName && (!item.semesterName || item.name.startsWith('Học kỳ '))) {
+          item.semesterName = eSemName;
+          item.name = eSemName;
+        }
+      } else {
+        const key = eSemId || eSemName;
+        if (key) {
+          map.set(key, {
+            id: key,
+            name: eSemName || (eSemId ? `Học kỳ ${eSemId}` : 'Kỳ thi'),
+            semesterId: e.semesterId,
+            semesterName: e.semesterName
+          });
+        }
       }
     });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [examList]);
 
-  // Lọc lịch thi
+    const list = Array.from(map.values());
+
+    // Sắp xếp các kỳ mới nhất lên đầu
+    list.sort((a, b) => {
+      const parseSem = (name: string, id: any) => {
+        const match = String(name).match(/^(\d)_(\d{4})/);
+        if (match) {
+          return parseInt(match[2]) * 10 + parseInt(match[1]);
+        }
+        return Number(id) || 0;
+      };
+      const valA = parseSem(a.name, a.id);
+      const valB = parseSem(b.name, b.id);
+      if (valA !== valB) return valB - valA;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
+    });
+
+    return list;
+  }, [examList, currentSemesterId, currentSemesterName]);
+
+  // Tìm id kỳ phù hợp nhất với kỳ hiện tại của thời khóa biểu
+  const matchedSemesterId = useMemo(() => {
+    if (semesters.length === 0) return 'all';
+
+    if (currentSemesterId || currentSemesterName) {
+      const found = semesters.find(s => 
+        (currentSemesterId && (String(s.id) === String(currentSemesterId) || String(s.semesterId) === String(currentSemesterId))) ||
+        (currentSemesterName && (String(s.name) === String(currentSemesterName) || String(s.semesterName) === String(currentSemesterName))) ||
+        (currentSemesterName && (String(s.name).toLowerCase().includes(String(currentSemesterName).toLowerCase()) || String(currentSemesterName).toLowerCase().includes(String(s.name).toLowerCase())))
+      );
+      if (found) return found.id;
+    }
+
+    // Mặc định chọn kỳ mới nhất
+    return semesters[0]?.id || 'all';
+  }, [semesters, currentSemesterId, currentSemesterName]);
+
+  // Tự động gán mặc định kỳ hiện tại
+  const prevCurrentSemIdRef = useRef(currentSemesterId);
+  useEffect(() => {
+    if (prevCurrentSemIdRef.current !== currentSemesterId) {
+      prevCurrentSemIdRef.current = currentSemesterId;
+      userHasSelectedSemesterRef.current = false;
+    }
+  }, [currentSemesterId]);
+
+  useEffect(() => {
+    if (!userHasSelectedSemesterRef.current && matchedSemesterId) {
+      setSelectedSemester(matchedSemesterId);
+    }
+  }, [matchedSemesterId]);
+
+  // Lọc lịch thi theo học kỳ và lần thi
   const filteredExams = useMemo(() => {
     let list = [...examList];
-    if (selectedSemester !== 'all') {
-      list = list.filter(e => 
-        String(e.semesterName) === selectedSemester || 
-        String(e.semesterId) === selectedSemester
-      );
+    if (selectedSemester && selectedSemester !== 'all') {
+      const targetSem = semesters.find(s => s.id === selectedSemester);
+      const targetId = targetSem?.semesterId != null ? String(targetSem.semesterId) : null;
+      const targetName = targetSem?.name || (targetSem?.semesterName ? String(targetSem.semesterName) : null);
+
+      list = list.filter(e => {
+        const eId = e.semesterId != null ? String(e.semesterId) : null;
+        const eName = e.semesterName != null ? String(e.semesterName) : null;
+
+        if (eId && (eId === selectedSemester || (targetId && eId === targetId))) return true;
+        if (eName && (eName === selectedSemester || (targetName && eName.toLowerCase() === targetName.toLowerCase()))) return true;
+        if (String(e.semesterId || e.semesterName) === selectedSemester) return true;
+        return false;
+      });
     }
     if (selectedRound !== 'all') {
       list = list.filter(e => String(e.round) === selectedRound);
     }
 
-    // Sắp xếp theo ngày thi tăng dần
+    // Sắp xếp theo thứ tự ngày thi tăng dần: gần nhất thì trên, càng kéo xuống càng xa hơn
     return list.sort((a, b) => {
-      const dateA = a.examDate ? new Date(a.examDate).getTime() : 0;
-      const dateB = b.examDate ? new Date(b.examDate).getTime() : 0;
-      return dateA - dateB;
+      const getExactTime = (item: any) => {
+        const d = parseExamDate(item.examDate);
+        if (!d) return Number.MAX_SAFE_INTEGER;
+        let time = d.getTime();
+        if (item.examTime) {
+          const match = String(item.examTime).match(/(\d{1,2}):(\d{2})/);
+          if (match) {
+            time += (parseInt(match[1]) * 60 + parseInt(match[2])) * 60 * 1000;
+          }
+        } else if (item.examShift) {
+          const caMatch = String(item.examShift).match(/ca\s*(\d+)/i);
+          if (caMatch) {
+            time += parseInt(caMatch[1]) * 3600 * 1000;
+          }
+        }
+        return time;
+      };
+
+      const timeA = getExactTime(a);
+      const timeB = getExactTime(b);
+      if (timeA !== timeB) return timeA - timeB;
+      return (a.subjectName || '').localeCompare(b.subjectName || '', 'vi');
     });
-  }, [examList, selectedSemester, selectedRound]);
+  }, [examList, selectedSemester, selectedRound, semesters]);
 
   const getDaysDiff = (dateStr: string) => {
-    if (!dateStr) return null;
+    const target = parseExamDate(dateStr);
+    if (!target) return null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const target = new Date(dateStr);
     target.setHours(0, 0, 0, 0);
     const diffTime = target.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -123,18 +271,14 @@ export function ExamScheduleView({
 
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return 'Chưa có ngày thi';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-      const dayName = days[d.getDay()];
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      return `${day}/${month}/${year} (${dayName})`;
-    } catch {
-      return dateStr;
-    }
+    const d = parseExamDate(dateStr);
+    if (!d) return String(dateStr);
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const dayName = days[d.getDay()];
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year} (${dayName})`;
   };
 
   if (loading) {
@@ -172,13 +316,21 @@ export function ExamScheduleView({
             <div className="relative">
               <select
                 value={selectedSemester}
-                onChange={(e) => setSelectedSemester(e.target.value)}
+                onChange={(e) => {
+                  userHasSelectedSemesterRef.current = true;
+                  setSelectedSemester(e.target.value);
+                }}
                 className="appearance-none bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-xs sm:text-sm py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
               >
+                {semesters.map(s => {
+                  const isCurrent = s.id === matchedSemesterId;
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {s.name}{isCurrent ? ' (Kỳ hiện tại)' : ''}
+                    </option>
+                  );
+                })}
                 <option value="all">Tất cả học kỳ</option>
-                {semesters.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
                 <ChevronDown className="w-3.5 h-3.5" />
