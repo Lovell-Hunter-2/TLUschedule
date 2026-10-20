@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Subject, Note, PERIODS } from '../types';
-import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, StickyNote, Edit2, Trash2, BookOpen, GraduationCap } from 'lucide-react';
 import { Button } from './Button';
 import { cn, getSubjectColor, getSubjectBadgeColor, normalizeSubjectName, deduplicateSubjects } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -122,32 +122,32 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                   key={day.toString()} 
                   className={cn(
                     "p-1 sm:p-3 text-center border-l border-gray-100 dark:border-gray-700 flex flex-col transition-all relative",
-                    hasExamOnDay && "bg-rose-50/80 dark:bg-rose-950/40 border-t-4 border-t-rose-500 shadow-inner",
+                    hasExamOnDay && "bg-indigo-50/70 dark:bg-indigo-950/40 border-t-4 border-t-indigo-600 shadow-inner",
                     isToday && !hasExamOnDay && "bg-blue-100/60 dark:bg-blue-900/40",
-                    isToday && hasExamOnDay && "ring-2 ring-rose-400 inset-0"
+                    isToday && hasExamOnDay && "ring-2 ring-indigo-500 inset-0"
                   )}
                 >
                   <div className={cn(
                     "text-[8px] sm:text-[10px] font-bold uppercase hidden sm:block",
-                    hasExamOnDay ? "text-rose-600 dark:text-rose-400 font-extrabold" : "text-gray-400 dark:text-gray-500"
+                    hasExamOnDay ? "text-indigo-600 dark:text-indigo-400 font-extrabold" : "text-gray-400 dark:text-gray-500"
                   )}>
                     {format(day, 'EEEE', { locale: vi })}
                   </div>
                   <div className={cn(
                     "text-[8px] sm:text-[10px] font-bold uppercase sm:hidden",
-                    hasExamOnDay ? "text-rose-600 dark:text-rose-400 font-extrabold" : "text-gray-400 dark:text-gray-500"
+                    hasExamOnDay ? "text-indigo-600 dark:text-indigo-400 font-extrabold" : "text-gray-400 dark:text-gray-500"
                   )}>
                     {format(day, 'E', { locale: vi }).replace('Th ', 'T')}
                   </div>
                   <div className={cn(
                     "text-[10px] sm:text-sm font-bold mt-0.5",
-                    hasExamOnDay ? "text-rose-700 dark:text-rose-300 font-black" : (isToday ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300")
+                    hasExamOnDay ? "text-indigo-700 dark:text-indigo-300 font-black" : (isToday ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300")
                   )}>
                     {format(day, 'dd/MM')}
                   </div>
 
                   {hasExamOnDay && (
-                    <span className="mt-1 px-1.5 py-0.5 rounded-md bg-rose-500 text-white font-black text-[7.5px] sm:text-[9px] tracking-wider animate-pulse shadow-xs self-center">
+                    <span className="mt-1 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white font-black text-[7.5px] sm:text-[9px] tracking-wider shadow-xs self-center">
                       LỊCH THI
                     </span>
                   )}
@@ -219,19 +219,21 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
                             // Desktop styling (block, original styling)
                             "sm:inset-0.5 sm:rounded-md sm:p-1 sm:text-[9px] sm:leading-tight sm:block sm:text-left",
                             isExam 
-                              ? "ring-2 ring-rose-500 border-2 border-rose-500 bg-rose-100 dark:bg-rose-950 text-rose-900 dark:text-rose-100 font-black shadow-md z-10 animate-pulse" 
+                              ? "ring-1 ring-indigo-500/80 border border-indigo-400 dark:border-indigo-600 bg-gradient-to-br from-indigo-50/90 to-purple-50/90 dark:from-indigo-950/80 dark:to-purple-950/80 text-indigo-950 dark:text-indigo-100 font-extrabold shadow-sm z-10" 
                               : getSubjectColor(s.name)
                           )}
                         >
                           {/* Mobile Content */}
                           <span className="sm:hidden line-clamp-2 w-full leading-tight">
-                            {isExam ? `[THI] ${cleanName}` : cleanName}
+                            {isExam && <span className="text-indigo-600 dark:text-indigo-400 font-black mr-0.5">[THI]</span>}
+                            {cleanName}
                           </span>
                           {s.room && <span className="sm:hidden block mt-0.5 font-medium opacity-90 truncate w-full text-center">{s.room}</span>}
                           
                           {/* Desktop Content */}
                           <span className="hidden sm:inline font-bold">
-                            {isExam ? `[THI] ${cleanName}` : cleanName}
+                            {isExam && <span className="text-indigo-600 dark:text-indigo-400 font-black mr-1">[THI]</span>}
+                            {cleanName}
                           </span>
                           {s.room && (
                             <span className="hidden sm:block text-[8px] font-semibold opacity-90 truncate mt-0.5">
@@ -279,11 +281,23 @@ export function WeeklyView({ subjects, notes, onAddNote, onEditNote, onDeleteNot
           >
             <div className="flex items-start gap-3 mb-2">
               <div className="w-8 h-8 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0">
-                <BookOpen className="w-4 h-4 opacity-80" />
+                {isExamSubject(activeSubject.subject) ? (
+                  <GraduationCap className="w-4 h-4 text-amber-500 dark:text-amber-300" />
+                ) : (
+                  <BookOpen className="w-4 h-4 opacity-80" />
+                )}
               </div>
               <div className="flex-1">
+                {isExamSubject(activeSubject.subject) && (
+                  <div className="mb-1">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-indigo-600 text-white shadow-2xs">
+                      <GraduationCap className="w-3 h-3 text-amber-300" />
+                      LỊCH THI HỌC KỲ
+                    </span>
+                  </div>
+                )}
                 <h4 className="font-bold text-sm leading-tight">
-                  {normalizeSubjectName(activeSubject.subject.name)}
+                  {normalizeSubjectName(isExamSubject(activeSubject.subject) ? activeSubject.subject.name.replace(/\(THI\)/gi, '').trim() : activeSubject.subject.name)}
                 </h4>
                 {activeSubject.subject.code && (
                   <div className="mt-1">
