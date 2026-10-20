@@ -23,7 +23,7 @@ import { Subject, Note, UserProfile, Workspace } from './types';
 import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing, FileText } from 'lucide-react';
 import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from './lib/utils';
 import { format } from 'date-fns';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { useClassNotifications } from './hooks/useClassNotifications';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
@@ -159,8 +159,33 @@ export default function App() {
   }, [subjects, selectedSemesterId]);
 
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(() => {
+    try {
+      const stored = localStorage.getItem(`last_sync_tlu_${workspace?.id}`);
+      return stored ? parseInt(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
-  // Background Auto-sync
+  useEffect(() => {
+    if (workspace?.id) {
+      const stored = localStorage.getItem(`last_sync_tlu_${workspace.id}`);
+      setLastSyncTime(stored ? parseInt(stored) : null);
+    }
+  }, [workspace?.id]);
+
+  const lastSyncLabel = useMemo(() => {
+    if (!lastSyncTime) return null;
+    const diffMins = Math.floor((Date.now() - lastSyncTime) / (1000 * 60));
+    if (diffMins < 1) return 'vừa xong';
+    if (diffMins < 60) return `${diffMins}p trước`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h trước`;
+    return format(new Date(lastSyncTime), 'dd/MM HH:mm');
+  }, [lastSyncTime]);
+
+  // Background Auto-sync (runs every 6 hours)
   const runSync = async (force: boolean = false) => {
     if (!user || !workspace) return;
     
@@ -168,7 +193,7 @@ export default function App() {
     if (!force) {
       const lastTime = localStorage.getItem(lastSyncKey);
       const now = Date.now();
-      if (lastTime && now - parseInt(lastTime) < 4 * 60 * 60 * 1000) {
+      if (lastTime && now - parseInt(lastTime) < 6 * 60 * 60 * 1000) {
         return;
       }
     }
@@ -176,7 +201,7 @@ export default function App() {
     if (workspace.portal === 'sv_tlu') {
       if (force) {
         setActiveTab('update');
-        alert("Cổng sinh viên mới sv.tlu.edu.vn yêu cầu mã bảo vệ (CAPTCHA). Vui lòng thực hiện tại mục 'Cập nhật' -> 'Đồng bộ'.");
+        toast("Cổng sinh viên mới sv.tlu.edu.vn yêu cầu mã bảo vệ (CAPTCHA). Vui lòng thực hiện tại mục 'Cập nhật' -> 'Đồng bộ'.", { icon: 'ℹ️' });
       }
       return;
     }
@@ -395,23 +420,64 @@ export default function App() {
           });
           await batch.commit();
         }
-        localStorage.setItem(lastSyncKey, Date.now().toString());
+        const syncTimestamp = Date.now();
+        localStorage.setItem(lastSyncKey, syncTimestamp.toString());
+        setLastSyncTime(syncTimestamp);
+        try {
+          const { updateDoc, doc } = await import('firebase/firestore');
+          await updateDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id), {
+            lastSyncedAt: syncTimestamp
+          });
+        } catch (e) {}
+
         console.log("Đã đồng bộ thành công!");
-        if (force) alert("Đồng bộ lịch học, thi và điểm số thành công!");
+        if (force) {
+          toast.success("Đồng bộ lịch học, thi và điểm số thành công!");
+        } else {
+          toast.success("Đã tự động làm mới lịch học & lịch thi mới nhất", { id: 'auto-sync', duration: 2500 });
+        }
       } else {
-        if (force) alert("Không tìm thấy môn học nào.");
+        if (force) toast.error("Không tìm thấy môn học nào từ cổng trường.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.log("Auto sync failed:", err);
-      if (force) alert("Lỗi hệ thống: " + (err.message || "Có lỗi khi đồng bộ."));
+      if (force) toast.error("Lỗi đồng bộ: " + (err.message || "Không thể kết nối máy chủ TLU"));
     } finally {
       setIsSyncing(false);
     }
   };
 
+  // Background auto-sync: on app load, on tab focus/return (visibilitychange), and periodic 15-min check
   useEffect(() => {
-    runSync(false);
-  }, [user, workspace]);
+    if (!user || !workspace) return;
+
+    const AUTO_SYNC_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+
+    const checkAndSync = () => {
+      const lastSyncKey = `last_sync_tlu_${workspace.id}`;
+      const lastTimeStr = localStorage.getItem(lastSyncKey);
+      const now = Date.now();
+      if (!lastTimeStr || (now - parseInt(lastTimeStr)) >= AUTO_SYNC_INTERVAL) {
+        runSync(false);
+      }
+    };
+
+    checkAndSync();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAndSync();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const intervalId = setInterval(checkAndSync, 15 * 60 * 1000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(intervalId);
+    };
+  }, [user?.uid, workspace?.id]);
 
   useEffect(() => {
     document.documentElement.classList.remove('dark');
@@ -655,11 +721,18 @@ export default function App() {
             size="sm" 
             onClick={() => runSync(true)} 
             disabled={isSyncing}
-            className="text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 font-medium flex items-center justify-center p-2 sm:px-3 sm:py-2" 
-            title="Đồng bộ lại"
+            className="text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 font-medium flex items-center justify-center p-2 sm:px-3 sm:py-2 rounded-xl transition-all" 
+            title={lastSyncTime ? `Lần đồng bộ gần nhất: ${format(new Date(lastSyncTime), 'HH:mm dd/MM/yyyy')}. Hệ thống tự động làm mới mỗi 6 tiếng.` : "Tự động đồng bộ mỗi 6 tiếng"}
           >
-            <RefreshCw className={cn("w-5 h-5 sm:hidden", isSyncing && "animate-spin")} />
-            <span className="hidden sm:inline">{isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại"}</span>
+            <RefreshCw className={cn("w-4 h-4 sm:mr-1.5", isSyncing && "animate-spin text-indigo-600")} />
+            <span className="hidden sm:inline">
+              {isSyncing ? "Đang đồng bộ..." : "Đồng bộ lại"}
+            </span>
+            {lastSyncLabel && !isSyncing && (
+              <span className="hidden md:inline-block ml-1.5 text-[10px] text-gray-400 font-normal">
+                ({lastSyncLabel})
+              </span>
+            )}
           </Button>
           <Button 
             variant="ghost" 
