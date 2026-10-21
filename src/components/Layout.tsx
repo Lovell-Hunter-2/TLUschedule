@@ -28,7 +28,7 @@ const getMobileTitle = (fullTitle?: string) => {
 export function Layout({ children, title, subtitle, headerAction, backgroundImage }: LayoutProps) {
   return (
     <div 
-      className="min-h-screen bg-[#FDFCFE] dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans selection:bg-purple-100 selection:text-purple-900 dark:selection:bg-purple-900 dark:selection:text-purple-100 relative transition-colors duration-300"
+      className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#FDFCFE] dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans selection:bg-purple-100 selection:text-purple-900 dark:selection:bg-purple-900 dark:selection:text-purple-100 relative transition-colors duration-300"
       style={backgroundImage ? {
         backgroundImage: `url(${backgroundImage})`,
         backgroundSize: 'cover',
