@@ -10,15 +10,15 @@ interface TabsProps {
 
 export function Tabs({ tabs, activeTab, onChange, className }: TabsProps) {
   return (
-    <div className={cn('flex bg-gray-100/60 dark:bg-gray-800/60 p-1.5 sm:p-1 rounded-2xl border border-gray-200/60 dark:border-gray-700', className)}>
+    <div className={cn('flex bg-gray-100/60 dark:bg-gray-800/60 p-1 sm:p-1 rounded-2xl border border-gray-200/60 dark:border-gray-700', className)}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}
           className={cn(
-            'flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-1 sm:px-4 rounded-xl text-[11px] sm:text-sm font-semibold transition-all select-none',
+            'flex-1 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-2 py-1.5 sm:py-2 px-0.5 sm:px-4 rounded-xl text-[10.5px] sm:text-sm font-semibold transition-all select-none',
             activeTab === tab.id
-              ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm border border-gray-100 dark:border-gray-600'
+              ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm border border-gray-200/70 dark:border-gray-600'
               : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200/50 dark:hover:bg-gray-700/50'
           )}
         >
