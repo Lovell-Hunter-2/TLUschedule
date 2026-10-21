@@ -291,17 +291,17 @@ export function ExamScheduleView({
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-20">
+    <div className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6 pb-24">
       {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-5 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 bg-white dark:bg-gray-800 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm w-full max-w-full">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
               <FileText className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Lịch thi</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white tracking-tight truncate">Lịch thi</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {filteredExams.length > 0 
                   ? `Có ${filteredExams.length} môn thi được đồng bộ từ cổng TLU` 
                   : 'Chưa có thông tin lịch thi'}
@@ -313,14 +313,14 @@ export function ExamScheduleView({
         {/* Filter Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {semesters.length > 0 && (
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-initial min-w-[130px] max-w-full">
               <select
                 value={selectedSemester}
                 onChange={(e) => {
                   userHasSelectedSemesterRef.current = true;
                   setSelectedSemester(e.target.value);
                 }}
-                className="appearance-none bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-xs sm:text-sm py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                className="w-full appearance-none bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-xs sm:text-sm py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium truncate"
               >
                 {semesters.map(s => {
                   const isCurrent = s.id === matchedSemesterId;
@@ -359,10 +359,11 @@ export function ExamScheduleView({
               size="sm"
               onClick={onForceSync}
               disabled={isSyncing}
-              className="rounded-xl text-xs flex items-center gap-1.5 h-9 font-semibold"
+              className="rounded-xl text-xs flex items-center gap-1.5 h-9 font-semibold shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-600' : ''}`} />
-              <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ lại'}</span>
+              <span className="hidden xs:inline">{isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ lại'}</span>
+              <span className="xs:hidden">{isSyncing ? 'Đồng bộ...' : 'Đồng bộ'}</span>
             </Button>
           )}
         </div>
@@ -391,7 +392,7 @@ export function ExamScheduleView({
         </Card>
       ) : (
         /* Exam Cards List */
-        <div className="space-y-4">
+        <div className="space-y-3.5 sm:space-y-4">
           {filteredExams.map((exam, index) => {
             const daysDiff = getDaysDiff(exam.examDate);
             const isToday = daysDiff === 0;
@@ -404,43 +405,53 @@ export function ExamScheduleView({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: index * 0.05 }}
               >
-                <Card className="p-5 sm:p-6 bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700/80 shadow-md shadow-gray-100/50 dark:shadow-none rounded-3xl hover:border-blue-200 dark:hover:border-blue-900 transition-all">
-                  {/* Card Header */}
-                  <div className="flex items-start justify-between gap-3 pb-4 border-b border-gray-100 dark:border-gray-700/60 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="px-3 py-1 bg-blue-600 text-white text-xs font-black rounded-xl shadow-md shadow-blue-500/20 shrink-0">
-                        STT {index + 1}
-                      </div>
-                      <div>
-                        <h3 className="text-base sm:text-lg font-black text-gray-900 dark:text-white tracking-tight">
-                          {exam.subjectName}
-                        </h3>
-                        {exam.subjectCode && (
-                          <span className="text-[11px] text-gray-400 font-mono">
-                            Mã: {exam.subjectCode}
+                <Card className="p-4 sm:p-6 bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700/80 shadow-md shadow-gray-100/50 dark:shadow-none rounded-2xl sm:rounded-3xl hover:border-blue-200 dark:hover:border-blue-900 transition-all overflow-hidden w-full max-w-full">
+                  {/* Card Header: Resilient on both Android & iPhone */}
+                  <div className="pb-3.5 sm:pb-4 border-b border-gray-100 dark:border-gray-700/60 mb-3.5 sm:mb-4">
+                    {/* Top Row: Left badges (STT & Round) and Right Countdown Badge */}
+                    <div className="flex items-center justify-between gap-2 mb-2 sm:mb-2.5">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+                        <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-blue-600 text-white text-[11px] sm:text-xs font-black rounded-lg sm:rounded-xl shadow-sm shrink-0">
+                          STT {index + 1}
+                        </span>
+                        {exam.round && (
+                          <span className="text-[10px] sm:text-[11px] font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/60 px-2 py-0.5 rounded-lg shrink-0">
+                            Lần {exam.round}
                           </span>
                         )}
                       </div>
+
+                      {/* Countdown Badge - Guaranteed to fit inside screen on any phone */}
+                      {daysDiff !== null && (
+                        <div className="shrink-0">
+                          {isToday ? (
+                            <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 bg-indigo-600 text-white text-[11px] sm:text-xs font-bold rounded-full shadow-md shadow-indigo-500/20 whitespace-nowrap">
+                              <GraduationCap className="w-3.5 h-3.5 text-amber-300 shrink-0" /> Hôm nay thi
+                            </span>
+                          ) : isPast ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[11px] sm:text-xs font-medium rounded-full whitespace-nowrap">
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Đã thi
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-[11px] sm:text-xs font-bold rounded-full whitespace-nowrap">
+                              ⏳ Còn {daysDiff} ngày
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Countdown Badge */}
-                    {daysDiff !== null && (
-                      <div className="shrink-0">
-                        {isToday ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded-full shadow-md shadow-indigo-500/20">
-                            <GraduationCap className="w-3.5 h-3.5 text-amber-300" /> Hôm nay thi
-                          </span>
-                        ) : isPast ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium rounded-full">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Đã thi
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-full">
-                            ⏳ Còn {daysDiff} ngày
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    {/* Subject Name & Subject Code: Full width available, breaks properly */}
+                    <div className="min-w-0">
+                      <h3 className="text-base sm:text-lg font-black text-gray-900 dark:text-white tracking-tight break-words">
+                        {exam.subjectName}
+                      </h3>
+                      {exam.subjectCode && (
+                        <div className="text-[11px] text-gray-400 font-mono break-all mt-0.5 sm:mt-1">
+                          Mã: {exam.subjectCode}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Card Detail Grid - Formatted similarly to mobile view */}
