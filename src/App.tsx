@@ -452,15 +452,19 @@ export default function App() {
             } : null);
 
             if ((className || major) && workspace) {
-              await setDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id), {
-                className: className || workspace.className,
-                major: major || workspace.major
-              }, { merge: true });
-              setWorkspace(prev => prev ? {
-                ...prev,
-                className: className || prev.className,
-                major: major || prev.major
-              } : null);
+              const wsUpdate: Record<string, any> = {};
+              const targetClass = className || workspace.className;
+              const targetMajor = major || workspace.major;
+              if (targetClass) wsUpdate.className = targetClass;
+              if (targetMajor) wsUpdate.major = targetMajor;
+
+              if (Object.keys(wsUpdate).length > 0) {
+                await setDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id), wsUpdate, { merge: true });
+                setWorkspace(prev => prev ? {
+                  ...prev,
+                  ...wsUpdate
+                } : null);
+              }
             }
           } catch (e) {}
         }
