@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Users, Activity, AlertTriangle, Settings, Image as ImageIcon } from 'lucide-react';
+import { X, Users, Activity, AlertTriangle, Settings, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, collectionGroup, query, onSnapshot, orderBy, limit, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 import { format, formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { cn } from '../lib/utils';
 
 interface AdminDashboardProps {
   onClose: () => void;
@@ -19,6 +20,10 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   const [userStudentNameMap, setUserStudentNameMap] = useState<Record<string, string>>({});
   const [userClassMap, setUserClassMap] = useState<Record<string, string>>({});
   const [userMajorMap, setUserMajorMap] = useState<Record<string, string>>({});
+  const [workspaceDataMap, setWorkspaceDataMap] = useState<Record<string, any>>({});
+  const [isBatchScanning, setIsBatchScanning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const [syncingUserId, setSyncingUserId] = useState<string | null>(null);
   const [usageEvents, setUsageEvents] = useState<any[]>([]);
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
@@ -33,7 +38,6 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     };
     fetchGlobalSettings();
 
-    
     // Fetch MSV, Student Name, Class and Major for existing users using collectionGroup
     const fetchMsvs = async () => {
       try {
@@ -42,11 +46,14 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
         const nameMap: Record<string, string> = {};
         const classMap: Record<string, string> = {};
         const majorMap: Record<string, string> = {};
-        msvSnapshot.forEach(doc => {
-          const userId = doc.ref.parent.parent?.id;
+        const wsMap: Record<string, any> = {};
+
+        msvSnapshot.forEach(docSnap => {
+          const userId = docSnap.ref.parent.parent?.id;
           if (userId) {
-            msvMap[userId] = doc.id; // workspace.id is MSV
-            const data = doc.data() || {};
+            msvMap[userId] = docSnap.id; // workspace.id is MSV
+            const data = docSnap.data() || {};
+            wsMap[userId] = { ...data, workspaceId: docSnap.id, docRef: docSnap.ref };
             const rawName = String(data.name || '').trim();
             // Extract student name if format is "Ngô Minh Thuận (2554104778)"
             const match = rawName.match(/^(.*?)\s*\(\d+\)$/);
@@ -66,10 +73,48 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             }
           }
         });
+
         setUserMsvMap(msvMap);
         setUserStudentNameMap(nameMap);
         setUserClassMap(classMap);
         setUserMajorMap(majorMap);
+        setWorkspaceDataMap(wsMap);
+
+        // Asynchronously check grades for missing class info in existing workspaces
+        msvSnapshot.docs.forEach(async (docSnap) => {
+          const userId = docSnap.ref.parent.parent?.id;
+          if (!userId) return;
+          const data = docSnap.data() || {};
+          if (!data.className || !data.major) {
+            try {
+              const gradeSnap = await getDoc(doc(db, 'users', userId, 'workspaces', docSnap.id, 'grades', 'data'));
+              if (gradeSnap.exists()) {
+                const gData = gradeSnap.data();
+                if (Array.isArray(gData?.detailed)) {
+                  let foundClass = '';
+                  let foundMajor = '';
+                  for (const item of gData.detailed) {
+                    const c = item?.enrollmentClass?.className || item?.student?.enrollmentClass?.className || item?.enrollmentClass?.classCode;
+                    const m = item?.speciality?.name || item?.student?.speciality?.name || item?.department?.name;
+                    if (c && !foundClass) foundClass = String(c).trim();
+                    if (m && !foundMajor) foundMajor = String(m).trim();
+                    if (foundClass && foundMajor) break;
+                  }
+                  if (foundClass) {
+                    setUserClassMap(prev => ({ ...prev, [userId]: foundClass }));
+                    setDoc(docSnap.ref, { className: foundClass }, { merge: true }).catch(() => {});
+                    setDoc(doc(db, 'users', userId), { className: foundClass }, { merge: true }).catch(() => {});
+                  }
+                  if (foundMajor) {
+                    setUserMajorMap(prev => ({ ...prev, [userId]: foundMajor }));
+                    setDoc(docSnap.ref, { major: foundMajor }, { merge: true }).catch(() => {});
+                    setDoc(doc(db, 'users', userId), { major: foundMajor }, { merge: true }).catch(() => {});
+                  }
+                }
+              }
+            } catch (e) {}
+          }
+        });
       } catch (e) {
         console.error("Failed to fetch MSVs:", e);
       }
@@ -148,6 +193,119 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     setIsSaving(false);
   };
 
+  const handleSyncUserClass = async (userId: string) => {
+    const wsData = workspaceDataMap[userId];
+    const msv = userMsvMap[userId];
+    if (!msv) return false;
+
+    setSyncingUserId(userId);
+    let updated = false;
+
+    // 1. Try checking grades subcollection first
+    try {
+      const gradeSnap = await getDoc(doc(db, 'users', userId, 'workspaces', msv, 'grades', 'data'));
+      if (gradeSnap.exists()) {
+        const gData = gradeSnap.data();
+        if (Array.isArray(gData?.detailed)) {
+          let foundClass = '';
+          let foundMajor = '';
+          for (const item of gData.detailed) {
+            const c = item?.enrollmentClass?.className || item?.student?.enrollmentClass?.className || item?.enrollmentClass?.classCode;
+            const m = item?.speciality?.name || item?.student?.speciality?.name || item?.department?.name;
+            if (c && !foundClass) foundClass = String(c).trim();
+            if (m && !foundMajor) foundMajor = String(m).trim();
+            if (foundClass && foundMajor) break;
+          }
+          if (foundClass) {
+            setUserClassMap(prev => ({ ...prev, [userId]: foundClass }));
+            await setDoc(doc(db, 'users', userId, 'workspaces', msv), { className: foundClass }, { merge: true });
+            await setDoc(doc(db, 'users', userId), { className: foundClass }, { merge: true });
+            updated = true;
+          }
+          if (foundMajor) {
+            setUserMajorMap(prev => ({ ...prev, [userId]: foundMajor }));
+            await setDoc(doc(db, 'users', userId, 'workspaces', msv), { major: foundMajor }, { merge: true });
+            await setDoc(doc(db, 'users', userId), { major: foundMajor }, { merge: true });
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 2. If class still not found and password exists, query TLU directly
+    if (!updated && wsData?.password) {
+      try {
+        const { auth } = await import('../firebase');
+        const idToken = await auth.currentUser?.getIdToken();
+        const bodyParams: any = {
+          studentCode: msv,
+          portal: wsData.portal || 'sinhvien1',
+          syncTarget: 'user_info'
+        };
+        if (wsData.isEncrypted) {
+          bodyParams.encryptedPassword = wsData.password;
+        } else {
+          try {
+            bodyParams.password = decodeURIComponent(atob(wsData.password));
+          } catch(e) {
+            bodyParams.password = wsData.password;
+          }
+        }
+
+        const res = await fetch('/api/tlu-sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+          },
+          body: JSON.stringify(bodyParams)
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json.className) {
+            setUserClassMap(prev => ({ ...prev, [userId]: json.className }));
+            await setDoc(doc(db, 'users', userId, 'workspaces', msv), { className: json.className }, { merge: true });
+            await setDoc(doc(db, 'users', userId), { className: json.className }, { merge: true });
+            updated = true;
+          }
+          if (json.major) {
+            setUserMajorMap(prev => ({ ...prev, [userId]: json.major }));
+            await setDoc(doc(db, 'users', userId, 'workspaces', msv), { major: json.major }, { merge: true });
+            await setDoc(doc(db, 'users', userId), { major: json.major }, { merge: true });
+          }
+          if (json.studentName) {
+            setUserStudentNameMap(prev => ({ ...prev, [userId]: json.studentName }));
+            await setDoc(doc(db, 'users', userId), { displayName: json.studentName }, { merge: true });
+          }
+        }
+      } catch (err) {
+        console.error("TLU info query failed:", err);
+      }
+    }
+
+    setSyncingUserId(null);
+    return updated;
+  };
+
+  const handleSyncAllClasses = async () => {
+    setIsBatchScanning(true);
+    setBatchProgress({ current: 0, total: users.length });
+
+    let updatedCount = 0;
+    for (let i = 0; i < users.length; i++) {
+      const u = users[i];
+      setBatchProgress({ current: i + 1, total: users.length });
+      if (userClassMap[u.id] || u.className) continue;
+      try {
+        const ok = await handleSyncUserClass(u.id);
+        if (ok) updatedCount++;
+      } catch (e) {}
+    }
+
+    setIsBatchScanning(false);
+    alert(`Đã hoàn tất quét! Đã cập nhật lớp cho ${updatedCount} sinh viên.`);
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-50 dark:bg-gray-900 z-50 overflow-y-auto flex flex-col">
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 sticky top-0 z-10">
@@ -211,6 +369,24 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
               exit={{ opacity: 0, y: -10 }}
               className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
             >
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-gray-800 dark:text-gray-100">Danh sách người dùng ({users.length})</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Tự động nhận diện mã sinh viên, tên thật, lớp học và ngành</p>
+                </div>
+                <button
+                  onClick={handleSyncAllClasses}
+                  disabled={isBatchScanning}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 active:scale-95 text-white transition-all disabled:opacity-50 shadow-sm"
+                >
+                  <RefreshCw className={cn("w-3.5 h-3.5", isBatchScanning && "animate-spin")} />
+                  {isBatchScanning 
+                    ? `Đang quét & lấy lớp (${batchProgress.current}/${batchProgress.total})...`
+                    : "⚡ Quét & Cập nhật Lớp cho tất cả"
+                  }
+                </button>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -271,6 +447,16 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                               {userClassMap[u.id] || u.className}
                             </span>
+                          ) : userMsvMap[u.id] ? (
+                            <button
+                              onClick={() => handleSyncUserClass(u.id)}
+                              disabled={syncingUserId === u.id || isBatchScanning}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 transition-colors"
+                              title="Bấm để quét lớp và ngành cho sinh viên này"
+                            >
+                              <RefreshCw className={cn("w-3 h-3", syncingUserId === u.id && "animate-spin")} />
+                              {syncingUserId === u.id ? "Đang lấy..." : "Tìm lớp"}
+                            </button>
                           ) : (
                             <span className="text-gray-400 dark:text-gray-500 text-xs italic">Chưa rõ</span>
                           )}
