@@ -6,7 +6,7 @@ import { Card } from './Card';
 import { Users, Key, CheckCircle2, ChevronRight, RefreshCw, Trash2, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence, useAnimation, PanInfo } from 'motion/react';
 import { collection, setDoc, doc, onSnapshot, writeBatch, deleteDoc, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { Workspace } from '../types';
 import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from '../lib/utils';
 
@@ -156,6 +156,20 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
 
   const handleSelectWorkspace = async (workspace: Workspace) => {
     setSyncingWorkspaceId(workspace.id);
+
+    // If workspace has student name, ensure users profile has it
+    if (workspace.name) {
+      const match = workspace.name.match(/^(.*?)\s*\(\d+\)$/);
+      const extracted = match ? match[1].trim() : workspace.name.trim();
+      if (extracted && !extracted.toLowerCase().startsWith('sinh viên')) {
+        setDoc(doc(db, 'users', userId), { displayName: extracted }, { merge: true }).catch(() => {});
+        if (auth.currentUser && auth.currentUser.displayName !== extracted) {
+          import('firebase/auth').then(({ updateProfile }) => {
+            if (auth.currentUser) updateProfile(auth.currentUser, { displayName: extracted }).catch(() => {});
+          });
+        }
+      }
+    }
     
     // If workspace is from sv_tlu, enter directly (schedule is already saved in Firestore)
     if (workspace.portal === 'sv_tlu') {
@@ -348,7 +362,8 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
        throw new Error('Đăng nhập thành công nhưng không tìm thấy dữ liệu lịch học.');
     }
 
-    const name = json.studentName ? `${json.studentName} (${code})` : `Sinh viên ${code}`;
+    const studentRealName = json.studentName ? json.studentName.trim() : '';
+    const name = studentRealName ? `${studentRealName} (${code})` : (existingWp?.name || `Sinh viên ${code}`);
     const newWorkspace: Workspace = existingWp || {
       id: code,
       name: name,
@@ -356,6 +371,23 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       isEncrypted: !!json.encryptedPassword,
       portal: portal
     };
+    
+    if (studentRealName) {
+      newWorkspace.name = `${studentRealName} (${code})`;
+      // Update users collection and auth profile with the real student name
+      try {
+        await setDoc(doc(db, 'users', userId), {
+          displayName: studentRealName,
+          lastActive: new Date().toISOString()
+        }, { merge: true });
+        if (auth.currentUser && auth.currentUser.displayName !== studentRealName) {
+          const { updateProfile } = await import('firebase/auth');
+          await updateProfile(auth.currentUser, { displayName: studentRealName });
+        }
+      } catch (err) {
+        console.warn("Could not sync student name to user profile:", err);
+      }
+    }
     
     if (existingWp) {
         newWorkspace.portal = portal;
