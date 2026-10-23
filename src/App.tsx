@@ -427,18 +427,41 @@ export default function App() {
         const syncTimestamp = Date.now();
         localStorage.setItem(lastSyncKey, syncTimestamp.toString());
         setLastSyncTime(syncTimestamp);
-        if (json.studentName && json.studentName.trim() && user?.uid) {
-          const realName = json.studentName.trim();
+        if (user?.uid) {
+          const realName = json.studentName?.trim();
+          const className = json.className?.trim();
+          const major = json.major?.trim();
+          const userUpdate: Record<string, any> = {
+            lastActive: new Date().toISOString()
+          };
+          if (realName) userUpdate.displayName = realName;
+          if (className) userUpdate.className = className;
+          if (major) userUpdate.major = major;
+
           try {
-            await setDoc(doc(db, 'users', user.uid), {
-              displayName: realName,
-              lastActive: new Date().toISOString()
-            }, { merge: true });
-            if (auth.currentUser && auth.currentUser.displayName !== realName) {
+            await setDoc(doc(db, 'users', user.uid), userUpdate, { merge: true });
+            if (realName && auth.currentUser && auth.currentUser.displayName !== realName) {
               const { updateProfile } = await import('firebase/auth');
               await updateProfile(auth.currentUser, { displayName: realName });
             }
-            setUser(prev => prev ? { ...prev, displayName: realName } : null);
+            setUser(prev => prev ? { 
+              ...prev, 
+              displayName: realName || prev.displayName,
+              className: className || prev.className,
+              major: major || prev.major
+            } : null);
+
+            if ((className || major) && workspace) {
+              await setDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id), {
+                className: className || workspace.className,
+                major: major || workspace.major
+              }, { merge: true });
+              setWorkspace(prev => prev ? {
+                ...prev,
+                className: className || prev.className,
+                major: major || prev.major
+              } : null);
+            }
           } catch (e) {}
         }
 
@@ -735,7 +758,11 @@ export default function App() {
     <Toaster position="top-center" />
     <Layout 
       title={workspace.name} 
-      subtitle="Sinh viên Đại học Thủy Lợi"
+      subtitle={
+        workspace.className || workspace.major 
+          ? [workspace.className && `Lớp: ${workspace.className}`, workspace.major && `Ngành: ${workspace.major}`].filter(Boolean).join(' • ')
+          : "Sinh viên Đại học Thủy Lợi"
+      }
       backgroundImage={globalBg}
       headerAction={
         <div className="flex items-center gap-2">
