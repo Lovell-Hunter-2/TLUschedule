@@ -376,12 +376,12 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
       ...(existingWp || {}),
       id: code,
       name: name,
-      className: studentClassName || undefined,
-      major: studentMajor || undefined,
       password: json.encryptedPassword || btoa(encodeURIComponent(pass)),
       isEncrypted: !!json.encryptedPassword,
       portal: portal
     };
+    if (studentClassName) newWorkspace.className = studentClassName;
+    if (studentMajor) newWorkspace.major = studentMajor;
     
     // Update users collection and auth profile with real student info
     const userUpdate: Record<string, any> = {
