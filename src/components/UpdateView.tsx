@@ -306,6 +306,17 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
           <List className="w-3.5 h-3.5 shrink-0" />
           <span>Danh sách</span>
         </Button>
+        <a
+          id="btn-tab-senseitlu"
+          href="https://senseitlu.vercel.app/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full sm:w-auto sm:shrink-0 rounded-xl sm:rounded-2xl font-semibold px-2 sm:px-4 h-11 sm:h-10 text-[11px] sm:text-sm flex items-center justify-center gap-1.5 shadow-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+          title="Mở tài liệu học tập SenseiTLU"
+        >
+          <img src="/icon.png" alt="SenseiTLU" className="w-4 h-4 rounded-sm object-contain shrink-0" />
+          <span>SenseiTLU</span>
+        </a>
         <Button 
           id="btn-tab-sync"
           variant={mode === 'sync' ? 'primary' : 'outline'} 
