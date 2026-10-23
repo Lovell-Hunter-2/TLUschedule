@@ -950,6 +950,13 @@ export default async function handler(req, res) {
         tluToken: token,
         encryptedPassword: returnedEncryptedPassword
       });
+    } else if (syncTarget === 'user_info' || syncTarget === 'info') {
+      const userInfo = await withTimeout(fetchUser(), 4500, defaultUserInfo);
+      return res.status(200).json({
+        studentName: userInfo?.studentName || null,
+        className: userInfo?.className || null,
+        major: userInfo?.major || null
+      });
     } else if (syncTarget === 'marks') {
       let userInfo;
       [gpaSummary, detailedMarks, userInfo] = await Promise.all([
