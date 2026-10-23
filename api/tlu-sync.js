@@ -377,7 +377,10 @@ export default async function handler(req, res) {
       });
       if (dashRes.status === 200 && dashRes.data) {
         const $d = loadCheerio(dashRes.data);
-        studentName = $d('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name').first().text().trim();
+        studentName = $d('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name, .student-name').first().text().trim();
+        if (studentName) {
+          studentName = studentName.replace(/^(xin\s*chào|chào\s*bạn|hi|hello)[,:\s-]*/i, '').trim();
+        }
       }
     } catch (e) {}
 
@@ -643,7 +646,20 @@ export default async function handler(req, res) {
     const fetchUser = async () => {
       try {
         const res = await httpsGet(UPSTREAM_HOST, '/education/api/users/getCurrentUser', baseHeaders);
-        if (res.status === 200) return JSON.parse(res.data).displayName;
+        if (res.status === 200) {
+          const dt = JSON.parse(res.data);
+          const name = dt.displayName || (dt.person ? `${dt.person.lastName || ''} ${dt.person.firstName || ''}`.trim() : null) || dt.fullName || dt.name;
+          if (name && typeof name === 'string' && name.trim()) return name.trim();
+        }
+      } catch (e) {}
+
+      try {
+        const res2 = await httpsGet(UPSTREAM_HOST, '/education/api/students/getbyloginuser', baseHeaders);
+        if (res2.status === 200) {
+          const s = JSON.parse(res2.data);
+          const name = s.displayName || `${s.lastName || ''} ${s.firstName || ''}`.trim() || s.fullName;
+          if (name && typeof name === 'string' && name.trim()) return name.trim();
+        }
       } catch (e) {}
       return null;
     };
@@ -792,16 +808,16 @@ export default async function handler(req, res) {
       [gpaSummary, detailedMarks, studentName] = await Promise.all([
         withTimeout(fetchGpa(), 5500, []),
         withTimeout(fetchMarks(), 5500, []),
-        withTimeout(fetchUser(), 3000, null)
+        withTimeout(fetchUser(), 4500, null)
       ]);
     } else if (syncTarget === 'schedules') {
       [studentName, scheduleAndExams] = await Promise.all([
-        withTimeout(fetchUser(), 3000, null),
+        withTimeout(fetchUser(), 4500, null),
         withTimeout(fetchSemestersAndSchedules('schedules'), 8000, {allSchedules: [], allExams: []})
       ]);
     } else if (syncTarget === 'exams') {
       [studentName, scheduleAndExams] = await Promise.all([
-        withTimeout(fetchUser(), 3000, null),
+        withTimeout(fetchUser(), 4500, null),
         withTimeout(fetchSemestersAndSchedules('exams'), 8000, {allSchedules: [], allExams: []})
       ]);
     } else {
@@ -809,12 +825,44 @@ export default async function handler(req, res) {
       [gpaSummary, detailedMarks, studentName, scheduleAndExams] = await Promise.all([
         withTimeout(fetchGpa(), 5500, []),
         withTimeout(fetchMarks(), 5500, []),
-        withTimeout(fetchUser(), 3000, null),
+        withTimeout(fetchUser(), 4500, null),
         withTimeout(fetchSemestersAndSchedules('all'), 6500, {allSchedules: [], allExams: []})
       ]);
     }
 
     const { allSchedules, allExams } = scheduleAndExams || { allSchedules: [], allExams: [] };
+
+    // Fallback: extract studentName from detailedMarks if not yet found
+    if (!studentName && Array.isArray(detailedMarks) && detailedMarks.length > 0) {
+      for (const m of detailedMarks) {
+        const st = m?.student;
+        const sName = st?.displayName || st?.fullName || (st?.lastName ? `${st.lastName} ${st.firstName || ''}`.trim() : null);
+        if (sName && typeof sName === 'string' && sName.trim()) {
+          studentName = sName.trim();
+          break;
+        }
+      }
+    }
+
+    // Fallback: extract studentName from allExams or allSchedules
+    if (!studentName && Array.isArray(allExams) && allExams.length > 0) {
+      for (const e of allExams) {
+        const sName = e?.student?.displayName || e?.student?.fullName || e?.studentName;
+        if (sName && typeof sName === 'string' && sName.trim()) {
+          studentName = sName.trim();
+          break;
+        }
+      }
+    }
+    if (!studentName && Array.isArray(allSchedules) && allSchedules.length > 0) {
+      for (const s of allSchedules) {
+        const sName = s?.student?.displayName || s?.studentCourseSubject?.student?.displayName;
+        if (sName && typeof sName === 'string' && sName.trim()) {
+          studentName = sName.trim();
+          break;
+        }
+      }
+    }
 
     const cleanedList = allSchedules.map(item => {
       let rawCs = (item.studentCourseSubject && item.studentCourseSubject.courseSubject) || item.courseSubject;
