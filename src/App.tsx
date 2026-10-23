@@ -19,6 +19,7 @@ import { Button } from './components/Button';
 import { WeatherWidget } from './components/WeatherWidget';
 import { HeaderMenu } from './components/HeaderMenu';
 import { AdminDashboard } from './components/AdminDashboard';
+import { LoadingScreen } from './components/LoadingScreen';
 import { Subject, Note, UserProfile, Workspace } from './types';
 import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing, FileText } from 'lucide-react';
 import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from './lib/utils';
@@ -85,6 +86,7 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isLoadingDone, setIsLoadingDone] = useState(false);
   const [activeTab, setActiveTab] = useState('daily');
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -739,14 +741,8 @@ export default function App() {
     setActiveTab(newTab);
   };
 
-  if (!isAuthReady) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-6 shadow-lg"></div>
-        <h2 className="text-2xl font-black text-gray-800 tracking-tight animate-pulse">Đang tải dữ liệu...</h2>
-        <p className="text-gray-500 mt-2 font-medium">Vui lòng đợi một chút nhé</p>
-      </div>
-    );
+  if (!isLoadingDone) {
+    return <LoadingScreen isReady={isAuthReady} onDone={() => setIsLoadingDone(true)} />;
   }
 
   if (!user) {
