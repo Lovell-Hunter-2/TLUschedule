@@ -27,7 +27,7 @@ import { Toaster, toast } from 'react-hot-toast';
 import { useClassNotifications } from './hooks/useClassNotifications';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut, signInAnonymously } from 'firebase/auth';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, writeBatch, getDocs, getDoc } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -427,12 +427,20 @@ export default function App() {
         const syncTimestamp = Date.now();
         localStorage.setItem(lastSyncKey, syncTimestamp.toString());
         setLastSyncTime(syncTimestamp);
-        try {
-          const { updateDoc, doc } = await import('firebase/firestore');
-          await updateDoc(doc(db, 'users', user.uid, 'workspaces', workspace.id), {
-            lastSyncedAt: syncTimestamp
-          });
-        } catch (e) {}
+        if (json.studentName && json.studentName.trim() && user?.uid) {
+          const realName = json.studentName.trim();
+          try {
+            await setDoc(doc(db, 'users', user.uid), {
+              displayName: realName,
+              lastActive: new Date().toISOString()
+            }, { merge: true });
+            if (auth.currentUser && auth.currentUser.displayName !== realName) {
+              const { updateProfile } = await import('firebase/auth');
+              await updateProfile(auth.currentUser, { displayName: realName });
+            }
+            setUser(prev => prev ? { ...prev, displayName: realName } : null);
+          } catch (e) {}
+        }
 
         console.log("Đã đồng bộ thành công!");
         if (force) {
@@ -517,8 +525,21 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        let currentDisplayName = currentUser.displayName;
+        try {
+          const userDocSnap = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            if (data.displayName && data.displayName !== 'Sinh viên' && data.displayName !== 'Sinh viên TLU') {
+              currentDisplayName = data.displayName;
+            }
+          }
+        } catch (e) {}
+
+        const finalDisplayName = currentDisplayName || (currentUser.isAnonymous ? 'Sinh viên TLU' : 'Sinh viên');
+
         const userData = {
-          displayName: currentUser.displayName || (currentUser.isAnonymous ? 'Sinh viên' : 'Sinh viên'),
+          displayName: finalDisplayName,
           email: currentUser.email || (currentUser.isAnonymous ? 'device@tlu.vn' : ''),
           lastLogin: new Date().toISOString(),
           lastActive: new Date().toISOString(),
