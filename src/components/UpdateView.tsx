@@ -136,17 +136,26 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
          return;
       }
       
-      if (json.studentName && json.studentName.trim() && auth.currentUser) {
-        const realName = json.studentName.trim();
+      if (auth.currentUser) {
+        const realName = json.studentName?.trim();
+        const className = json.className?.trim();
+        const major = json.major?.trim();
+        const updateData: Record<string, any> = {
+          lastActive: new Date().toISOString()
+        };
+        if (realName) updateData.displayName = realName;
+        if (className) updateData.className = className;
+        if (major) updateData.major = major;
+        if (tluStudentCode) updateData.studentId = tluStudentCode;
+
         try {
           const { setDoc, doc } = await import('firebase/firestore');
           const { db } = await import('../firebase');
-          await setDoc(doc(db, 'users', auth.currentUser.uid), {
-            displayName: realName,
-            lastActive: new Date().toISOString()
-          }, { merge: true });
-          const { updateProfile } = await import('firebase/auth');
-          await updateProfile(auth.currentUser, { displayName: realName });
+          await setDoc(doc(db, 'users', auth.currentUser.uid), updateData, { merge: true });
+          if (realName && auth.currentUser.displayName !== realName) {
+            const { updateProfile } = await import('firebase/auth');
+            await updateProfile(auth.currentUser, { displayName: realName });
+          }
         } catch (err) {}
       }
       
