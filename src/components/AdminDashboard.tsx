@@ -17,6 +17,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [userMsvMap, setUserMsvMap] = useState<Record<string, string>>({});
   const [userStudentNameMap, setUserStudentNameMap] = useState<Record<string, string>>({});
+  const [userClassMap, setUserClassMap] = useState<Record<string, string>>({});
+  const [userMajorMap, setUserMajorMap] = useState<Record<string, string>>({});
   const [usageEvents, setUsageEvents] = useState<any[]>([]);
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
@@ -32,12 +34,14 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     fetchGlobalSettings();
 
     
-    // Fetch MSV and Student Name for existing users using collectionGroup
+    // Fetch MSV, Student Name, Class and Major for existing users using collectionGroup
     const fetchMsvs = async () => {
       try {
         const msvSnapshot = await getDocs(collectionGroup(db, 'workspaces'));
         const msvMap: Record<string, string> = {};
         const nameMap: Record<string, string> = {};
+        const classMap: Record<string, string> = {};
+        const majorMap: Record<string, string> = {};
         msvSnapshot.forEach(doc => {
           const userId = doc.ref.parent.parent?.id;
           if (userId) {
@@ -53,10 +57,19 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
             } else if (data.studentName) {
               nameMap[userId] = data.studentName;
             }
+
+            if (data.className) {
+              classMap[userId] = data.className;
+            }
+            if (data.major) {
+              majorMap[userId] = data.major;
+            }
           }
         });
         setUserMsvMap(msvMap);
         setUserStudentNameMap(nameMap);
+        setUserClassMap(classMap);
+        setUserMajorMap(majorMap);
       } catch (e) {
         console.error("Failed to fetch MSVs:", e);
       }
@@ -204,6 +217,8 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                     <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
                       <th className="p-4 font-medium">Người dùng</th>
                       <th className="p-4 font-medium">MSV</th>
+                      <th className="p-4 font-medium">Lớp</th>
+                      <th className="p-4 font-medium">Ngành</th>
                       <th className="p-4 font-medium">Email</th>
                       <th className="p-4 font-medium">Trạng thái</th>
                       <th className="p-4 font-medium">Lần cuối đăng nhập</th>
@@ -249,7 +264,23 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                           })()}
                         </td>
                         <td className="p-4 text-gray-600 dark:text-gray-300 font-mono text-sm">
-                          {userMsvMap[u.id] || u.msv || 'Chưa có'}
+                          {userMsvMap[u.id] || u.msv || u.studentId || 'Chưa có'}
+                        </td>
+                        <td className="p-4 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          {userClassMap[u.id] || u.className ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              {userClassMap[u.id] || u.className}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-500 text-xs italic">Chưa rõ</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-gray-700 dark:text-gray-300 text-sm max-w-[200px] truncate" title={userMajorMap[u.id] || u.major || ''}>
+                          {userMajorMap[u.id] || u.major ? (
+                            <span className="font-medium text-gray-800 dark:text-gray-200">{userMajorMap[u.id] || u.major}</span>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-500 text-xs italic">Chưa rõ</span>
+                          )}
                         </td>
                         <td className="p-4 text-gray-500 dark:text-gray-400">
                           {u.email}
@@ -275,7 +306,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                     ))}
                     {users.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-gray-500">
+                        <td colSpan={7} className="p-8 text-center text-gray-500">
                           Chưa có dữ liệu người dùng
                         </td>
                       </tr>
