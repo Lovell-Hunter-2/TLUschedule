@@ -136,6 +136,20 @@ export function UpdateView({ subjects, onUpdate, setHasUnsavedChanges }: UpdateV
          return;
       }
       
+      if (json.studentName && json.studentName.trim() && auth.currentUser) {
+        const realName = json.studentName.trim();
+        try {
+          const { setDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('../firebase');
+          await setDoc(doc(db, 'users', auth.currentUser.uid), {
+            displayName: realName,
+            lastActive: new Date().toISOString()
+          }, { merge: true });
+          const { updateProfile } = await import('firebase/auth');
+          await updateProfile(auth.currentUser, { displayName: realName });
+        } catch (err) {}
+      }
+      
       setEditingSubjects(prev => deduplicateSubjects([...prev, ...results]));
       setIsDirty(true);
       setMode('list');
