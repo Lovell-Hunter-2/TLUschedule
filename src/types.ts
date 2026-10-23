@@ -50,6 +50,8 @@ export interface UserProfile {
   email?: string;
   displayName: string;
   studentId?: string;
+  className?: string;
+  major?: string;
 }
 
 export interface Workspace {
@@ -58,4 +60,7 @@ export interface Workspace {
   password?: string;
   isEncrypted?: boolean;
   portal?: 'sinhvien1' | 'sv_tlu';
+  className?: string;
+  major?: string;
 }
+
