@@ -74,24 +74,30 @@ service cloud.firestore {
     }
 
     function isValidUser() {
-      return hasOnlyAllowedFields(['displayName', 'email', 'lastLogin', 'lastActive', 'isOnline']) &&
+      return hasOnlyAllowedFields(['displayName', 'email', 'lastLogin', 'lastActive', 'isOnline', 'className', 'major', 'studentId', 'msv']) &&
              hasRequiredFields(['displayName', 'email']) &&
              request.resource.data.displayName is string &&
              request.resource.data.displayName.size() > 0 &&
              request.resource.data.displayName.size() <= 100 &&
              request.resource.data.email is string &&
              request.resource.data.email.size() > 0 &&
-             request.resource.data.email.size() <= 200;
+             request.resource.data.email.size() <= 200 &&
+             (!('className' in request.resource.data) || request.resource.data.className is string) &&
+             (!('major' in request.resource.data) || request.resource.data.major is string) &&
+             (!('studentId' in request.resource.data) || request.resource.data.studentId is string) &&
+             (!('msv' in request.resource.data) || request.resource.data.msv is string);
     }
 
     function isValidWorkspace() {
-      return hasOnlyAllowedFields(['id', 'name', 'password', 'isEncrypted', 'portal']) &&
+      return hasOnlyAllowedFields(['id', 'name', 'password', 'isEncrypted', 'portal', 'className', 'major']) &&
              hasRequiredFields(['id', 'name']) &&
              request.resource.data.id is string && request.resource.data.id.size() > 0 && request.resource.data.id.size() <= 100 &&
              request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
              (!('password' in request.resource.data) || request.resource.data.password is string) &&
              (!('isEncrypted' in request.resource.data) || request.resource.data.isEncrypted is bool) &&
-             (!('portal' in request.resource.data) || (request.resource.data.portal is string && request.resource.data.portal.size() <= 50));
+             (!('portal' in request.resource.data) || (request.resource.data.portal is string && request.resource.data.portal.size() <= 50)) &&
+             (!('className' in request.resource.data) || request.resource.data.className is string) &&
+             (!('major' in request.resource.data) || request.resource.data.major is string);
     }
 
     function isValidSubject() {
@@ -144,21 +150,23 @@ service cloud.firestore {
     
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser();
-      allow update: if isOwner(userId) && isValidUser();
+      allow create: if (isOwner(userId) && isValidUser()) || isAdmin();
+      allow update: if (isOwner(userId) && isValidUser()) || isAdmin();
       
       match /workspaces/{workspaceId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidWorkspace();
-        allow update: if isOwner(userId) && isValidWorkspace();
-        allow delete: if isOwner(userId);
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if (isOwner(userId) && isValidWorkspace()) || isAdmin();
+        allow update: if (isOwner(userId) && isValidWorkspace()) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
 
         match /grades/{document=**} {
-          allow read, write: if isOwner(userId);
+          allow read: if isOwner(userId) || isAdmin();
+          allow write: if isOwner(userId);
         }
 
         match /exams/{document=**} {
-          allow read, write: if isOwner(userId);
+          allow read: if isOwner(userId) || isAdmin();
+          allow write: if isOwner(userId);
         }
         
         match /secrets/{secretId} {
@@ -167,7 +175,7 @@ service cloud.firestore {
         }
         
         match /subjects/{subjectId} {
-          allow read: if isOwner(userId);
+          allow read: if isOwner(userId) || isAdmin();
           allow create: if isOwner(userId) && isValidSubject();
           allow update: if isOwner(userId) && isValidSubject();
           allow delete: if isOwner(userId);
