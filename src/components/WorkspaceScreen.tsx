@@ -65,7 +65,13 @@ const SwipeableWorkspace = ({ workspace, onSelect, onDelete, isSyncing }: any) =
                   </span>
                 )}
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tiếp tục xem và quản lý lịch học</p>
+              {workspace.className || workspace.major ? (
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-0.5 truncate max-w-[260px]">
+                  {[workspace.className && `Lớp: ${workspace.className}`, workspace.major && `Ngành: ${workspace.major}`].filter(Boolean).join(' • ')}
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Tiếp tục xem và quản lý lịch học</p>
+              )}
             </div>
             {isSyncing ? (
               <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
@@ -363,30 +369,37 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     }
 
     const studentRealName = json.studentName ? json.studentName.trim() : '';
+    const studentClassName = json.className ? json.className.trim() : (existingWp?.className || '');
+    const studentMajor = json.major ? json.major.trim() : (existingWp?.major || '');
     const name = studentRealName ? `${studentRealName} (${code})` : (existingWp?.name || `Sinh viên ${code}`);
-    const newWorkspace: Workspace = existingWp || {
+    const newWorkspace: Workspace = {
+      ...(existingWp || {}),
       id: code,
       name: name,
+      className: studentClassName || undefined,
+      major: studentMajor || undefined,
       password: json.encryptedPassword || btoa(encodeURIComponent(pass)),
       isEncrypted: !!json.encryptedPassword,
       portal: portal
     };
     
-    if (studentRealName) {
-      newWorkspace.name = `${studentRealName} (${code})`;
-      // Update users collection and auth profile with the real student name
-      try {
-        await setDoc(doc(db, 'users', userId), {
-          displayName: studentRealName,
-          lastActive: new Date().toISOString()
-        }, { merge: true });
-        if (auth.currentUser && auth.currentUser.displayName !== studentRealName) {
-          const { updateProfile } = await import('firebase/auth');
-          await updateProfile(auth.currentUser, { displayName: studentRealName });
-        }
-      } catch (err) {
-        console.warn("Could not sync student name to user profile:", err);
+    // Update users collection and auth profile with real student info
+    const userUpdate: Record<string, any> = {
+      studentId: code,
+      lastActive: new Date().toISOString()
+    };
+    if (studentRealName) userUpdate.displayName = studentRealName;
+    if (studentClassName) userUpdate.className = studentClassName;
+    if (studentMajor) userUpdate.major = studentMajor;
+
+    try {
+      await setDoc(doc(db, 'users', userId), userUpdate, { merge: true });
+      if (studentRealName && auth.currentUser && auth.currentUser.displayName !== studentRealName) {
+        const { updateProfile } = await import('firebase/auth');
+        await updateProfile(auth.currentUser, { displayName: studentRealName });
       }
+    } catch (err) {
+      console.warn("Could not sync student info to user profile:", err);
     }
     
     if (existingWp) {
