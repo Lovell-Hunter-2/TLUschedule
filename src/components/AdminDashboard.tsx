@@ -16,6 +16,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [userMsvMap, setUserMsvMap] = useState<Record<string, string>>({});
+  const [userStudentNameMap, setUserStudentNameMap] = useState<Record<string, string>>({});
   const [usageEvents, setUsageEvents] = useState<any[]>([]);
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
@@ -31,18 +32,31 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
     fetchGlobalSettings();
 
     
-    // Fetch MSV for existing users using collectionGroup
+    // Fetch MSV and Student Name for existing users using collectionGroup
     const fetchMsvs = async () => {
       try {
         const msvSnapshot = await getDocs(collectionGroup(db, 'workspaces'));
         const msvMap: Record<string, string> = {};
+        const nameMap: Record<string, string> = {};
         msvSnapshot.forEach(doc => {
           const userId = doc.ref.parent.parent?.id;
           if (userId) {
             msvMap[userId] = doc.id; // workspace.id is MSV
+            const data = doc.data() || {};
+            const rawName = String(data.name || '').trim();
+            // Extract student name if format is "Ngô Minh Thuận (2554104778)"
+            const match = rawName.match(/^(.*?)\s*\(\d+\)$/);
+            if (match && match[1] && !match[1].toLowerCase().startsWith('sinh viên')) {
+              nameMap[userId] = match[1].trim();
+            } else if (rawName && !rawName.toLowerCase().startsWith('sinh viên')) {
+              nameMap[userId] = rawName;
+            } else if (data.studentName) {
+              nameMap[userId] = data.studentName;
+            }
           }
         });
         setUserMsvMap(msvMap);
+        setUserStudentNameMap(nameMap);
       } catch (e) {
         console.error("Failed to fetch MSVs:", e);
       }
@@ -199,7 +213,40 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
                     {users.map(u => (
                       <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <td className="p-4 text-gray-900 dark:text-gray-100 font-medium">
-                          {u.displayName || 'Khách'}
+                          {(() => {
+                            const isGeneric = !u.displayName || u.displayName === 'Sinh viên' || u.displayName === 'Sinh viên TLU' || u.displayName === 'Khách';
+                            const workspaceStudentName = userStudentNameMap[u.id];
+
+                            if (!isGeneric) {
+                              return (
+                                <div className="flex flex-col">
+                                  <span className="font-semibold text-gray-900 dark:text-white">{u.displayName}</span>
+                                  {workspaceStudentName && workspaceStudentName.toLowerCase() !== u.displayName.toLowerCase() && (
+                                    <span className="text-xs text-blue-600 dark:text-blue-400 font-normal">
+                                      {workspaceStudentName}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            if (workspaceStudentName) {
+                              return (
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-blue-600 dark:text-blue-400">{workspaceStudentName}</span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    TLU
+                                  </span>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <span className="text-gray-400 dark:text-gray-500 italic">
+                                {u.displayName || 'Khách (chưa đồng bộ)'}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="p-4 text-gray-600 dark:text-gray-300 font-mono text-sm">
                           {userMsvMap[u.id] || u.msv || 'Chưa có'}
