@@ -149,16 +149,11 @@ export function LoadingScreen({ isReady = false, onDone }) {
               className="absolute -inset-2 rounded-3xl blur-xl opacity-40"
               style={{ background: 'radial-gradient(circle, rgba(124, 111, 255, 0.35) 0%, rgba(124, 111, 255, 0) 70%)' }}
             />
-            <div 
-              className="relative w-20 h-20 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/20 border border-white"
-              style={{
-                background: 'linear-gradient(135deg, #6366f1 0%, #7c6fff 50%, #9333ea 100%)',
-              }}
-            >
-              <span className="text-3xl font-black text-white tracking-wider drop-shadow-sm">
-                TL
-              </span>
-            </div>
+            <img
+              src="/icon.png"
+              alt="TLU Schedule Icon"
+              className="relative w-20 h-20 rounded-2xl object-cover shadow-xl shadow-purple-500/20 border border-white/80"
+            />
           </div>
 
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 mb-6">
