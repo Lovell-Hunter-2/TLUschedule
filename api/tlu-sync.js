@@ -54,6 +54,97 @@ function isInvalidSubject(name, code) {
   return false;
 }
 
+function extractClassAndMajorFromStudentObj(obj) {
+  if (!obj || typeof obj !== 'object') return { className: null, major: null };
+
+  let className = null;
+  let major = null;
+
+  // Class extraction
+  if (obj.enrollmentClass) {
+    className = obj.enrollmentClass.className || obj.enrollmentClass.classCode || obj.enrollmentClass.name || null;
+  }
+  if (!className && obj.student?.enrollmentClass) {
+    className = obj.student.enrollmentClass.className || obj.student.enrollmentClass.classCode || obj.student.enrollmentClass.name || null;
+  }
+  if (!className && obj.studentCourseSubject?.student?.enrollmentClass) {
+    className = obj.studentCourseSubject.student.enrollmentClass.className || obj.studentCourseSubject.student.enrollmentClass.classCode || null;
+  }
+  if (!className && obj.className) {
+    className = obj.className;
+  }
+  if (!className && obj.classCode) {
+    className = obj.classCode;
+  }
+
+  // Major / Speciality / Department extraction
+  if (obj.speciality?.name) {
+    major = obj.speciality.name;
+  } else if (obj.speciality?.specialityName) {
+    major = obj.speciality.specialityName;
+  } else if (obj.student?.speciality?.name) {
+    major = obj.student.speciality.name;
+  } else if (obj.studentCourseSubject?.student?.speciality?.name) {
+    major = obj.studentCourseSubject.student.speciality.name;
+  } else if (obj.department?.name) {
+    major = obj.department.name;
+  } else if (obj.department?.departmentName) {
+    major = obj.department.departmentName;
+  } else if (obj.student?.department?.name) {
+    major = obj.student.department.name;
+  } else if (obj.major?.name) {
+    major = obj.major.name;
+  } else if (typeof obj.major === 'string' && obj.major.trim()) {
+    major = obj.major;
+  } else if (typeof obj.speciality === 'string' && obj.speciality.trim()) {
+    major = obj.speciality;
+  }
+
+  return {
+    className: className ? String(className).trim() : null,
+    major: major ? String(major).trim() : null
+  };
+}
+
+function extractInfoFromHtml(html) {
+  if (!html) return { className: null, major: null, studentName: null };
+  const $ = loadCheerio(html);
+  let className = null;
+  let major = null;
+  let studentName = null;
+
+  $('tr').each((i, row) => {
+    const cells = $(row).find('th, td');
+    for (let c = 0; c < cells.length - 1; c++) {
+      const label = $(cells[c]).text().trim().toLowerCase();
+      const val = $(cells[c + 1]).text().trim();
+      if (!val) continue;
+
+      if (!className && (label.includes('lớp') || label === 'lớp sinh hoạt' || label === 'lớp biên chế')) {
+        className = val.replace(/^[:\s-]+/, '').trim();
+      }
+      if (!major && (label.includes('chuyên ngành') || label.includes('ngành') || label.includes('khoa'))) {
+        major = val.replace(/^[:\s-]+/, '').trim();
+      }
+      if (!studentName && (label.includes('họ và tên') || label.includes('họ tên') || label === 'sinh viên')) {
+        studentName = val.replace(/^[:\s-]+/, '').trim();
+      }
+    }
+  });
+
+  const fullText = $('body').text() || html;
+  if (!className) {
+    const classMatch = fullText.match(/(?:Lớp\s*sinh\s*hoạt|Lớp\s*biên\s*chế|Lớp\s*học|Lớp)\s*[:–-]\s*([A-Za-z0-9_-]{3,20})/i);
+    if (classMatch && classMatch[1]) className = classMatch[1].trim();
+  }
+  if (!major) {
+    const majorMatch = fullText.match(/(?:Chuyên\s*ngành|Ngành\s*học|Ngành)\s*[:–-]\s*([^,\n\r<]{3,50})/i);
+    if (majorMatch && majorMatch[1]) major = majorMatch[1].trim();
+  }
+
+  return { className, major, studentName };
+}
+
 // Cookie Jar for session handling
 class CookieJar {
   constructor() {
@@ -368,21 +459,47 @@ export default async function handler(req, res) {
     }
 
     // LOGIN SUCCESSFUL!
-    // Step D: Scrape student name from /dashboard.html
+    // Step D: Scrape student info (name, class, major) from /dashboard.html & /SinhVien/GetThongTinSinhVien
     let studentName = '';
+    let className = '';
+    let major = '';
     try {
       const dashRes = await httpsGet('sv.tlu.edu.vn', '/dashboard.html', {
         'Cookie': jar.getCookieHeader(),
         'User-Agent': 'Mozilla/5.0'
       });
       if (dashRes.status === 200 && dashRes.data) {
+        const parsed = extractInfoFromHtml(dashRes.data);
+        if (parsed.className) className = parsed.className;
+        if (parsed.major) major = parsed.major;
+        if (parsed.studentName) studentName = parsed.studentName;
+
         const $d = loadCheerio(dashRes.data);
-        studentName = $d('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name, .student-name').first().text().trim();
-        if (studentName) {
-          studentName = studentName.replace(/^(xin\s*chào|chào\s*bạn|hi|hello)[,:\s-]*/i, '').trim();
+        if (!studentName) {
+          studentName = $d('.user-name, .profile-name, .navbar-user, #span-user-name, .user-info, .account-name, .student-name').first().text().trim();
+          if (studentName) {
+            studentName = studentName.replace(/^(xin\s*chào|chào\s*bạn|hi|hello)[,:\s-]*/i, '').trim();
+          }
         }
       }
     } catch (e) {}
+
+    // Fallback: check /SinhVien/GetThongTinSinhVien if class or major not found
+    if (!className || !major) {
+      try {
+        const infoRes = await httpsGet('sv.tlu.edu.vn', '/SinhVien/GetThongTinSinhVien', {
+          'Cookie': jar.getCookieHeader(),
+          'User-Agent': 'Mozilla/5.0',
+          'Referer': 'https://sv.tlu.edu.vn/dashboard.html'
+        });
+        if (infoRes.status === 200 && infoRes.data) {
+          const parsed = extractInfoFromHtml(infoRes.data);
+          if (parsed.className && !className) className = parsed.className;
+          if (parsed.major && !major) major = parsed.major;
+          if (parsed.studentName && !studentName) studentName = parsed.studentName;
+        }
+      } catch (e) {}
+    }
 
     // Step E: Scrape schedule by progress from /SinhVien/GetDanhSachLichTheoTienDo
     // We query semester IDs (e.g. 15, 16, 14, 17, 18, 19, 20, 1, 2)
@@ -500,6 +617,8 @@ export default async function handler(req, res) {
       data: finalSubjects,
       exams: [],
       studentName: studentName || `Sinh viên ${studentCode}`,
+      className: className || null,
+      major: major || null,
       gpaSummary: [],
       detailedMarks,
       encryptedPassword: encrypt(rawPassword)
@@ -644,12 +763,19 @@ export default async function handler(req, res) {
     };
 
     const fetchUser = async () => {
+      let studentName = null;
+      let className = null;
+      let major = null;
+
       try {
         const res = await httpsGet(UPSTREAM_HOST, '/education/api/users/getCurrentUser', baseHeaders);
         if (res.status === 200) {
           const dt = JSON.parse(res.data);
           const name = dt.displayName || (dt.person ? `${dt.person.lastName || ''} ${dt.person.firstName || ''}`.trim() : null) || dt.fullName || dt.name;
-          if (name && typeof name === 'string' && name.trim()) return name.trim();
+          if (name && typeof name === 'string' && name.trim()) studentName = name.trim();
+          const info = extractClassAndMajorFromStudentObj(dt);
+          if (info.className) className = info.className;
+          if (info.major) major = info.major;
         }
       } catch (e) {}
 
@@ -658,10 +784,26 @@ export default async function handler(req, res) {
         if (res2.status === 200) {
           const s = JSON.parse(res2.data);
           const name = s.displayName || `${s.lastName || ''} ${s.firstName || ''}`.trim() || s.fullName;
-          if (name && typeof name === 'string' && name.trim()) return name.trim();
+          if (name && typeof name === 'string' && name.trim() && !studentName) studentName = name.trim();
+          const info = extractClassAndMajorFromStudentObj(s);
+          if (info.className && !className) className = info.className;
+          if (info.major && !major) major = info.major;
         }
       } catch (e) {}
-      return null;
+
+      if (!className || !major) {
+        try {
+          const res3 = await httpsGet(UPSTREAM_HOST, '/education/api/studentdetail/getbystudent', baseHeaders);
+          if (res3.status === 200) {
+            const sd = JSON.parse(res3.data);
+            const info = extractClassAndMajorFromStudentObj(sd);
+            if (info.className && !className) className = info.className;
+            if (info.major && !major) major = info.major;
+          }
+        } catch (e) {}
+      }
+
+      return { studentName, className, major };
     };
 
     const fetchSemestersAndSchedules = async (target) => {
@@ -795,7 +937,11 @@ export default async function handler(req, res) {
     let gpaSummary = [];
     let detailedMarks = [];
     let studentName = null;
+    let className = null;
+    let major = null;
     let scheduleAndExams = { allSchedules: [], allExams: [] };
+
+    const defaultUserInfo = { studentName: null, className: null, major: null };
 
     // Phân rã mục tiêu để tránh timeout
     if (syncTarget === 'login') {
@@ -805,61 +951,89 @@ export default async function handler(req, res) {
         encryptedPassword: returnedEncryptedPassword
       });
     } else if (syncTarget === 'marks') {
-      [gpaSummary, detailedMarks, studentName] = await Promise.all([
+      let userInfo;
+      [gpaSummary, detailedMarks, userInfo] = await Promise.all([
         withTimeout(fetchGpa(), 5500, []),
         withTimeout(fetchMarks(), 5500, []),
-        withTimeout(fetchUser(), 4500, null)
+        withTimeout(fetchUser(), 4500, defaultUserInfo)
       ]);
+      studentName = userInfo?.studentName || null;
+      className = userInfo?.className || null;
+      major = userInfo?.major || null;
     } else if (syncTarget === 'schedules') {
-      [studentName, scheduleAndExams] = await Promise.all([
-        withTimeout(fetchUser(), 4500, null),
+      let userInfo;
+      [userInfo, scheduleAndExams] = await Promise.all([
+        withTimeout(fetchUser(), 4500, defaultUserInfo),
         withTimeout(fetchSemestersAndSchedules('schedules'), 8000, {allSchedules: [], allExams: []})
       ]);
+      studentName = userInfo?.studentName || null;
+      className = userInfo?.className || null;
+      major = userInfo?.major || null;
     } else if (syncTarget === 'exams') {
-      [studentName, scheduleAndExams] = await Promise.all([
-        withTimeout(fetchUser(), 4500, null),
+      let userInfo;
+      [userInfo, scheduleAndExams] = await Promise.all([
+        withTimeout(fetchUser(), 4500, defaultUserInfo),
         withTimeout(fetchSemestersAndSchedules('exams'), 8000, {allSchedules: [], allExams: []})
       ]);
+      studentName = userInfo?.studentName || null;
+      className = userInfo?.className || null;
+      major = userInfo?.major || null;
     } else {
       // Default: 'all' (Fallbacks for old clients)
-      [gpaSummary, detailedMarks, studentName, scheduleAndExams] = await Promise.all([
+      let userInfo;
+      [gpaSummary, detailedMarks, userInfo, scheduleAndExams] = await Promise.all([
         withTimeout(fetchGpa(), 5500, []),
         withTimeout(fetchMarks(), 5500, []),
-        withTimeout(fetchUser(), 4500, null),
+        withTimeout(fetchUser(), 4500, defaultUserInfo),
         withTimeout(fetchSemestersAndSchedules('all'), 6500, {allSchedules: [], allExams: []})
       ]);
+      studentName = userInfo?.studentName || null;
+      className = userInfo?.className || null;
+      major = userInfo?.major || null;
     }
 
     const { allSchedules, allExams } = scheduleAndExams || { allSchedules: [], allExams: [] };
 
-    // Fallback: extract studentName from detailedMarks if not yet found
-    if (!studentName && Array.isArray(detailedMarks) && detailedMarks.length > 0) {
+    // Fallback: extract studentName, className, and major from detailedMarks if not yet found
+    if ((!studentName || !className || !major) && Array.isArray(detailedMarks) && detailedMarks.length > 0) {
       for (const m of detailedMarks) {
-        const st = m?.student;
-        const sName = st?.displayName || st?.fullName || (st?.lastName ? `${st.lastName} ${st.firstName || ''}`.trim() : null);
-        if (sName && typeof sName === 'string' && sName.trim()) {
-          studentName = sName.trim();
-          break;
+        const info = extractClassAndMajorFromStudentObj(m?.student || m);
+        if (!className && info.className) className = info.className;
+        if (!major && info.major) major = info.major;
+        if (!studentName) {
+          const st = m?.student;
+          const sName = st?.displayName || st?.fullName || (st?.lastName ? `${st.lastName} ${st.firstName || ''}`.trim() : null);
+          if (sName && typeof sName === 'string' && sName.trim()) {
+            studentName = sName.trim();
+          }
         }
       }
     }
 
-    // Fallback: extract studentName from allExams or allSchedules
-    if (!studentName && Array.isArray(allExams) && allExams.length > 0) {
+    // Fallback: extract studentName, className, and major from allExams or allSchedules
+    if ((!studentName || !className || !major) && Array.isArray(allExams) && allExams.length > 0) {
       for (const e of allExams) {
-        const sName = e?.student?.displayName || e?.student?.fullName || e?.studentName;
-        if (sName && typeof sName === 'string' && sName.trim()) {
-          studentName = sName.trim();
-          break;
+        const info = extractClassAndMajorFromStudentObj(e?.student || e);
+        if (!className && info.className) className = info.className;
+        if (!major && info.major) major = info.major;
+        if (!studentName) {
+          const sName = e?.student?.displayName || e?.student?.fullName || e?.studentName;
+          if (sName && typeof sName === 'string' && sName.trim()) {
+            studentName = sName.trim();
+          }
         }
       }
     }
-    if (!studentName && Array.isArray(allSchedules) && allSchedules.length > 0) {
+    if ((!studentName || !className || !major) && Array.isArray(allSchedules) && allSchedules.length > 0) {
       for (const s of allSchedules) {
-        const sName = s?.student?.displayName || s?.studentCourseSubject?.student?.displayName;
-        if (sName && typeof sName === 'string' && sName.trim()) {
-          studentName = sName.trim();
-          break;
+        const info = extractClassAndMajorFromStudentObj(s?.student || s?.studentCourseSubject?.student || s);
+        if (!className && info.className) className = info.className;
+        if (!major && info.major) major = info.major;
+        if (!studentName) {
+          const sName = s?.student?.displayName || s?.studentCourseSubject?.student?.displayName;
+          if (sName && typeof sName === 'string' && sName.trim()) {
+            studentName = sName.trim();
+          }
         }
       }
     }
@@ -962,6 +1136,8 @@ export default async function handler(req, res) {
       data: uniqueSchedules,
       exams: uniqueExams,
       studentName,
+      className: className || null,
+      major: major || null,
       gpaSummary,
       detailedMarks,
       encryptedPassword: returnedEncryptedPassword
