@@ -17,7 +17,7 @@ export async function fetchTluCaptcha(): Promise<{ captchaDataUrl: string; sessi
 }
 
 export async function syncTluWithChunks(bodyParams: any, idToken?: string) {
-   let json = { data: [], exams: [], gpaSummary: [], detailedMarks: [], studentName: '', encryptedPassword: '' };
+   let json = { data: [], exams: [], gpaSummary: [], detailedMarks: [], studentName: '', className: '', major: '', encryptedPassword: '' };
    
    const headers: any = { 'Content-Type': 'application/json' };
    if (idToken) {
@@ -82,16 +82,24 @@ export async function syncTluWithChunks(bodyParams: any, idToken?: string) {
    const marksRes = await doSync('marks', { tluToken });
    json.gpaSummary = marksRes.gpaSummary || [];
    json.detailedMarks = marksRes.detailedMarks || [];
-   json.studentName = marksRes.studentName || '';
+   if (marksRes.studentName) json.studentName = marksRes.studentName;
+   if (marksRes.className) json.className = marksRes.className;
+   if (marksRes.major) json.major = marksRes.major;
 
    // 2. Fetch Schedules
    const schedRes = await doSync('schedules', { tluToken });
    json.data = schedRes.data || [];
+   if (!json.studentName && schedRes.studentName) json.studentName = schedRes.studentName;
+   if (!json.className && schedRes.className) json.className = schedRes.className;
+   if (!json.major && schedRes.major) json.major = schedRes.major;
 
    // 3. Fetch Exams
    try {
       const examsRes = await doSync('exams', { tluToken });
       json.exams = examsRes.exams || [];
+      if (!json.studentName && examsRes.studentName) json.studentName = examsRes.studentName;
+      if (!json.className && examsRes.className) json.className = examsRes.className;
+      if (!json.major && examsRes.major) json.major = examsRes.major;
    } catch (e) {
       // If exams fail, we can just ignore it to avoid destroying everything
       console.error("Exams sync failed", e);
