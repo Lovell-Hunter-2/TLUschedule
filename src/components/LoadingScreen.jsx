@@ -39,7 +39,7 @@ export function LoadingScreen({ isReady = false, onDone }) {
       setProgress(100);
       const timer = setTimeout(() => {
         handleDone();
-      }, 250);
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [isReady]);
@@ -58,13 +58,13 @@ export function LoadingScreen({ isReady = false, onDone }) {
         return Math.max(prev, raw);
       });
 
-      // Nếu load lâu qua 2 giây mà chưa có dữ liệu, hiện skeleton để người dùng thấy khung
-      if (elapsed > 2000) {
+      // Nếu tải lâu qua 1.8s mà chưa có dữ liệu, hiển thị khung skeleton mô phỏng
+      if (elapsed > 1800) {
         setStage('skeleton');
       }
     }, 40);
 
-    // Timeout an toàn: Tối đa 3.5 giây luôn mở giao diện chính, không để người dùng bị kẹt
+    // Timeout an toàn: Tối đa 3.5s luôn mở ứng dụng
     const safetyTimer = setTimeout(() => {
       handleDone();
     }, 3500);
@@ -96,18 +96,24 @@ export function LoadingScreen({ isReady = false, onDone }) {
     <div 
       className="fixed inset-0 z-[100] flex flex-col justify-between overflow-hidden select-none font-sans bg-[#FDFCFE] text-gray-900"
     >
-      {/* Keyframe Shimmer sáng cho giao diện nền trắng */}
+      {/* Keyframe Shimmer chuẩn trắng xám */}
       <style>{`
-        @keyframes shimmerLight {
+        @keyframes shimmerNeutral {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
         }
-        .shimmer-light {
+        .shimmer-box {
+          position: relative;
+          overflow: hidden;
+          background-color: #e2e8f0;
+        }
+        .shimmer-box-light {
           position: relative;
           overflow: hidden;
           background-color: #f1f5f9;
         }
-        .shimmer-light::after {
+        .shimmer-box::after,
+        .shimmer-box-light::after {
           position: absolute;
           top: 0;
           right: 0;
@@ -117,16 +123,16 @@ export function LoadingScreen({ isReady = false, onDone }) {
           background-image: linear-gradient(
             90deg,
             rgba(255, 255, 255, 0) 0,
-            rgba(255, 255, 255, 0.7) 40%,
-            rgba(255, 255, 255, 0.9) 60%,
+            rgba(255, 255, 255, 0.6) 40%,
+            rgba(255, 255, 255, 0.85) 60%,
             rgba(255, 255, 255, 0) 100%
           );
-          animation: shimmerLight 1.6s infinite;
+          animation: shimmerNeutral 1.6s infinite;
           content: '';
         }
       `}</style>
 
-      {/* GIAI ĐOẠN 1 + 2: LOADER + TIPS (NỀN TRẮNG SÁNG) */}
+      {/* GIAI ĐOẠN 1 + 2: LOADER + TIPS */}
       <div
         className={`absolute inset-0 flex flex-col items-center justify-between p-6 sm:p-8 transition-all duration-300 ease-out z-20 ${
           stage === 'skeleton'
@@ -139,12 +145,10 @@ export function LoadingScreen({ isReady = false, onDone }) {
         {/* Logo App + Progress */}
         <div className="flex flex-col items-center text-center max-w-sm w-full">
           <div className="relative mb-5 group">
-            {/* Hiệu ứng hào quang tím nhẹ nhàng trên nền trắng */}
             <div 
               className="absolute -inset-2 rounded-3xl blur-xl opacity-40"
               style={{ background: 'radial-gradient(circle, rgba(124, 111, 255, 0.35) 0%, rgba(124, 111, 255, 0) 70%)' }}
             />
-            {/* Khối logo tím nổi bật */}
             <div 
               className="relative w-20 h-20 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/20 border border-white"
               style={{
@@ -184,7 +188,7 @@ export function LoadingScreen({ isReady = false, onDone }) {
           </div>
         </div>
 
-        {/* Ô mẹo (Tip box) nền trắng thẻ bo tròn */}
+        {/* Ô mẹo (Tip box) */}
         <div className="w-full max-w-sm mb-4">
           <div className="rounded-2xl p-4 bg-white border border-gray-200/90 shadow-md shadow-purple-500/5 transition-all">
             <div className="flex items-start gap-3 min-h-[46px]">
@@ -200,7 +204,6 @@ export function LoadingScreen({ isReady = false, onDone }) {
               </p>
             </div>
 
-            {/* Dot Indicator */}
             <div className="flex items-center justify-center gap-1.5 mt-3 pt-2.5 border-t border-gray-100">
               {TIPS.map((_, index) => (
                 <div
@@ -215,93 +218,199 @@ export function LoadingScreen({ isReady = false, onDone }) {
         </div>
       </div>
 
-      {/* GIAI ĐOẠN 3: SKELETON SCREEN (NỀN TRẮNG SÁNG, THẺ TRẮNG SHIMMER) */}
+      {/* GIAI ĐOẠN 3: SKELETON SCREEN (KHUÔN MÔ PHỎNG TRẮNG XÁM CHUẨN) */}
       <div
         className={`absolute inset-0 flex flex-col justify-between overflow-y-auto transition-opacity duration-300 z-10 bg-[#FDFCFE] ${
           stage === 'skeleton' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         style={{
-          paddingBottom: 'env(safe-area-inset-bottom, 80px)'
+          paddingBottom: 'env(safe-area-inset-bottom, 90px)'
         }}
       >
-        <div className="w-full max-w-5xl mx-auto px-4 py-5 space-y-6">
-          {/* Header Skeleton */}
-          <div className="flex items-center justify-between pb-4 border-b border-gray-200/80">
-            <div className="space-y-2">
-              <div className="shimmer-light w-48 sm:w-64 h-6 rounded-lg" />
-              <div className="shimmer-light w-28 sm:w-36 h-4 rounded-md" />
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="shimmer-light w-16 h-9 rounded-full hidden sm:block" />
-              <div className="shimmer-light w-24 h-9 rounded-full hidden sm:block" />
-              <div className="shimmer-light w-9 h-9 rounded-full" />
-              <div className="shimmer-light w-9 h-9 rounded-full" />
-            </div>
-          </div>
-
-          {/* 4 Thẻ KPI (Grid 2x2 trên mobile / 4 cột trên desktop) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="rounded-2xl p-4 bg-white border border-gray-200/80 shadow-xs space-y-3"
-              >
-                <div className="shimmer-light w-20 h-3.5 rounded-md" />
-                <div className="shimmer-light w-14 h-8 rounded-lg" />
-                <div className="shimmer-light w-24 h-3 rounded-md" />
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-4 space-y-4 sm:space-y-6">
+          
+          {/* 1. Header (Khuôn Tên SV bên trái, cụm nút icon bên phải) */}
+          <header className="flex items-center justify-between gap-3 pb-2 sm:pb-3 border-b border-gray-100">
+            {/* Left: User Title */}
+            <div className="min-w-0">
+              {/* Desktop view */}
+              <div className="hidden sm:block space-y-2">
+                <div className="w-64 h-6 rounded-lg shimmer-box" />
+                <div className="w-28 h-3.5 rounded-md shimmer-box-light" />
               </div>
-            ))}
-          </div>
-
-          {/* Danh sách 3 thẻ lớp học có thanh màu trái */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between px-1">
-              <div className="shimmer-light w-32 h-4 rounded-md" />
-              <div className="shimmer-light w-20 h-4 rounded-md" />
+              {/* Mobile view (2 dòng xếp chồng) */}
+              <div className="sm:hidden space-y-1.5">
+                <div className="w-20 h-5 rounded-md shimmer-box" />
+                <div className="w-24 h-5 rounded-md shimmer-box" />
+              </div>
             </div>
 
-            {[
-              { color: '#7c6fff' },
-              { color: '#0284c7' },
-              { color: '#059669' }
-            ].map((card, i) => (
-              <div
-                key={i}
-                className="relative rounded-2xl p-4 bg-white border border-gray-200/80 shadow-xs overflow-hidden flex items-center justify-between gap-4"
-              >
-                {/* Thanh màu trái */}
+            {/* Right: Actions (Thời tiết, Đồng bộ, Chuông, Cài đặt, Menu) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Weather Pill */}
+              <div className="w-16 sm:w-20 h-8 sm:h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center gap-1.5 px-2 shadow-2xs">
+                <div className="w-3.5 h-3.5 rounded-full shimmer-box" />
+                <div className="w-7 h-3 rounded shimmer-box" />
+              </div>
+
+              {/* Sync Pill (Desktop) / Circle (Mobile) */}
+              <div className="hidden sm:flex w-28 h-9 rounded-full bg-white border border-gray-200 items-center justify-center gap-1.5 px-3 shadow-2xs">
+                <div className="w-3.5 h-3.5 rounded-full shimmer-box" />
+                <div className="w-14 h-3 rounded shimmer-box-light" />
+              </div>
+              <div className="sm:hidden w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-2xs">
+                <div className="w-4 h-4 rounded-full shimmer-box" />
+              </div>
+
+              {/* Bell Notification */}
+              <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-2xs">
+                <div className="w-4 h-4 rounded-full shimmer-box" />
+              </div>
+
+              {/* Install App Button */}
+              <div className="hidden sm:flex w-28 h-9 rounded-full bg-gray-200 items-center justify-center gap-1.5 px-3">
+                <div className="w-3.5 h-3.5 rounded shimmer-box" />
+                <div className="w-16 h-3 rounded shimmer-box" />
+              </div>
+              <div className="sm:hidden w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                <div className="w-3.5 h-3.5 rounded shimmer-box" />
+              </div>
+
+              {/* Menu Button */}
+              <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-2xs">
+                <div className="w-4 h-3 rounded shimmer-box" />
+              </div>
+            </div>
+          </header>
+
+          {/* 2. Desktop Segmented Tabs & Dropdown / Mobile Dropdown */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Left spacer desktop */}
+            <div className="hidden sm:block sm:flex-1" />
+
+            {/* Desktop Center Segmented Tabs */}
+            <div className="hidden sm:flex items-center gap-1 p-1 bg-gray-100 border border-gray-200/70 rounded-2xl shadow-2xs">
+              <div className="w-20 h-8 rounded-xl bg-white border border-gray-200/60 shadow-xs flex items-center justify-center">
+                <div className="w-12 h-3 rounded shimmer-box" />
+              </div>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="w-20 h-8 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-3 rounded shimmer-box-light" />
+                </div>
+              ))}
+            </div>
+
+            {/* Right Semester Dropdown (Full width on Mobile) */}
+            <div className="flex justify-end sm:flex-1">
+              <div className="w-full sm:w-44 h-11 sm:h-10 rounded-2xl bg-white border border-gray-200 shadow-2xs flex items-center justify-between px-4">
+                <div className="w-24 h-3.5 rounded shimmer-box-light" />
+                <div className="w-3 h-3 rounded shimmer-box" />
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Dải ngày trong tuần (Date Strip) */}
+          <div className="flex gap-2.5 sm:gap-3 overflow-x-auto pb-1 sm:pb-2 no-scrollbar -mx-1 px-1">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((idx) => {
+              const isSelected = idx === 3;
+              return (
                 <div
-                  className="absolute left-0 top-0 bottom-0 w-1.5"
-                  style={{ backgroundColor: card.color }}
-                />
-                <div className="pl-2 space-y-2.5 flex-1 min-w-0">
-                  <div className="shimmer-light w-3/4 sm:w-1/2 h-5 rounded-md" />
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="shimmer-light w-20 h-4 rounded-md" />
-                    <div className="shimmer-light w-24 h-4 rounded-md" />
-                    <div className="shimmer-light w-28 h-4 rounded-md hidden sm:block" />
+                  key={idx}
+                  className={`flex flex-col items-center justify-center min-w-[58px] sm:min-w-[64px] h-[72px] sm:h-[76px] rounded-2xl border shrink-0 transition-all ${
+                    isSelected
+                      ? 'bg-gray-100 border-gray-300 shadow-xs'
+                      : 'bg-white border-gray-150 shadow-2xs'
+                  }`}
+                >
+                  <div className="w-8 h-2 rounded shimmer-box-light" />
+                  <div className="w-6 h-5 rounded-md mt-2 shimmer-box" />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 4. Tiêu đề ngày & Nút + Note */}
+          <div className="flex items-center justify-between pt-1">
+            <div className="w-36 sm:w-48 h-6 sm:h-7 rounded-lg shimmer-box" />
+            <div className="w-20 h-8 rounded-full bg-white border border-gray-200 shadow-2xs flex items-center justify-center gap-1.5 px-3">
+              <div className="w-3 h-3 rounded shimmer-box" />
+              <div className="w-8 h-3 rounded shimmer-box-light" />
+            </div>
+          </div>
+
+          {/* 5. Danh sách thẻ môn học (Khung mô phỏng trắng xám trung tính) */}
+          <div className="space-y-3.5 sm:space-y-4">
+            {[1, 2].map((cardIdx) => (
+              <div 
+                key={cardIdx}
+                className="rounded-2xl p-4 sm:p-5 bg-white border border-gray-200/80 shadow-xs space-y-3 relative overflow-hidden"
+              >
+                {/* Dải viền trái mô phỏng */}
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gray-300" />
+
+                {/* Dòng 1: Tên môn & Giờ học */}
+                <div className="flex items-start justify-between gap-3 pl-1">
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="w-3/5 sm:w-2/5 h-6 rounded-md shimmer-box" />
+                    {/* Mã lớp pill */}
+                    <div className="w-60 max-w-full h-5 rounded-md shimmer-box-light" />
+                  </div>
+                  {/* Giờ học pill */}
+                  <div className="w-28 h-6 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center gap-1 px-2.5 shrink-0 shadow-2xs">
+                    <div className="w-3 h-3 rounded-full shimmer-box" />
+                    <div className="w-16 h-2.5 rounded shimmer-box-light" />
                   </div>
                 </div>
-                <div className="shimmer-light w-12 h-6 rounded-lg shrink-0" />
+
+                {/* Dòng 2: Phòng học & Nút bản đồ & Giảng viên */}
+                <div className="flex items-center gap-2 pt-0.5 pl-1 flex-wrap">
+                  <div className="w-4 h-4 rounded-full shimmer-box" />
+                  <div className="w-16 h-4 rounded shimmer-box" />
+                  <div className="w-7 h-7 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 ml-1">
+                    <div className="w-3.5 h-3.5 rounded shimmer-box" />
+                  </div>
+                  {cardIdx === 2 && (
+                    <div className="flex items-center gap-1.5 ml-2">
+                      <div className="w-3.5 h-3.5 rounded-full shimmer-box" />
+                      <div className="w-28 h-4 rounded shimmer-box-light" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Dòng 3: Tiết học badges & Thời tiết */}
+                <div className="flex items-center justify-between pt-1 pl-1 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-8 h-5 rounded bg-gray-50 border border-gray-200 shimmer-box-light" />
+                    <div className="w-8 h-5 rounded bg-gray-50 border border-gray-200 shimmer-box-light" />
+                    <div className="w-8 h-5 rounded bg-gray-50 border border-gray-200 shimmer-box-light" />
+                  </div>
+                  {/* Weather */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3.5 h-3.5 rounded-full shimmer-box" />
+                    <div className="w-14 h-3 rounded shimmer-box-light" />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
+
         </div>
 
-        {/* Bottom Tab Bar Skeleton Nền Trắng */}
+        {/* 6. Thanh Bottom Tab Bar (Mobile Floating Bar đúng 5 tab) */}
         <div 
-          className="fixed bottom-2 left-2 right-2 max-w-md mx-auto z-40 rounded-2xl p-2 bg-white/95 border border-gray-200/80 backdrop-blur-xl shadow-lg flex items-center justify-around"
+          className="sm:hidden fixed bottom-2 left-2 right-2 max-w-md mx-auto z-40 rounded-2xl p-1 bg-white/95 border border-gray-100 backdrop-blur-xl shadow-[0_4px_24px_rgb(0,0,0,0.08)] flex items-center justify-around"
           style={{
             marginBottom: 'env(safe-area-inset-bottom, 0px)'
           }}
         >
-          {[1, 2, 3, 4, 5].map((tab) => (
-            <div key={tab} className="flex flex-col items-center gap-1.5 py-1 px-3">
-              <div className="shimmer-light w-5 h-5 rounded-md" />
-              <div className="shimmer-light w-8 h-2.5 rounded-sm" />
+          {[1, 2, 3, 4, 5].map((tabIdx) => (
+            <div key={tabIdx} className="flex flex-col items-center gap-1 py-1.5 px-3">
+              <div className="w-4 h-4 rounded shimmer-box" />
+              <div className="w-7 h-2 rounded shimmer-box-light" />
             </div>
           ))}
         </div>
+
       </div>
     </div>
   );
