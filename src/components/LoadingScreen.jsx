@@ -23,73 +23,70 @@ export function LoadingScreen({ isReady = false, onDone }) {
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [isTipFading, setIsTipFading] = useState(false);
 
+  const doneCalledRef = useRef(false);
   const startTimeRef = useRef(Date.now());
-  const progressIntervalRef = useRef(null);
-  const tipIntervalRef = useRef(null);
-  const delayTimerRef = useRef(null);
-  const doneTimerRef = useRef(null);
-  const tipFadeTimerRef = useRef(null);
 
-  // 1. Progress bar simulation (0 -> 90% over ~3s, jumps to 100% when isReady is true)
+  const handleDone = () => {
+    if (!doneCalledRef.current) {
+      doneCalledRef.current = true;
+      if (onDone) onDone();
+    }
+  };
+
+  // 1. Khi dữ liệu đã sẵn sàng (isReady === true), hoàn tất ngay lập tức
   useEffect(() => {
     if (isReady) {
-      // Jump immediately to 100%
       setProgress(100);
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
-    } else {
-      startTimeRef.current = Date.now();
-      progressIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current;
-        const duration = 3000;
-        const raw = (elapsed / duration) * 90;
-        // Non-linear ease-out so it slows down near 90%
-        const eased = Math.min(90, Math.round(90 * (1 - Math.pow(1 - Math.min(1, elapsed / duration), 2))));
-        setProgress((prev) => {
-          if (prev >= 90) return 90;
-          return Math.max(prev, eased);
-        });
-      }, 50);
+      const timer = setTimeout(() => {
+        handleDone();
+      }, 250);
+      return () => clearTimeout(timer);
     }
+  }, [isReady]);
+
+  // 2. Tiến trình giả lập 0 -> 90% khi dữ liệu đang load (chưa ready)
+  useEffect(() => {
+    if (isReady) return;
+
+    startTimeRef.current = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const raw = Math.min(90, Math.round(90 * (1 - Math.pow(1 - Math.min(1, elapsed / 2200), 2))));
+      
+      setProgress((prev) => {
+        if (prev >= 90) return 90;
+        return Math.max(prev, raw);
+      });
+
+      // Nếu load lâu qua 2 giây mà chưa có dữ liệu, hiện skeleton để người dùng thấy khung
+      if (elapsed > 2000) {
+        setStage('skeleton');
+      }
+    }, 40);
+
+    // Timeout an toàn: Tối đa 3.5 giây luôn mở giao diện chính, không để người dùng bị kẹt
+    const safetyTimer = setTimeout(() => {
+      handleDone();
+    }, 3500);
 
     return () => {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      clearInterval(interval);
+      clearTimeout(safetyTimer);
     };
   }, [isReady]);
 
-  // 2. Transition from Loader to Skeleton (600ms delay after progress reaches 100%)
+  // 3. Xoay vòng Tips mỗi 4 giây
   useEffect(() => {
-    if (progress >= 100 && stage === 'loader') {
-      delayTimerRef.current = setTimeout(() => {
-        setStage('skeleton');
-        // Once skeleton displays, signal completion after brief preview
-        doneTimerRef.current = setTimeout(() => {
-          if (onDone) onDone();
-        }, 900);
-      }, 600);
-    }
-
-    return () => {
-      if (delayTimerRef.current) clearTimeout(delayTimerRef.current);
-      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
-    };
-  }, [progress, stage, onDone]);
-
-  // 3. Rotating Tips every 4s with smooth fade
-  useEffect(() => {
-    tipIntervalRef.current = setInterval(() => {
+    const tipInterval = setInterval(() => {
       setIsTipFading(true);
-      tipFadeTimerRef.current = setTimeout(() => {
+      const fadeTimer = setTimeout(() => {
         setCurrentTipIndex((prev) => (prev + 1) % TIPS.length);
         setIsTipFading(false);
-      }, 250);
+      }, 200);
+      return () => clearTimeout(fadeTimer);
     }, 4000);
 
-    return () => {
-      if (tipIntervalRef.current) clearInterval(tipIntervalRef.current);
-      if (tipFadeTimerRef.current) clearTimeout(tipFadeTimerRef.current);
-    };
+    return () => clearInterval(tipInterval);
   }, []);
 
   const currentTip = TIPS[currentTipIndex];
@@ -97,21 +94,20 @@ export function LoadingScreen({ isReady = false, onDone }) {
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex flex-col justify-between overflow-hidden select-none font-sans"
-      style={{ backgroundColor: '#0d0d12', color: '#f3f4f6' }}
+      className="fixed inset-0 z-[100] flex flex-col justify-between overflow-hidden select-none font-sans bg-[#FDFCFE] text-gray-900"
     >
-      {/* Inline styles for keyframe shimmer and custom scrollbar */}
+      {/* Keyframe Shimmer sáng cho giao diện nền trắng */}
       <style>{`
-        @keyframes shimmer {
+        @keyframes shimmerLight {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
         }
-        .shimmer-block {
+        .shimmer-light {
           position: relative;
           overflow: hidden;
-          background-color: rgba(255, 255, 255, 0.05);
+          background-color: #f1f5f9;
         }
-        .shimmer-block::after {
+        .shimmer-light::after {
           position: absolute;
           top: 0;
           right: 0;
@@ -121,103 +117,82 @@ export function LoadingScreen({ isReady = false, onDone }) {
           background-image: linear-gradient(
             90deg,
             rgba(255, 255, 255, 0) 0,
-            rgba(255, 255, 255, 0.07) 20%,
-            rgba(255, 255, 255, 0.14) 60%,
+            rgba(255, 255, 255, 0.7) 40%,
+            rgba(255, 255, 255, 0.9) 60%,
             rgba(255, 255, 255, 0) 100%
           );
-          animation: shimmer 1.8s infinite;
+          animation: shimmerLight 1.6s infinite;
           content: '';
         }
       `}</style>
 
-      {/* STAGE 1 + 2: LOADER CONTAINER */}
+      {/* GIAI ĐOẠN 1 + 2: LOADER + TIPS (NỀN TRẮNG SÁNG) */}
       <div
-        className={`absolute inset-0 flex flex-col items-center justify-between p-6 sm:p-8 transition-all duration-500 ease-out z-20 ${
+        className={`absolute inset-0 flex flex-col items-center justify-between p-6 sm:p-8 transition-all duration-300 ease-out z-20 ${
           stage === 'skeleton'
-            ? 'opacity-0 scale-[0.97] pointer-events-none'
+            ? 'opacity-0 scale-[0.98] pointer-events-none'
             : 'opacity-100 scale-100'
         }`}
       >
-        {/* Top spacer */}
         <div className="w-full h-8" />
 
-        {/* Center: Logo & Progress */}
+        {/* Logo App + Progress */}
         <div className="flex flex-col items-center text-center max-w-sm w-full">
-          {/* Logo App */}
           <div className="relative mb-5 group">
-            {/* Ambient purple backlight glow */}
+            {/* Hiệu ứng hào quang tím nhẹ nhàng trên nền trắng */}
             <div 
-              className="absolute -inset-2 rounded-3xl blur-xl opacity-60 transition-opacity"
-              style={{ background: 'radial-gradient(circle, rgba(124, 111, 255, 0.4) 0%, rgba(124, 111, 255, 0) 70%)' }}
+              className="absolute -inset-2 rounded-3xl blur-xl opacity-40"
+              style={{ background: 'radial-gradient(circle, rgba(124, 111, 255, 0.35) 0%, rgba(124, 111, 255, 0) 70%)' }}
             />
-            {/* Square badge with gradient */}
+            {/* Khối logo tím nổi bật */}
             <div 
-              className="relative w-20 h-20 rounded-2xl flex items-center justify-center shadow-2xl border"
+              className="relative w-20 h-20 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/20 border border-white"
               style={{
-                background: 'linear-gradient(135deg, #7c6fff 0%, #4f46e5 100%)',
-                borderColor: 'rgba(255, 255, 255, 0.2)',
-                boxShadow: '0 12px 30px -8px rgba(124, 111, 255, 0.45)'
+                background: 'linear-gradient(135deg, #6366f1 0%, #7c6fff 50%, #9333ea 100%)',
               }}
             >
-              <span className="text-3xl font-black text-white tracking-wider">
+              <span className="text-3xl font-black text-white tracking-wider drop-shadow-sm">
                 TL
               </span>
             </div>
           </div>
 
-          {/* App Name */}
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 mb-6">
             TLU schedule
           </h1>
 
-          {/* Fake Progress Bar Container */}
-          <div className="w-full max-w-[280px] space-y-2.5">
-            {/* Track */}
-            <div 
-              className="w-full h-2 rounded-full overflow-hidden p-0.5"
-              style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
-            >
+          {/* Thanh tiến độ */}
+          <div className="w-full max-w-[280px] space-y-2">
+            <div className="w-full h-2 rounded-full overflow-hidden bg-gray-100 border border-gray-200/80 p-0.5">
               <div
-                className="h-full rounded-full transition-all duration-200 ease-out"
-                style={{
-                  width: `${progress}%`,
-                  background: 'linear-gradient(90deg, #7c6fff 0%, #a78bfa 100%)',
-                  boxShadow: '0 0 12px rgba(124, 111, 255, 0.6)'
-                }}
+                className="h-full rounded-full transition-all duration-200 ease-out bg-gradient-to-r from-indigo-500 via-purple-600 to-purple-500 shadow-sm"
+                style={{ width: `${progress}%` }}
               />
             </div>
 
-            {/* Status text + Percentage */}
             <div className="flex items-center justify-between text-[13px] px-0.5">
               <span 
-                className="font-medium tracking-wide transition-all duration-200"
-                style={{ color: progress >= 100 ? '#34d399' : '#a78bfa' }}
+                className="font-semibold tracking-wide transition-all duration-200"
+                style={{ color: progress >= 100 ? '#16a34a' : '#7c3aed' }}
               >
                 {statusText}
               </span>
-              <span className="font-mono text-zinc-400 font-medium text-xs">
+              <span className="font-mono text-gray-500 font-medium text-xs">
                 {progress}%
               </span>
             </div>
           </div>
         </div>
 
-        {/* Bottom: Tip Box */}
+        {/* Ô mẹo (Tip box) nền trắng thẻ bo tròn */}
         <div className="w-full max-w-sm mb-4">
-          <div 
-            className="rounded-2xl p-4 border transition-all duration-300"
-            style={{
-              backgroundColor: '#16161f',
-              borderColor: 'rgba(255, 255, 255, 0.07)',
-              boxShadow: '0 8px 24px -6px rgba(0, 0, 0, 0.4)'
-            }}
-          >
+          <div className="rounded-2xl p-4 bg-white border border-gray-200/90 shadow-md shadow-purple-500/5 transition-all">
             <div className="flex items-start gap-3 min-h-[46px]">
               <span className="text-xl shrink-0 select-none">
                 {currentTip.icon}
               </span>
               <p 
-                className={`text-[13px] leading-relaxed text-zinc-300 transition-opacity duration-250 ${
+                className={`text-[13px] leading-relaxed text-gray-700 transition-opacity duration-200 ${
                   isTipFading ? 'opacity-0' : 'opacity-100'
                 }`}
               >
@@ -226,18 +201,13 @@ export function LoadingScreen({ isReady = false, onDone }) {
             </div>
 
             {/* Dot Indicator */}
-            <div className="flex items-center justify-center gap-1.5 mt-3 pt-2.5 border-t border-white/5">
+            <div className="flex items-center justify-center gap-1.5 mt-3 pt-2.5 border-t border-gray-100">
               {TIPS.map((_, index) => (
                 <div
                   key={index}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    index === currentTipIndex
-                      ? 'w-5'
-                      : 'w-1.5'
+                    index === currentTipIndex ? 'w-5 bg-purple-600' : 'w-1.5 bg-gray-200'
                   }`}
-                  style={{
-                    backgroundColor: index === currentTipIndex ? '#7c6fff' : 'rgba(255, 255, 255, 0.2)'
-                  }}
                 />
               ))}
             </div>
@@ -245,9 +215,9 @@ export function LoadingScreen({ isReady = false, onDone }) {
         </div>
       </div>
 
-      {/* STAGE 3: SKELETON SCREEN */}
+      {/* GIAI ĐOẠN 3: SKELETON SCREEN (NỀN TRẮNG SÁNG, THẺ TRẮNG SHIMMER) */}
       <div
-        className={`absolute inset-0 flex flex-col justify-between overflow-y-auto transition-opacity duration-500 z-10 ${
+        className={`absolute inset-0 flex flex-col justify-between overflow-y-auto transition-opacity duration-300 z-10 bg-[#FDFCFE] ${
           stage === 'skeleton' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         style={{
@@ -255,97 +225,80 @@ export function LoadingScreen({ isReady = false, onDone }) {
         }}
       >
         <div className="w-full max-w-5xl mx-auto px-4 py-5 space-y-6">
-          {/* 1. Header Skeleton */}
-          <div className="flex items-center justify-between pb-4 border-b border-white/[0.06]">
-            {/* Left: User name & class */}
+          {/* Header Skeleton */}
+          <div className="flex items-center justify-between pb-4 border-b border-gray-200/80">
             <div className="space-y-2">
-              <div className="shimmer-block w-48 sm:w-64 h-6 rounded-lg" />
-              <div className="shimmer-block w-28 sm:w-36 h-4 rounded-md" />
+              <div className="shimmer-light w-48 sm:w-64 h-6 rounded-lg" />
+              <div className="shimmer-light w-28 sm:w-36 h-4 rounded-md" />
             </div>
-
-            {/* Right: Action buttons */}
             <div className="flex items-center gap-2">
-              <div className="shimmer-block w-16 h-9 rounded-full hidden sm:block" />
-              <div className="shimmer-block w-24 h-9 rounded-full hidden sm:block" />
-              <div className="shimmer-block w-9 h-9 rounded-full" />
-              <div className="shimmer-block w-9 h-9 rounded-full" />
+              <div className="shimmer-light w-16 h-9 rounded-full hidden sm:block" />
+              <div className="shimmer-light w-24 h-9 rounded-full hidden sm:block" />
+              <div className="shimmer-light w-9 h-9 rounded-full" />
+              <div className="shimmer-light w-9 h-9 rounded-full" />
             </div>
           </div>
 
-          {/* 2. KPI Cards (Grid 2x2 on mobile, 4 columns on desktop) */}
+          {/* 4 Thẻ KPI (Grid 2x2 trên mobile / 4 cột trên desktop) */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="rounded-2xl p-4 border space-y-3"
-                style={{
-                  backgroundColor: '#16161f',
-                  borderColor: 'rgba(255, 255, 255, 0.07)'
-                }}
+                className="rounded-2xl p-4 bg-white border border-gray-200/80 shadow-xs space-y-3"
               >
-                <div className="shimmer-block w-20 h-3.5 rounded-md" />
-                <div className="shimmer-block w-14 h-8 rounded-lg" />
-                <div className="shimmer-block w-24 h-3 rounded-md" />
+                <div className="shimmer-light w-20 h-3.5 rounded-md" />
+                <div className="shimmer-light w-14 h-8 rounded-lg" />
+                <div className="shimmer-light w-24 h-3 rounded-md" />
               </div>
             ))}
           </div>
 
-          {/* 3. Subject Cards List (3 cards with colored left border) */}
+          {/* Danh sách 3 thẻ lớp học có thanh màu trái */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between px-1">
-              <div className="shimmer-block w-32 h-4 rounded-md" />
-              <div className="shimmer-block w-20 h-4 rounded-md" />
+              <div className="shimmer-light w-32 h-4 rounded-md" />
+              <div className="shimmer-light w-20 h-4 rounded-md" />
             </div>
 
             {[
               { color: '#7c6fff' },
-              { color: '#38bdf8' },
-              { color: '#34d399' }
+              { color: '#0284c7' },
+              { color: '#059669' }
             ].map((card, i) => (
               <div
                 key={i}
-                className="relative rounded-2xl p-4 border overflow-hidden flex items-center justify-between gap-4"
-                style={{
-                  backgroundColor: '#16161f',
-                  borderColor: 'rgba(255, 255, 255, 0.07)'
-                }}
+                className="relative rounded-2xl p-4 bg-white border border-gray-200/80 shadow-xs overflow-hidden flex items-center justify-between gap-4"
               >
-                {/* Left Accent Color Strip */}
+                {/* Thanh màu trái */}
                 <div
                   className="absolute left-0 top-0 bottom-0 w-1.5"
                   style={{ backgroundColor: card.color }}
                 />
-
-                {/* Content */}
                 <div className="pl-2 space-y-2.5 flex-1 min-w-0">
-                  <div className="shimmer-block w-3/4 sm:w-1/2 h-5 rounded-md" />
+                  <div className="shimmer-light w-3/4 sm:w-1/2 h-5 rounded-md" />
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="shimmer-block w-20 h-4 rounded-md" />
-                    <div className="shimmer-block w-24 h-4 rounded-md" />
-                    <div className="shimmer-block w-28 h-4 rounded-md hidden sm:block" />
+                    <div className="shimmer-light w-20 h-4 rounded-md" />
+                    <div className="shimmer-light w-24 h-4 rounded-md" />
+                    <div className="shimmer-light w-28 h-4 rounded-md hidden sm:block" />
                   </div>
                 </div>
-
-                {/* Right pill */}
-                <div className="shimmer-block w-12 h-6 rounded-lg shrink-0" />
+                <div className="shimmer-light w-12 h-6 rounded-lg shrink-0" />
               </div>
             ))}
           </div>
         </div>
 
-        {/* 4. Bottom Tab Bar Skeleton (Fixed / Floating) */}
+        {/* Bottom Tab Bar Skeleton Nền Trắng */}
         <div 
-          className="fixed bottom-2 left-2 right-2 max-w-md mx-auto z-40 rounded-2xl p-2 border backdrop-blur-xl shadow-2xl flex items-center justify-around"
+          className="fixed bottom-2 left-2 right-2 max-w-md mx-auto z-40 rounded-2xl p-2 bg-white/95 border border-gray-200/80 backdrop-blur-xl shadow-lg flex items-center justify-around"
           style={{
-            backgroundColor: 'rgba(22, 22, 31, 0.95)',
-            borderColor: 'rgba(255, 255, 255, 0.1)',
             marginBottom: 'env(safe-area-inset-bottom, 0px)'
           }}
         >
           {[1, 2, 3, 4, 5].map((tab) => (
             <div key={tab} className="flex flex-col items-center gap-1.5 py-1 px-3">
-              <div className="shimmer-block w-5 h-5 rounded-md" />
-              <div className="shimmer-block w-8 h-2.5 rounded-sm" />
+              <div className="shimmer-light w-5 h-5 rounded-md" />
+              <div className="shimmer-light w-8 h-2.5 rounded-sm" />
             </div>
           ))}
         </div>
