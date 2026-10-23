@@ -111,9 +111,9 @@ export default function App() {
   // Dark Mode
   // Admin & Global Settings
   const [globalBg, setGlobalBg] = useState<string>('');
-    const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  const [adminSubTab, setAdminSubTab] = useState<'admin' | 'personal'>('admin');
   
-  const isAdmin = user?.email === 'taikhoanphubg4@gmail.com' || user?.email === 'ngominhthuanbg1612007@gmail.com';
+  const isAdmin = Boolean((user as any)?.isAdmin === true || user?.email === 'taikhoanphubg4@gmail.com' || user?.email === 'ngominhthuanbg1612007@gmail.com');
 
   const semestersList = useMemo(() => {
     const map = new Map<number | string, string>();
@@ -807,7 +807,7 @@ export default function App() {
             <Download size={18} />
             <span className="hidden sm:inline">Cài đặt app</span>
           </button>
-          <HeaderMenu onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} isAdmin={isAdmin} onOpenAdmin={() => setIsAdminDashboardOpen(true)} />
+          <HeaderMenu onSwitchWorkspace={handleSwitchWorkspace} onLogout={handleLogout} />
         </div>
       }
     >
@@ -901,11 +901,53 @@ export default function App() {
           <GradesView workspaceId={workspace.id} userId={user.uid} subjects={subjects} />
         )}
         {activeTab === 'update' && (
-          <UpdateView 
-            subjects={subjects} 
-            onUpdate={updateSubjects} 
-            setHasUnsavedChanges={setHasUnsavedChanges}
-          />
+          isAdmin ? (
+            <div className="space-y-4">
+              {/* Admin Mode Switcher */}
+              <div className="flex items-center justify-center">
+                <div className="inline-flex p-1 bg-zinc-100 dark:bg-zinc-800/80 rounded-2xl border border-zinc-200 dark:border-zinc-700/80 max-w-md w-full sm:w-auto shadow-sm">
+                  <button
+                    onClick={() => setAdminSubTab('admin')}
+                    className={cn(
+                      "flex-1 sm:flex-initial min-h-[40px] px-4 py-2 rounded-xl text-[13px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-2",
+                      adminSubTab === 'admin'
+                        ? "bg-white dark:bg-[#1f1f1f] text-zinc-900 dark:text-white shadow-sm"
+                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                    )}
+                  >
+                    <span>Admin Dashboard</span>
+                  </button>
+                  <button
+                    onClick={() => setAdminSubTab('personal')}
+                    className={cn(
+                      "flex-1 sm:flex-initial min-h-[40px] px-4 py-2 rounded-xl text-[13px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-2",
+                      adminSubTab === 'personal'
+                        ? "bg-white dark:bg-[#1f1f1f] text-zinc-900 dark:text-white shadow-sm"
+                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                    )}
+                  >
+                    <span>Cập nhật TKB cá nhân</span>
+                  </button>
+                </div>
+              </div>
+
+              {adminSubTab === 'admin' ? (
+                <AdminDashboard onSwitchToPersonalUpdate={() => setAdminSubTab('personal')} />
+              ) : (
+                <UpdateView 
+                  subjects={subjects} 
+                  onUpdate={updateSubjects} 
+                  setHasUnsavedChanges={setHasUnsavedChanges}
+                />
+              )}
+            </div>
+          ) : (
+            <UpdateView 
+              subjects={subjects} 
+              onUpdate={updateSubjects} 
+              setHasUnsavedChanges={setHasUnsavedChanges}
+            />
+          )
         )}
       </div>
 
@@ -927,12 +969,6 @@ export default function App() {
           <Button onClick={addNote} className="w-full">Lưu ghi chú</Button>
         </div>
       </Modal>
-
-      
-      
-      {isAdminDashboardOpen && (
-        <AdminDashboard onClose={() => setIsAdminDashboardOpen(false)} />
-      )}
     </Layout>
     </>
   );
