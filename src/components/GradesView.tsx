@@ -49,14 +49,6 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
     return () => unsubscribe();
   }, [userId, workspaceId]);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
   // Lấy danh sách kỳ học duy nhất để filter
   const semesters = [...(gpaSummary || [])].filter(s => s?.semester?.id).sort((a, b) => {
     const codeA = a?.semester?.semesterCode || '';
@@ -437,6 +429,14 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
       gpaWeightedCredits
     };
   }, [filteredMarks]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
