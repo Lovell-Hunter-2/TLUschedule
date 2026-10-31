@@ -1,8 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Award, BookOpen, ChevronDown, ChevronUp, AlertCircle, BarChart3, TrendingUp, Medal } from 'lucide-react';
+import { 
+  Award, 
+  BookOpen, 
+  ChevronDown, 
+  ChevronUp, 
+  AlertCircle, 
+  BarChart3, 
+  TrendingUp, 
+  Medal,
+  CheckCircle2,
+  Sparkles,
+  Calculator,
+  Info
+} from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface GradesViewProps {
@@ -54,6 +67,11 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
   const currentSummary = selectedSemester === 'all' 
     ? null 
     : (gpaSummary || []).find(s => s?.semester?.id?.toString() === selectedSemester);
+
+  const selectedSemesterObj = (gpaSummary || []).find(s => s?.semester?.id?.toString() === selectedSemester);
+  const selectedSemesterName = selectedSemester === 'all'
+    ? 'Toàn khóa'
+    : (selectedSemesterObj?.semester?.semesterName || 'Học kỳ đã chọn');
 
   const allMarks = [...(detailedMarks || [])];
 
@@ -174,6 +192,252 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
     };
   };
 
+  // Helper chuyển đổi số an toàn
+  const parseNumeric = (val: any): number | null => {
+    if (val === '-' || val === null || val === undefined || val === '') return null;
+    const num = typeof val === 'number' ? val : parseFloat(String(val).replace(',', '.'));
+    return isNaN(num) ? null : num;
+  };
+
+  // Quy đổi điểm hệ 4 từ điểm hệ 4 trực tiếp, điểm chữ hoặc điểm hệ 10
+  const getConvertedMark4 = (mark4Raw: any, charMarkRaw: any, summaryMarkRaw: any): number | null => {
+    const direct4 = parseNumeric(mark4Raw);
+    if (direct4 !== null && direct4 >= 0 && direct4 <= 4.0) return direct4;
+
+    const char = String(charMarkRaw || '').toUpperCase().trim();
+    if (char === 'A+' || char === 'A') return 4.0;
+    if (char === 'B+') return 3.5;
+    if (char === 'B') return 3.0;
+    if (char === 'C+') return 2.5;
+    if (char === 'C') return 2.0;
+    if (char === 'D+') return 1.5;
+    if (char === 'D') return 1.0;
+    if (char === 'F' || char.includes('KHÔNG ĐẠT') || char.includes('KHONG DAT')) return 0.0;
+
+    const num10 = parseNumeric(summaryMarkRaw);
+    if (num10 !== null) {
+      if (num10 >= 8.5) return 4.0;
+      if (num10 >= 8.0) return 3.5;
+      if (num10 >= 7.0) return 3.0;
+      if (num10 >= 6.5) return 2.5;
+      if (num10 >= 5.5) return 2.0;
+      if (num10 >= 5.0) return 1.5;
+      if (num10 >= 4.0) return 1.0;
+      return 0.0;
+    }
+
+    return null;
+  };
+
+  // Quy đổi điểm hệ 10 từ tổng kết hoặc điểm chữ
+  const getConvertedMark10 = (summaryMarkRaw: any, charMarkRaw: any): number | null => {
+    const direct10 = parseNumeric(summaryMarkRaw);
+    if (direct10 !== null && direct10 >= 0 && direct10 <= 10.0) return direct10;
+
+    const char = String(charMarkRaw || '').toUpperCase().trim();
+    if (char === 'A+' || char === 'A') return 9.0;
+    if (char === 'B+') return 8.2;
+    if (char === 'B') return 7.5;
+    if (char === 'C+') return 6.7;
+    if (char === 'C') return 6.0;
+    if (char === 'D+') return 5.2;
+    if (char === 'D') return 4.5;
+    if (char === 'F') return 2.0;
+
+    return null;
+  };
+
+  // Xếp loại học lực theo thang điểm 4 theo chuẩn đại học & yêu cầu người dùng
+  const getRankInfo = (gpa4: number | null): { name: string; badgeClass: string } => {
+    if (gpa4 === null || isNaN(gpa4)) {
+      return {
+        name: 'Chưa xếp loại',
+        badgeClass: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700'
+      };
+    }
+    if (gpa4 >= 3.5) {
+      return {
+        name: 'Xuất sắc',
+        badgeClass: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800 shadow-xs'
+      };
+    }
+    if (gpa4 >= 3.2) {
+      return {
+        name: 'Giỏi',
+        badgeClass: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 shadow-xs'
+      };
+    }
+    if (gpa4 >= 2.5) {
+      return {
+        name: 'Khá',
+        badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-xs'
+      };
+    }
+    if (gpa4 >= 2.0) {
+      return {
+        name: 'Trung bình',
+        badgeClass: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 shadow-xs'
+      };
+    }
+    if (gpa4 >= 1.0) {
+      return {
+        name: 'Yếu',
+        badgeClass: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800 shadow-xs'
+      };
+    }
+    return {
+      name: 'Kém',
+      badgeClass: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 shadow-xs'
+    };
+  };
+
+  // Tính toán thời gian thực các chỉ số GPA, tín chỉ, học phần đạt và xử lý học lại / học cải thiện
+  const liveMetrics = useMemo(() => {
+    const rawItems = filteredMarks.map(mark => {
+      const score = getScore(mark);
+      const subName = String(mark.subject?.subjectName || mark.subjectName || '').replace(/\uFFFD/g, 'ố').trim();
+      const subCode = String(mark.subject?.subjectCode || mark.subjectCode || '').trim();
+      const credits = Number(mark.subject?.numberOfCredit || mark.numberOfCredit || 0);
+      const isUncounted = mark.isCounted === false || isPhysicalOrDefense(subName, mark.isCounted);
+      
+      const num10 = getConvertedMark10(score.summaryMark, score.charMark);
+      const num4 = getConvertedMark4(score.mark4, score.charMark, score.summaryMark);
+      
+      const charUpper = String(score.charMark || '').toUpperCase().trim();
+      const hasGrade = (num10 !== null) || (num4 !== null) || (charUpper !== '-' && charUpper !== '');
+      
+      const isExplicitFail = charUpper === 'F' || charUpper.includes('KHÔNG ĐẠT') || charUpper.includes('KHONG DAT') || (num10 !== null && num10 < 4.0) || (num4 !== null && num4 === 0 && charUpper !== 'ĐẠT' && charUpper !== 'DAT');
+      const isPass = hasGrade && !isExplicitFail && (
+        ['A', 'B', 'C', 'D', 'ĐẠT', 'DAT', 'M', 'P'].some(c => charUpper.includes(c)) ||
+        (num10 !== null && num10 >= 4.0) ||
+        (num4 !== null && num4 >= 1.0) ||
+        (score.charMark !== '-' && score.charMark !== '')
+      );
+      const isFail = hasGrade && isExplicitFail;
+
+      return {
+        raw: mark,
+        subName,
+        subCode,
+        credits: isNaN(credits) ? 0 : credits,
+        isUncounted,
+        score,
+        numericMark10: num10,
+        numericMark4: num4,
+        hasGrade,
+        isPass,
+        isFail,
+        studyTime: Number(mark.studyTime || 1),
+        examTime: Number(mark.examTime || 1)
+      };
+    });
+
+    // Gom nhóm theo mã học phần (hoặc tên chuẩn hóa nếu thiếu mã) để xử lý học cải thiện / học lại / thi lần 2
+    const groups = new Map<string, typeof rawItems>();
+    for (const item of rawItems) {
+      const key = item.subCode.toUpperCase() || item.subName.toLowerCase().replace(/\s+/g, ' ');
+      if (!key) continue;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(item);
+    }
+
+    let retakeCount = 0;
+    const deduplicatedItems: typeof rawItems = [];
+
+    for (const [, attempts] of groups.entries()) {
+      if (attempts.length > 1) {
+        retakeCount++;
+        // Chọn lần có kết quả tốt nhất: đã có điểm > chưa điểm, đạt > trượt, điểm hệ 4 cao hơn, điểm hệ 10 cao hơn, lần học/thi mới nhất
+        const best = attempts.reduce((prev, curr) => {
+          if (curr.hasGrade && !prev.hasGrade) return curr;
+          if (!curr.hasGrade && prev.hasGrade) return prev;
+          if (curr.isPass && !prev.isPass) return curr;
+          if (!curr.isPass && prev.isPass) return prev;
+          
+          const c4 = curr.numericMark4 ?? -1;
+          const p4 = prev.numericMark4 ?? -1;
+          if (c4 > p4) return curr;
+          if (p4 > c4) return prev;
+
+          const c10 = curr.numericMark10 ?? -1;
+          const p10 = prev.numericMark10 ?? -1;
+          if (c10 > p10) return curr;
+          if (p10 > c10) return prev;
+
+          if (curr.studyTime > prev.studyTime) return curr;
+          if (curr.examTime > prev.examTime) return curr;
+          return prev;
+        });
+        deduplicatedItems.push(best);
+      } else {
+        deduplicatedItems.push(attempts[0]);
+      }
+    }
+
+    let passedCount = 0;
+    let failedCount = 0;
+    let pendingCount = 0;
+    let accumulatedCredits = 0;
+    let totalRegisteredCredits = 0;
+    let uncountedPassedCredits = 0;
+
+    let weightedMark4Sum = 0;
+    let weightedMark10Sum = 0;
+    let gpaWeightedCredits = 0;
+
+    for (const item of deduplicatedItems) {
+      totalRegisteredCredits += item.credits;
+      if (!item.hasGrade) {
+        pendingCount++;
+      } else if (item.isPass) {
+        passedCount++;
+        accumulatedCredits += item.credits;
+        if (item.isUncounted) {
+          uncountedPassedCredits += item.credits;
+        }
+      } else if (item.isFail) {
+        failedCount++;
+      }
+
+      // Chỉ tính GPA cho môn tính điểm, đã có điểm và số tín chỉ > 0
+      if (!item.isUncounted && item.hasGrade && item.credits > 0) {
+        if (item.numericMark4 !== null) {
+          weightedMark4Sum += item.numericMark4 * item.credits;
+        }
+        if (item.numericMark10 !== null) {
+          weightedMark10Sum += item.numericMark10 * item.credits;
+        }
+        if (item.numericMark4 !== null || item.numericMark10 !== null) {
+          gpaWeightedCredits += item.credits;
+        }
+      }
+    }
+
+    const totalUnique = deduplicatedItems.length;
+    const passRate = totalUnique > 0 ? Math.round((passedCount / totalUnique) * 100) : 0;
+    const gpa4 = gpaWeightedCredits > 0 ? (weightedMark4Sum / gpaWeightedCredits) : null;
+    const gpa10 = gpaWeightedCredits > 0 ? (weightedMark10Sum / gpaWeightedCredits) : null;
+    const rank = getRankInfo(gpa4);
+
+    return {
+      passedCount,
+      totalUnique,
+      passRate,
+      accumulatedCredits,
+      totalRegisteredCredits,
+      gpa4,
+      gpa10,
+      rank,
+      retakeCount,
+      uncountedPassedCredits,
+      failedCount,
+      pendingCount,
+      gpaWeightedCredits
+    };
+  }, [filteredMarks]);
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Tabs */}
@@ -263,18 +527,160 @@ export function GradesView({ userId, workspaceId, subjects = [] }: GradesViewPro
         </div>
       ) : (
         <div className="space-y-4 sm:space-y-6">
-          {/* Filters */}
-          <div className="flex justify-end">
-            <select
-              value={selectedSemester}
-              onChange={(e) => setSelectedSemester(e.target.value)}
-              className="appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 py-2.5 pl-4 pr-10 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-            >
-              <option value="all">Toàn khóa</option>
-              {semesters.map((sem: any, i: number) => (
-                <option key={sem?.semester?.id || i} value={sem?.semester?.id?.toString() || ""}>{sem?.semester?.semesterName}</option>
-              ))}
-            </select>
+          {/* Header & Filter Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <Calculator className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white text-sm sm:text-base leading-tight">
+                  {selectedSemesterName}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {selectedSemester === 'all' ? 'Tổng hợp tất cả các học kỳ' : 'Dữ liệu học tập theo kỳ'}
+                </p>
+              </div>
+            </div>
+
+            <div className="relative min-w-[160px] sm:min-w-[190px]">
+              <select
+                value={selectedSemester}
+                onChange={(e) => setSelectedSemester(e.target.value)}
+                className="w-full appearance-none bg-gray-50 dark:bg-gray-750 border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200 text-sm py-2 pl-3 pr-9 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium cursor-pointer transition-colors"
+              >
+                <option value="all">Toàn khóa</option>
+                {semesters.map((sem: any, i: number) => (
+                  <option key={sem?.semester?.id || i} value={sem?.semester?.id?.toString() || ""}>{sem?.semester?.semesterName}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Live GPA & Academic Performance Overview Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-gray-100 dark:border-gray-750">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <span className="font-bold text-gray-900 dark:text-white text-sm sm:text-base">
+                  Tổng quan kết quả học tập
+                </span>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">
+                  <Sparkles className="w-3 h-3" />
+                  Tính thời gian thực
+                </span>
+              </div>
+              {liveMetrics.pendingCount > 0 ? (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-200/80 dark:border-amber-800/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                  Đang cập nhật {liveMetrics.pendingCount} môn
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-200/80 dark:border-emerald-800/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Đầy đủ điểm
+                </span>
+              )}
+            </div>
+
+            {/* 4 Cards in Exact Requested Order: (1) Học phần đạt, (2) Tín tích lũy, (3) GPA Hệ 4 (kèm Xếp loại), (4) GPA Hệ 10 */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              {/* 1. Học phần đạt */}
+              <div className="bg-gray-50/90 dark:bg-gray-750/50 rounded-2xl p-3.5 sm:p-4 border border-gray-100 dark:border-gray-700/60 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-gray-500 dark:text-gray-400">
+                  <span className="text-xs font-medium">Học phần đạt</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className="mt-2.5">
+                  <div className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                    {liveMetrics.passedCount}
+                    <span className="text-sm font-semibold text-gray-400 dark:text-gray-500">/{liveMetrics.totalUnique}</span>
+                  </div>
+                  <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mt-1">
+                    {liveMetrics.passRate}% hoàn thành
+                    {liveMetrics.failedCount > 0 && (
+                      <span className="text-rose-500 font-semibold ml-1">• {liveMetrics.failedCount} trượt</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Tín tích lũy */}
+              <div className="bg-gray-50/90 dark:bg-gray-750/50 rounded-2xl p-3.5 sm:p-4 border border-gray-100 dark:border-gray-700/60 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-gray-500 dark:text-gray-400">
+                  <span className="text-xs font-medium">Tín tích lũy</span>
+                  <BookOpen className="w-4 h-4 text-blue-500" />
+                </div>
+                <div className="mt-2.5">
+                  <div className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 tracking-tight">
+                    {liveMetrics.accumulatedCredits}
+                  </div>
+                  <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mt-1">
+                    /{liveMetrics.totalRegisteredCredits} tín đăng ký
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. GPA Hệ 4 + Xếp loại bên dưới */}
+              <div className="bg-gradient-to-br from-purple-50/80 to-indigo-50/40 dark:from-purple-950/25 dark:to-indigo-950/20 rounded-2xl p-3.5 sm:p-4 border border-purple-100 dark:border-purple-900/50 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-purple-700 dark:text-purple-300">
+                  <span className="text-xs font-semibold">GPA Hệ 4</span>
+                  <TrendingUp className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="mt-2">
+                  <div className="text-2xl sm:text-3xl font-black text-purple-700 dark:text-purple-300 tracking-tight leading-none">
+                    {liveMetrics.gpa4 !== null ? liveMetrics.gpa4.toFixed(2) : '--'}
+                  </div>
+                  {/* Hạng / Xếp loại bên dưới */}
+                  <div className="mt-2">
+                    <span className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold border",
+                      liveMetrics.rank.badgeClass
+                    )}>
+                      <Medal className="w-3.5 h-3.5 shrink-0" />
+                      {liveMetrics.rank.name}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. GPA Hệ 10 */}
+              <div className="bg-gray-50/90 dark:bg-gray-750/50 rounded-2xl p-3.5 sm:p-4 border border-gray-100 dark:border-gray-700/60 flex flex-col justify-between">
+                <div className="flex items-center justify-between text-gray-500 dark:text-gray-400">
+                  <span className="text-xs font-medium">GPA Hệ 10</span>
+                  <BarChart3 className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="mt-2.5">
+                  <div className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                    {liveMetrics.gpa10 !== null ? liveMetrics.gpa10.toFixed(2) : '--'}
+                  </div>
+                  <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mt-1">
+                    Thang điểm 10
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Smart notes footer */}
+            <div className="mt-3.5 pt-3 border-t border-gray-100 dark:border-gray-750/80 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex flex-wrap items-center gap-2">
+                {liveMetrics.retakeCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md">
+                    <Info className="w-3 h-3" />
+                    Đã lấy điểm cao nhất của {liveMetrics.retakeCount} môn học lại / cải thiện
+                  </span>
+                )}
+                {liveMetrics.uncountedPassedCredits > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
+                    Gồm {liveMetrics.uncountedPassedCredits} tín GDTC/GDQP
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] text-gray-400 dark:text-gray-500 ml-auto">
+                Tự động tính theo môn hiện có
+              </span>
+            </div>
           </div>
 
           {/* Marks List */}
