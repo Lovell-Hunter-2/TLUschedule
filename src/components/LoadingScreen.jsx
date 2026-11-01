@@ -22,6 +22,8 @@ export function LoadingScreen({ isReady = false, onDone }) {
   const [stage, setStage] = useState('loader'); // 'loader' | 'skeleton'
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const [isTipFading, setIsTipFading] = useState(false);
+  const [imgSrc, setImgSrc] = useState('/icon.png?v=3');
+  const [imgHasError, setImgHasError] = useState(false);
 
   const doneCalledRef = useRef(false);
   const startTimeRef = useRef(Date.now());
@@ -149,11 +151,24 @@ export function LoadingScreen({ isReady = false, onDone }) {
               className="absolute -inset-2 rounded-3xl blur-xl opacity-40"
               style={{ background: 'radial-gradient(circle, rgba(124, 111, 255, 0.35) 0%, rgba(124, 111, 255, 0) 70%)' }}
             />
-            <img
-              src="/icon.png"
-              alt="TLU Schedule Icon"
-              className="relative w-20 h-20 rounded-2xl object-cover shadow-xl shadow-purple-500/20 border border-white/80"
-            />
+            {!imgHasError ? (
+              <img
+                src={imgSrc}
+                alt="TLU Schedule Icon"
+                onError={() => {
+                  if (imgSrc.includes('?')) {
+                    setImgSrc('/icon.png');
+                  } else {
+                    setImgHasError(true);
+                  }
+                }}
+                className="relative w-20 h-20 rounded-2xl object-cover shadow-xl shadow-purple-500/20 border border-white/80 transition-opacity duration-300"
+              />
+            ) : (
+              <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white font-bold text-2xl shadow-xl shadow-purple-500/20 border border-white/80">
+                TL
+              </div>
+            )}
           </div>
 
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 mb-6">
