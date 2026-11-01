@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tlu-schedule-v2';
+const CACHE_NAME = 'tlu-schedule-v3';
 
 const ASSETS_TO_CACHE = [
   '/',
