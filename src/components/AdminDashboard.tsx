@@ -58,7 +58,7 @@ function getInitials(name: string): string {
 export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'activity' | 'errors' | 'settings'>('users');
   const [searchQuery, setSearchQuery] = useState('');
-  const [userFilter, setUserFilter] = useState<'all' | 'online' | 'missing_class'>('all');
+  const [userFilter, setUserFilter] = useState<'real' | 'all' | 'online' | 'missing_class' | 'guests'>('real');
   const [highlightedUserId, setHighlightedUserId] = useState<string | null>(null);
 
   // Global Settings state
@@ -286,37 +286,58 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
     return { text: timeAgo(targetDate.toISOString()), color: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20', isOnline: false };
   };
 
-  // KPI Calculations
-  const totalUsers = users.length;
+  // Xác định người dùng thực tế: đã đăng nhập / có thông tin (có MSV, tên thật khác 'Sinh viên TLU', có lớp/ngành, có workspace, hoặc email thật)
+  const isRealUser = (u: any) => {
+    const msv = userMsvMap[u.id] || u.msv || u.studentId || u.studentCode;
+    const rawName = String(userStudentNameMap[u.id] || u.displayName || '').trim().toLowerCase();
+    const isPlaceholderName = !rawName || rawName === 'sinh viên tlu' || rawName === 'sinh viên';
+    const hasClass = Boolean(userClassMap[u.id] || u.className);
+    const hasMajor = Boolean(userMajorMap[u.id] || u.major);
+    const hasWs = Boolean(workspaceDataMap[u.id]);
+    const hasRealEmail = Boolean(u.email && !u.email.includes('device@tlu.vn') && u.email.includes('@'));
+
+    return Boolean(msv || hasClass || hasMajor || hasWs || !isPlaceholderName || hasRealEmail);
+  };
+
+  const realUsers = useMemo(() => {
+    return users.filter(isRealUser);
+  }, [users, userMsvMap, userStudentNameMap, userClassMap, userMajorMap, workspaceDataMap]);
+
+  const guestUsers = useMemo(() => {
+    return users.filter(u => !isRealUser(u));
+  }, [users, userMsvMap, userStudentNameMap, userClassMap, userMajorMap, workspaceDataMap]);
+
+  // KPI Calculations (tính theo người dùng thật đã đăng nhập)
+  const totalUsers = realUsers.length;
   
   const newUsersThisWeek = useMemo(() => {
     const weekAgo = subDays(new Date(), 7).getTime();
-    return users.filter(u => {
+    return realUsers.filter(u => {
       const created = u.createdAt ? new Date(u.createdAt).getTime() : 0;
       const firstLogin = u.lastLogin ? new Date(u.lastLogin).getTime() : 0;
       return (created && created >= weekAgo) || (firstLogin && firstLogin >= weekAgo);
     }).length;
-  }, [users]);
+  }, [realUsers]);
 
   const onlineUsers = useMemo(() => {
     return users.filter(u => isOnline(u.lastActive));
   }, [users]);
 
   const todayLoginCount = useMemo(() => {
-    return users.filter(u => {
+    return realUsers.filter(u => {
       const active = u.lastActive ? new Date(u.lastActive) : null;
       const login = u.lastLogin ? new Date(u.lastLogin) : null;
       return (active && isToday(active)) || (login && isToday(login));
     }).length;
-  }, [users]);
+  }, [realUsers]);
 
   const yesterdayLoginCount = useMemo(() => {
-    return users.filter(u => {
+    return realUsers.filter(u => {
       const active = u.lastActive ? new Date(u.lastActive) : null;
       const login = u.lastLogin ? new Date(u.lastLogin) : null;
       return (active && isYesterday(active)) || (login && isYesterday(login));
     }).length;
-  }, [users]);
+  }, [realUsers]);
 
   const errors24h = useMemo(() => {
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
@@ -353,17 +374,17 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
     }));
   }, [syncErrors]);
 
-  // Profile completion status
+  // Profile completion status (tính trên tập sinh viên thật đã đăng nhập)
   const usersWithClassAndMajor = useMemo(() => {
-    return users.filter(u => {
+    return realUsers.filter(u => {
       const hasClass = Boolean(userClassMap[u.id] || u.className);
       const hasMajor = Boolean(userMajorMap[u.id] || u.major);
       return hasClass && hasMajor;
     });
-  }, [users, userClassMap, userMajorMap]);
+  }, [realUsers, userClassMap, userMajorMap]);
 
-  const missingProfileCount = Math.max(0, totalUsers - usersWithClassAndMajor.length);
-  const completionPercent = totalUsers > 0 ? Math.round((usersWithClassAndMajor.length / totalUsers) * 100) : 0;
+  const missingProfileCount = Math.max(0, realUsers.length - usersWithClassAndMajor.length);
+  const completionPercent = realUsers.length > 0 ? Math.round((usersWithClassAndMajor.length / realUsers.length) * 100) : 0;
 
   // Hourly Activity Histogram (0h - 23h)
   const hourlyActivity = useMemo(() => {
@@ -398,10 +419,14 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
   const filteredUsers = useMemo(() => {
     let result = users;
 
-    if (userFilter === 'online') {
+    if (userFilter === 'real') {
+      result = realUsers;
+    } else if (userFilter === 'online') {
       result = result.filter(u => isOnline(u.lastActive));
     } else if (userFilter === 'missing_class') {
-      result = result.filter(u => !userClassMap[u.id] && !u.className);
+      result = realUsers.filter(u => !userClassMap[u.id] && !u.className);
+    } else if (userFilter === 'guests') {
+      result = guestUsers;
     }
 
     if (searchQuery.trim()) {
@@ -417,7 +442,7 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
     }
 
     return result;
-  }, [users, userFilter, searchQuery, userClassMap, userMajorMap, userMsvMap, userStudentNameMap]);
+  }, [users, realUsers, guestUsers, userFilter, searchQuery, userClassMap, userMajorMap, userMsvMap, userStudentNameMap]);
 
   // Sync actions
   const handleSyncUserClass = async (userId: string) => {
@@ -516,7 +541,7 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
 
   const handleScanMissingClasses = async () => {
     setIsBatchScanning(true);
-    const missingUsers = users.filter(u => !userClassMap[u.id] && !u.className);
+    const missingUsers = realUsers.filter(u => (!userClassMap[u.id] && !u.className) || (!userMajorMap[u.id] && !u.major));
     setBatchProgress({ current: 0, total: missingUsers.length });
 
     let updatedCount = 0;
@@ -572,17 +597,23 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
 
       {/* 1. Hàng KPI (4 thẻ: 2x2 trên mobile, 4 cột trên desktop) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        {/* KPI 1: Tổng người dùng */}
+        {/* KPI 1: Tổng người dùng (Người dùng thật đã đăng nhập) */}
         <div className="p-4 rounded-2xl bg-white dark:bg-[#141414] border border-zinc-200 dark:border-zinc-800/80 shadow-sm flex flex-col justify-between min-h-[110px]">
-          <span className="text-[13px] font-medium text-zinc-500 dark:text-zinc-400">
-            Tổng người dùng
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[13px] font-medium text-zinc-500 dark:text-zinc-400">
+              Tổng người dùng
+            </span>
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+              Đã đăng nhập
+            </span>
+          </div>
           <div className="mt-1">
             <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-white">
-              {totalUsers}
+              {realUsers.length}
             </div>
-            <div className="text-[13px] text-purple-600 dark:text-purple-400 font-medium mt-0.5">
-              +{newUsersThisWeek} tuần này
+            <div className="flex items-center justify-between text-[13px] text-purple-600 dark:text-purple-400 font-medium mt-0.5">
+              <span>+{newUsersThisWeek} tuần này</span>
+              <span className="text-zinc-400 dark:text-zinc-500 text-[11px] font-normal">Tổng {users.length} lượt</span>
             </div>
           </div>
         </div>
@@ -644,7 +675,7 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
               Hồ sơ đầy đủ lớp và ngành
             </div>
             <div className="text-[13px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-              {usersWithClassAndMajor.length}/{totalUsers} người dùng ({completionPercent}%), còn {missingProfileCount} người thiếu
+              {usersWithClassAndMajor.length}/{realUsers.length} sinh viên đã đăng nhập ({completionPercent}%), còn {missingProfileCount} người thiếu
             </div>
           </div>
 
@@ -770,7 +801,7 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
           )}
         >
           <Users className="w-4 h-4" />
-          <span>Người dùng ({users.length})</span>
+          <span>Người dùng ({realUsers.length})</span>
         </button>
 
         <button
@@ -847,6 +878,18 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
               {/* Filter Chips */}
               <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-none pb-0.5">
                 <button
+                  onClick={() => setUserFilter('real')}
+                  className={cn(
+                    "min-h-[40px] px-4 rounded-xl text-[13px] font-medium transition-colors flex items-center gap-1.5",
+                    userFilter === 'real'
+                      ? "bg-purple-600 text-white shadow-sm"
+                      : "bg-white dark:bg-[#141414] text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  )}
+                >
+                  Đã đăng nhập ({realUsers.length})
+                </button>
+
+                <button
                   onClick={() => setUserFilter('all')}
                   className={cn(
                     "min-h-[40px] px-4 rounded-xl text-[13px] font-medium transition-colors flex items-center gap-1.5",
@@ -855,7 +898,7 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
                       : "bg-white dark:bg-[#141414] text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   )}
                 >
-                  Tất cả ({users.length})
+                  Tất cả lượt vào ({users.length})
                 </button>
 
                 <button
@@ -880,7 +923,19 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
                       : "bg-white dark:bg-[#141414] text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   )}
                 >
-                  Thiếu lớp ({users.filter(u => !userClassMap[u.id] && !u.className).length})
+                  Thiếu lớp ({realUsers.filter(u => !userClassMap[u.id] && !u.className).length})
+                </button>
+
+                <button
+                  onClick={() => setUserFilter('guests')}
+                  className={cn(
+                    "min-h-[40px] px-4 rounded-xl text-[13px] font-medium transition-colors flex items-center gap-1.5",
+                    userFilter === 'guests'
+                      ? "bg-zinc-700 text-white shadow-sm"
+                      : "bg-white dark:bg-[#141414] text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  )}
+                >
+                  Chưa đăng nhập ({guestUsers.length})
                 </button>
               </div>
             </div>
