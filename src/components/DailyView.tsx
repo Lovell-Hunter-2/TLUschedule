@@ -149,6 +149,21 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
     return set;
   }, [subjects, dates]);
 
+  const classDatesSet = useMemo(() => {
+    const set = new Set<string>();
+    subjects.forEach(s => {
+      const isExam = s.name.toUpperCase().includes('(THI)') || s.lecturer === 'Lịch Thi' || (s as any).isExam;
+      if (isExam) return;
+      dates.forEach(d => {
+        const dStr = format(d, 'yyyy-MM-dd');
+        if (dStr >= s.startDate && dStr <= s.endDate && s.daysOfWeek.includes(d.getDay())) {
+          set.add(dStr);
+        }
+      });
+    });
+    return set;
+  }, [subjects, dates]);
+
   const nextClassInfo = useMemo(() => {
     if (!isSameDay(selectedDate, new Date())) return null;
 
@@ -219,6 +234,7 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
           const isSelected = isSameDay(date, selectedDate);
           const isToday = isSameDay(date, new Date());
           const hasExam = examDatesSet.has(dateStr);
+          const hasClass = classDatesSet.has(dateStr);
 
           return (
           <button
@@ -240,19 +256,33 @@ export function DailyView({ subjects, notes, onAddNote, onEditNote, onDeleteNote
             <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">
               {format(date, 'EEE', { locale: vi })}
             </span>
-            <span className="text-lg font-bold">
+            <span className="text-lg font-bold leading-tight">
               {format(date, 'dd')}
             </span>
-            {hasExam && (
-              <span className={cn(
-                "text-[8px] font-black px-1.5 py-0.2 rounded-full mt-0.5 tracking-tighter shadow-2xs",
-                isSelected
-                  ? "bg-indigo-600 text-white"
-                  : "bg-indigo-600 text-white"
-              )}>
-                THI
-              </span>
-            )}
+            <div className="h-2.5 flex items-center justify-center mt-1">
+              {hasExam ? (
+                <span className={cn(
+                  "text-[8px] font-black px-1.5 py-0.2 rounded-full tracking-tighter shadow-2xs",
+                  isSelected
+                    ? "bg-white text-indigo-700"
+                    : "bg-indigo-600 text-white"
+                )}>
+                  THI
+                </span>
+              ) : hasClass ? (
+                <span 
+                  title="Có lịch học"
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full transition-all",
+                    isSelected 
+                      ? "bg-rose-300 ring-1 ring-white/70" 
+                      : "bg-rose-500 shadow-2xs"
+                  )}
+                />
+              ) : (
+                <span className="w-1.5 h-1.5 rounded-full opacity-0 pointer-events-none" />
+              )}
+            </div>
           </button>
         );
         })}
