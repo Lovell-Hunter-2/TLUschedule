@@ -36,6 +36,22 @@ export interface Subject {
   color: string;
   semesterId?: number | string;
   semesterName?: string;
+  isOverridden?: boolean;
+  overrideNote?: string;
+}
+
+export interface ScheduleOverride {
+  id: string;
+  subjectName: string;
+  matchCodeOrClass?: string;
+  oldRoom?: string;
+  dayOfWeek?: number | 'all';
+  newRoom: string;
+  newLecturer?: string;
+  effectiveFrom?: string; // YYYY-MM-DD
+  note?: string;
+  active: boolean;
+  createdAt: string;
 }
 
 export interface Note {
