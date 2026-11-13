@@ -168,3 +168,170 @@ export function deduplicateSubjects<T extends { name: string; code?: string; sta
 
   return results;
 }
+
+function subtractOneDayISO(isoDate: string): string {
+  const parts = isoDate.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return isoDate;
+  const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Applies admin global schedule overrides (e.g. room/lecturer changes) to user's subjects list.
+ * Survives TLU portal auto-syncs and supports class/code filtering, day-of-week filtering,
+ * and effectiveFrom date splitting ("từ tuần sau").
+ */
+export function applyScheduleOverrides<
+  T extends {
+    id: string;
+    name: string;
+    code?: string;
+    room?: string;
+    lecturer?: string;
+    startDate: string;
+    endDate: string;
+    daysOfWeek: number[];
+    isOverridden?: boolean;
+    overrideNote?: string;
+  }
+>(
+  subjects: T[],
+  overrides: Array<{
+    id: string;
+    subjectName: string;
+    matchCodeOrClass?: string;
+    oldRoom?: string;
+    dayOfWeek?: number | 'all';
+    newRoom: string;
+    newLecturer?: string;
+    effectiveFrom?: string;
+    note?: string;
+    active: boolean;
+  }>,
+  userClassName?: string
+): T[] {
+  const activeRules = (overrides || []).filter(r => r && r.active !== false && r.subjectName?.trim() && r.newRoom?.trim());
+  if (activeRules.length === 0 || subjects.length === 0) return subjects;
+
+  let currentSubjects = [...subjects];
+
+  for (const rule of activeRules) {
+    const targetName = normalizeSubjectName(rule.subjectName).toLowerCase();
+    const targetMatch = (rule.matchCodeOrClass || '').trim().toLowerCase();
+    const targetOldRoom = (rule.oldRoom || '').trim().toLowerCase();
+    const ruleIncludesExam = targetName.includes('(thi)');
+    const nextSubjects: T[] = [];
+
+    for (const s of currentSubjects) {
+      const subNameNorm = normalizeSubjectName(s.name).toLowerCase();
+      const subCodeNorm = String(s.code || '').trim().toLowerCase();
+      const isExam = subNameNorm.includes('(thi)') || String(s.lecturer || '') === 'Lịch Thi';
+
+      // Don't accidentally overwrite exam schedule rooms unless rule targets exam
+      if (isExam && !ruleIncludesExam) {
+        nextSubjects.push(s);
+        continue;
+      }
+
+      // 1. Match subject name (or subject code)
+      const nameMatches = subNameNorm.includes(targetName) || (subCodeNorm && subCodeNorm.includes(targetName));
+      if (!nameMatches) {
+        nextSubjects.push(s);
+        continue;
+      }
+
+      // 2. Optional class/course code filter (e.g. "67KTS")
+      if (targetMatch) {
+        const userClsNorm = String(userClassName || '').trim().toLowerCase();
+        const codeOrClassMatches =
+          subCodeNorm.includes(targetMatch) ||
+          subNameNorm.includes(targetMatch) ||
+          (userClsNorm && userClsNorm.includes(targetMatch));
+        if (!codeOrClassMatches) {
+          nextSubjects.push(s);
+          continue;
+        }
+      }
+
+      // 3. Optional old room filter
+      if (targetOldRoom) {
+        const subRoomNorm = String(s.room || '').trim().toLowerCase();
+        if (!subRoomNorm.includes(targetOldRoom)) {
+          nextSubjects.push(s);
+          continue;
+        }
+      }
+
+      // 4. Optional dayOfWeek filter
+      const hasDayFilter = rule.dayOfWeek !== undefined && rule.dayOfWeek !== 'all';
+      const targetDay = hasDayFilter ? Number(rule.dayOfWeek) : null;
+      if (hasDayFilter && targetDay !== null && !s.daysOfWeek.includes(targetDay)) {
+        nextSubjects.push(s);
+        continue;
+      }
+
+      // 5. Optional effectiveFrom date filter
+      const effFrom = (rule.effectiveFrom || '').trim();
+      if (effFrom && s.endDate && effFrom > s.endDate) {
+        nextSubjects.push(s);
+        continue;
+      }
+
+      // Split by dayOfWeek if subject spans multiple days and rule targets only one day
+      const applyToDays = (item: T): T[] => {
+        if (hasDayFilter && targetDay !== null && item.daysOfWeek.length > 1) {
+          const otherDays = item.daysOfWeek.filter(d => d !== targetDay);
+          const matchedItem: T = {
+            ...item,
+            id: `${item.id}_ovr_${rule.id}_d${targetDay}`,
+            daysOfWeek: [targetDay],
+            room: rule.newRoom.trim(),
+            lecturer: rule.newLecturer?.trim() ? rule.newLecturer.trim() : item.lecturer,
+            isOverridden: true,
+            overrideNote: rule.note?.trim() || 'Admin đã cập nhật phòng học'
+          };
+          const remainingItem: T = {
+            ...item,
+            daysOfWeek: otherDays
+          };
+          return [remainingItem, matchedItem];
+        }
+
+        return [{
+          ...item,
+          room: rule.newRoom.trim(),
+          lecturer: rule.newLecturer?.trim() ? rule.newLecturer.trim() : item.lecturer,
+          isOverridden: true,
+          overrideNote: rule.note?.trim() || 'Admin đã cập nhật phòng học'
+        }];
+      };
+
+      // Split by effectiveFrom if it falls inside (s.startDate, s.endDate]
+      if (effFrom && s.startDate && effFrom > s.startDate && effFrom <= s.endDate) {
+        const beforeEnd = subtractOneDayISO(effFrom);
+        const beforePart: T = {
+          ...s,
+          id: `${s.id}_before_${rule.id}`,
+          endDate: beforeEnd >= s.startDate ? beforeEnd : s.startDate
+        };
+        const afterBase: T = {
+          ...s,
+          id: `${s.id}_after_${rule.id}`,
+          startDate: effFrom
+        };
+        if (beforeEnd >= s.startDate) {
+          nextSubjects.push(beforePart);
+        }
+        nextSubjects.push(...applyToDays(afterBase));
+      } else {
+        nextSubjects.push(...applyToDays(s));
+      }
+    }
+
+    currentSubjects = nextSubjects;
+  }
+
+  return currentSubjects;
+}
+
