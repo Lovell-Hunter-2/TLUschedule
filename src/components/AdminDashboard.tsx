@@ -3,16 +3,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, Activity, AlertTriangle, Settings, Image as ImageIcon, 
   RefreshCw, Search, CheckCircle2, AlertCircle, Clock, ChevronDown, 
-  ChevronUp, ExternalLink, ShieldAlert, Sparkles, Filter, ArrowUpRight
+  ChevronUp, ExternalLink, ShieldAlert, Sparkles, Filter, ArrowUpRight,
+  MapPin, CalendarClock, Plus, Trash2, Power
 } from 'lucide-react';
 import { db } from '../firebase';
 import { 
   collection, collectionGroup, query, onSnapshot, orderBy, 
   limit, getDocs, doc, setDoc, getDoc, where 
 } from 'firebase/firestore';
-import { format, formatDistanceToNow, isToday, isYesterday, subDays } from 'date-fns';
+import { format, formatDistanceToNow, isToday, isYesterday, subDays, nextMonday } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { cn } from '../lib/utils';
+import { ScheduleOverride } from '../types';
+import { toast } from 'react-hot-toast';
 
 // SECURITY: NEVER fetch or expose workspace password to the client in admin views
 // Workspace passwords and credentials must remain secure and isolated in server-side functions.
@@ -56,7 +59,7 @@ function getInitials(name: string): string {
 }
 
 export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'activity' | 'errors' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'activity' | 'errors' | 'overrides' | 'settings'>('users');
   const [searchQuery, setSearchQuery] = useState('');
   const [userFilter, setUserFilter] = useState<'real' | 'all' | 'online' | 'missing_class' | 'guests'>('real');
   const [highlightedUserId, setHighlightedUserId] = useState<string | null>(null);
@@ -64,6 +67,28 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
   // Global Settings state
   const [bgInput, setBgInput] = useState('');
   const [isSavingBg, setIsSavingBg] = useState(false);
+
+  // Global Schedule Overrides state
+  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>([]);
+  const [isSavingOverride, setIsSavingOverride] = useState(false);
+  const [overrideSubjectName, setOverrideSubjectName] = useState('');
+  const [overrideMatchClass, setOverrideMatchClass] = useState('');
+  const [overrideOldRoom, setOverrideOldRoom] = useState('');
+  const [overrideNewRoom, setOverrideNewRoom] = useState('');
+  const [overrideNewLecturer, setOverrideNewLecturer] = useState('');
+  const [overrideDayOfWeek, setOverrideDayOfWeek] = useState<string>('all');
+  const [overrideEffectiveFrom, setOverrideEffectiveFrom] = useState('');
+  const [overrideNote, setOverrideNote] = useState('');
+  const [isScanningCourses, setIsScanningCourses] = useState(false);
+  const [scannedCourses, setScannedCourses] = useState<Array<{
+    name: string;
+    code: string;
+    room: string;
+    lecturer: string;
+    studentCount: number;
+    classList: string[];
+  }>>([]);
+  const [coursePickerSearch, setCoursePickerSearch] = useState('');
 
   // Data collections
   const [users, setUsers] = useState<any[]>([]);
@@ -235,10 +260,21 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
       }
     );
 
+    // 6. Subscribe to Global Schedule Overrides
+    const unsubscribeOverrides = onSnapshot(doc(db, 'app_settings', 'schedule_overrides'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setScheduleOverrides(Array.isArray(data.rules) ? data.rules : []);
+      } else {
+        setScheduleOverrides([]);
+      }
+    });
+
     return () => {
       unsubscribeUsers();
       unsubscribeUsage();
       unsubscribeErrors();
+      unsubscribeOverrides();
     };
   }, []);
 
@@ -563,11 +599,161 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
       await setDoc(doc(db, 'app_settings', 'global'), {
         backgroundImage: bgInput
       }, { merge: true });
+      toast.success('Đã lưu hình nền toàn cục!');
     } catch (error) {
       console.error(error);
+      toast.error('Không thể lưu hình nền.');
     }
     setIsSavingBg(false);
   };
+
+  // Scan courses currently in logged-in users' schedules
+  const handleScanCoursesFromUsers = async () => {
+    setIsScanningCourses(true);
+    try {
+      const courseMap = new Map<string, {
+        name: string;
+        code: string;
+        room: string;
+        lecturer: string;
+        students: Set<string>;
+        classes: Set<string>;
+      }>();
+
+      // Scan real users that have workspaceId
+      const targetUsers = realUsers.filter(u => userMsvMap[u.id] || workspaceDataMap[u.id]?.workspaceId);
+      const batchSize = 15;
+      for (let i = 0; i < targetUsers.length; i += batchSize) {
+        const chunk = targetUsers.slice(i, i + batchSize);
+        await Promise.all(chunk.map(async (u) => {
+          const wsId = userMsvMap[u.id] || workspaceDataMap[u.id]?.workspaceId;
+          if (!wsId) return;
+          try {
+            const subSnap = await getDocs(collection(db, 'users', u.id, 'workspaces', wsId, 'subjects'));
+            const cls = userClassMap[u.id] || u.className || '';
+            subSnap.forEach(d => {
+              const s = d.data();
+              const sName = String(s.name || '').trim();
+              if (!sName || sName.toUpperCase().includes('(THI)') || s.lecturer === 'Lịch Thi') return;
+              const sCode = String(s.code || '').trim();
+              const sRoom = String(s.room || '').trim();
+              const sLec = String(s.lecturer || '').trim();
+              const key = `${sName.toLowerCase()}|${sCode.toLowerCase()}|${sRoom.toLowerCase()}`;
+              const existing = courseMap.get(key) || {
+                name: sName,
+                code: sCode,
+                room: sRoom,
+                lecturer: sLec,
+                students: new Set<string>(),
+                classes: new Set<string>()
+              };
+              existing.students.add(u.id);
+              if (cls) existing.classes.add(cls);
+              courseMap.set(key, existing);
+            });
+          } catch {}
+        }));
+      }
+
+      const list = Array.from(courseMap.values())
+        .map(item => ({
+          name: item.name,
+          code: item.code,
+          room: item.room,
+          lecturer: item.lecturer,
+          studentCount: item.students.size,
+          classList: Array.from(item.classes)
+        }))
+        .sort((a, b) => b.studentCount - a.studentCount || a.name.localeCompare(b.name, 'vi'));
+
+      setScannedCourses(list);
+      toast.success(`Đã quét được ${list.length} lớp học phần từ ${targetUsers.length} sinh viên!`);
+    } catch (err) {
+      console.error('Failed to scan courses:', err);
+      toast.error('Lỗi khi quét môn học từ sinh viên.');
+    }
+    setIsScanningCourses(false);
+  };
+
+  const persistScheduleOverrides = async (nextRules: ScheduleOverride[]) => {
+    setIsSavingOverride(true);
+    try {
+      await setDoc(doc(db, 'app_settings', 'schedule_overrides'), {
+        rules: nextRules,
+        updatedAt: new Date().toISOString()
+      });
+      return true;
+    } catch (err: any) {
+      console.error('Failed to save schedule overrides:', err);
+      toast.error('Lỗi lưu quy tắc: ' + (err?.message || 'Không có quyền ghi app_settings'));
+      return false;
+    } finally {
+      setIsSavingOverride(false);
+    }
+  };
+
+  const handleAddScheduleOverride = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!overrideSubjectName.trim() || !overrideNewRoom.trim()) {
+      toast.error('Vui lòng nhập Tên môn học và Phòng học mới');
+      return;
+    }
+
+    const newRule: ScheduleOverride = {
+      id: `ovr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      subjectName: overrideSubjectName.trim(),
+      matchCodeOrClass: overrideMatchClass.trim(),
+      oldRoom: overrideOldRoom.trim(),
+      dayOfWeek: overrideDayOfWeek === 'all' ? 'all' : Number(overrideDayOfWeek),
+      newRoom: overrideNewRoom.trim(),
+      newLecturer: overrideNewLecturer.trim(),
+      effectiveFrom: overrideEffectiveFrom.trim(),
+      note: overrideNote.trim(),
+      active: true,
+      createdAt: new Date().toISOString()
+    };
+
+    const nextRules = [newRule, ...scheduleOverrides];
+    const ok = await persistScheduleOverrides(nextRules);
+    if (ok) {
+      toast.success('Đã áp dụng đổi phòng cho toàn bộ sinh viên học môn này!');
+      setOverrideSubjectName('');
+      setOverrideMatchClass('');
+      setOverrideOldRoom('');
+      setOverrideNewRoom('');
+      setOverrideNewLecturer('');
+      setOverrideDayOfWeek('all');
+      setOverrideEffectiveFrom('');
+      setOverrideNote('');
+    }
+  };
+
+  const handleToggleOverride = async (id: string) => {
+    const nextRules = scheduleOverrides.map(r => r.id === id ? { ...r, active: !r.active } : r);
+    const ok = await persistScheduleOverrides(nextRules);
+    if (ok) {
+      toast.success('Đã cập nhật trạng thái quy tắc');
+    }
+  };
+
+  const handleDeleteOverride = async (id: string) => {
+    const nextRules = scheduleOverrides.filter(r => r.id !== id);
+    const ok = await persistScheduleOverrides(nextRules);
+    if (ok) {
+      toast.success('Đã xóa quy tắc đổi phòng');
+    }
+  };
+
+  const filteredScannedCourses = useMemo(() => {
+    const q = coursePickerSearch.trim().toLowerCase();
+    if (!q) return scannedCourses;
+    return scannedCourses.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      c.room.toLowerCase().includes(q) ||
+      c.classList.some(cls => cls.toLowerCase().includes(q))
+    );
+  }, [scannedCourses, coursePickerSearch]);
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-28 sm:pb-16 text-zinc-900 dark:text-zinc-100 transition-colors">
@@ -833,6 +1019,19 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
               <span className="w-2 h-2 rounded-full bg-red-500" />
             )}
           </div>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('overrides')}
+          className={cn(
+            "flex-1 min-h-[44px] px-4 py-2 rounded-xl text-[13px] sm:text-sm font-semibold transition-all flex items-center justify-center gap-2",
+            activeTab === 'overrides'
+              ? "bg-white dark:bg-[#242424] text-zinc-900 dark:text-white shadow-sm"
+              : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+          )}
+        >
+          <MapPin className="w-4 h-4" />
+          <span>Đổi phòng chung ({scheduleOverrides.filter(r => r.active).length})</span>
         </button>
 
         <button
@@ -1389,7 +1588,359 @@ export function AdminDashboard({ onClose, onSwitchToPersonalUpdate }: AdminDashb
           </div>
         )}
 
-        {/* TAB 4: CÀI ĐẶT */}
+        {/* TAB 4: ĐỔI PHÒNG / LỊCH HỌC TOÀN HỆ THỐNG */}
+        {activeTab === 'overrides' && (
+          <div className="space-y-6">
+            {/* Banner giải thích cơ chế */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30 border border-purple-200/80 dark:border-purple-800/60 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <CalendarClock className="w-5 h-5" />
+              </div>
+              <div className="text-[13px] sm:text-sm text-zinc-700 dark:text-zinc-300 space-y-1">
+                <div className="font-bold text-zinc-900 dark:text-white">
+                  Cập nhật phòng học & lịch học cho toàn bộ sinh viên học chung môn
+                </div>
+                <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  Khi giảng viên báo đổi phòng trên lớp nhưng cổng trường chưa kịp sửa: tạo quy tắc tại đây để <strong>tất cả sinh viên đã đăng nhập</strong> học môn này tự động thấy phòng mới theo thời gian thực — <strong>không bị ghi đè lại kể cả khi đồng bộ TLU</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Quét nhanh danh sách môn đang có từ sinh viên */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#141414] border border-zinc-200 dark:border-zinc-800/80 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-white">
+                    1. Chọn nhanh từ danh sách môn của sinh viên (tùy chọn)
+                  </h3>
+                  <p className="text-[13px] text-zinc-500 dark:text-zinc-400">
+                    Quét lịch học của {realUsers.length} sinh viên đã đăng nhập để điền chính xác tên môn, mã lớp và xem số người bị ảnh hưởng.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleScanCoursesFromUsers}
+                  disabled={isScanningCourses}
+                  className="min-h-[40px] px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 font-semibold text-[13px] transition-all flex items-center gap-2 shrink-0 disabled:opacity-50"
+                >
+                  <RefreshCw className={cn("w-4 h-4", isScanningCourses && "animate-spin")} />
+                  <span>{isScanningCourses ? 'Đang quét...' : scannedCourses.length > 0 ? 'Quét lại môn' : 'Quét môn từ SV'}</span>
+                </button>
+              </div>
+
+              {scannedCourses.length > 0 && (
+                <div className="space-y-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                    <input
+                      type="text"
+                      value={coursePickerSearch}
+                      onChange={(e) => setCoursePickerSearch(e.target.value)}
+                      placeholder="Lọc môn học, mã lớp (vd: Luật thương mại, 67KTS)..."
+                      className="w-full min-h-[40px] pl-9 pr-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[13px] text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="max-h-52 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 pr-1">
+                    {filteredScannedCourses.slice(0, 40).map((c, idx) => (
+                      <button
+                        type="button"
+                        key={idx}
+                        onClick={() => {
+                          setOverrideSubjectName(c.name);
+                          // Extract class hint from code like "(67KTS)" or fallback to classList[0]
+                          const parenMatch = c.code.match(/\(([^)]+)\)/);
+                          setOverrideMatchClass(parenMatch ? parenMatch[1] : (c.classList[0] || c.code));
+                          setOverrideOldRoom(c.room);
+                          toast.success(`Đã điền thông tin môn "${c.name}"`);
+                        }}
+                        className="text-left p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 hover:border-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-950/20 transition-all space-y-1"
+                      >
+                        <div className="font-semibold text-[13px] text-zinc-900 dark:text-white truncate">
+                          {c.name}
+                        </div>
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                          {c.code || 'Chưa có mã'} {c.room ? `· Phòng: ${c.room}` : ''}
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] pt-0.5">
+                          <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                            {c.studentCount} SV đang học
+                          </span>
+                          {c.classList.length > 0 && (
+                            <span className="text-zinc-400 truncate max-w-[120px]">
+                              Lớp: {c.classList.slice(0, 2).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Form tạo quy tắc đổi phòng mới */}
+            <form onSubmit={handleAddScheduleOverride} className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-[#141414] border border-zinc-200 dark:border-zinc-800/80 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-white">
+                  2. Tạo lệnh đổi phòng / lịch cho toàn hệ thống
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    Tên môn học <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={overrideSubjectName}
+                    onChange={(e) => setOverrideSubjectName(e.target.value)}
+                    placeholder="VD: Luật thương mại"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    Lọc theo Lớp / Mã lớp (khuyên nhập để tránh đổi nhầm lớp khác)
+                  </label>
+                  <input
+                    type="text"
+                    value={overrideMatchClass}
+                    onChange={(e) => setOverrideMatchClass(e.target.value)}
+                    placeholder="VD: 67KTS (để trống nếu áp dụng mọi lớp học môn này)"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    Phòng học mới <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={overrideNewRoom}
+                    onChange={(e) => setOverrideNewRoom(e.target.value)}
+                    placeholder="VD: 308-B5"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-purple-50/40 dark:bg-purple-950/20 border border-purple-300 dark:border-purple-700 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    Phòng cũ (tùy chọn)
+                  </label>
+                  <input
+                    type="text"
+                    value={overrideOldRoom}
+                    onChange={(e) => setOverrideOldRoom(e.target.value)}
+                    placeholder="VD: 205-B5 (để trống = đổi từ mọi phòng cũ)"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    Buổi áp dụng
+                  </label>
+                  <select
+                    value={overrideDayOfWeek}
+                    onChange={(e) => setOverrideDayOfWeek(e.target.value)}
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="all">Tất cả các buổi trong tuần (cả 2 buổi...)</option>
+                    <option value="1">Chỉ Thứ 2</option>
+                    <option value="2">Chỉ Thứ 3</option>
+                    <option value="3">Chỉ Thứ 4</option>
+                    <option value="4">Chỉ Thứ 5</option>
+                    <option value="5">Chỉ Thứ 6</option>
+                    <option value="6">Chỉ Thứ 7</option>
+                    <option value="0">Chỉ Chủ nhật</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                      Hiệu lực từ ngày (tùy chọn)
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextMon = nextMonday(new Date());
+                          setOverrideEffectiveFrom(format(nextMon, 'yyyy-MM-dd'));
+                        }}
+                        className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300"
+                      >
+                        Từ tuần sau
+                      </button>
+                      {overrideEffectiveFrom && (
+                        <button
+                          type="button"
+                          onClick={() => setOverrideEffectiveFrom('')}
+                          className="text-[11px] text-zinc-400 hover:text-zinc-600"
+                        >
+                          Xóa
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    type="date"
+                    value={overrideEffectiveFrom}
+                    onChange={(e) => setOverrideEffectiveFrom(e.target.value)}
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    Giảng viên mới (tùy chọn)
+                  </label>
+                  <input
+                    type="text"
+                    value={overrideNewLecturer}
+                    onChange={(e) => setOverrideNewLecturer(e.target.value)}
+                    placeholder="Để trống nếu giữ nguyên giảng viên cũ"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-zinc-700 dark:text-zinc-300">
+                    Ghi chú hiển thị (tùy chọn)
+                  </label>
+                  <input
+                    type="text"
+                    value={overrideNote}
+                    onChange={(e) => setOverrideNote(e.target.value)}
+                    placeholder="VD: GV báo chuyển sang 308-B5 cả 2 buổi"
+                    className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingOverride}
+                className="min-h-[44px] px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-semibold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm shadow-purple-900/20"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{isSavingOverride ? 'Đang lưu...' : 'Áp dụng cho toàn bộ sinh viên học môn này'}</span>
+              </button>
+            </form>
+
+            {/* Danh sách các quy tắc đang lưu */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-white">
+                  Danh sách quy tắc đổi phòng đang cấu hình ({scheduleOverrides.length})
+                </h3>
+              </div>
+
+              {scheduleOverrides.length === 0 ? (
+                <div className="p-8 text-center bg-white dark:bg-[#141414] rounded-2xl border border-zinc-200 dark:border-zinc-800 text-zinc-500 text-sm">
+                  Chưa có quy tắc đổi phòng toàn hệ thống nào.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {scheduleOverrides.map(rule => (
+                    <div
+                      key={rule.id}
+                      className={cn(
+                        "p-4 rounded-2xl border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all",
+                        rule.active
+                          ? "bg-white dark:bg-[#141414] border-purple-200 dark:border-purple-900/60"
+                          : "bg-zinc-50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 opacity-65"
+                      )}
+                    >
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-sm sm:text-base text-zinc-900 dark:text-white">
+                            {rule.subjectName}
+                          </span>
+                          {rule.matchCodeOrClass && (
+                            <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                              Lớp/Mã: {rule.matchCodeOrClass}
+                            </span>
+                          )}
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full text-[11px] font-semibold",
+                            rule.active
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              : "bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                          )}>
+                            {rule.active ? 'Đang áp dụng' : 'Đang tạm tắt'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-zinc-600 dark:text-zinc-300">
+                          <span>
+                            Phòng: {rule.oldRoom ? <><span className="line-through text-zinc-400">{rule.oldRoom}</span> → </> : 'Đổi sang '}
+                            <strong className="text-purple-700 dark:text-purple-300">{rule.newRoom}</strong>
+                          </span>
+                          <span>·</span>
+                          <span>
+                            {rule.dayOfWeek === 'all' || rule.dayOfWeek === undefined
+                              ? 'Tất cả các buổi'
+                              : rule.dayOfWeek === 0 ? 'Chủ nhật' : `Thứ ${Number(rule.dayOfWeek) + 1}`}
+                          </span>
+                          {rule.effectiveFrom && (
+                            <>
+                              <span>·</span>
+                              <span>Từ ngày: <strong>{rule.effectiveFrom}</strong></span>
+                            </>
+                          )}
+                        </div>
+
+                        {(rule.newLecturer || rule.note) && (
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {rule.newLecturer ? `GV mới: ${rule.newLecturer}` : ''}
+                            {rule.newLecturer && rule.note ? ' · ' : ''}
+                            {rule.note || ''}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOverride(rule.id)}
+                          disabled={isSavingOverride}
+                          className={cn(
+                            "min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors flex items-center gap-1.5",
+                            rule.active
+                              ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300"
+                          )}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          <span>{rule.active ? 'Tạm tắt' : 'Bật lại'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOverride(rule.id)}
+                          disabled={isSavingOverride}
+                          className="min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-semibold border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400 transition-colors flex items-center gap-1"
+                          title="Xóa quy tắc"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Xóa</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: CÀI ĐẶT */}
         {activeTab === 'settings' && (
           <div className="space-y-6">
             {/* Global Background Card */}
