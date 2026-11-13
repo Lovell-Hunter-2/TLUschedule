@@ -153,6 +153,14 @@ export function SubjectCard({ subject, onClick, weather }: SubjectCardProps) {
               <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
                 <MapPin className="w-4 h-4 text-red-300 dark:text-red-400 shrink-0" />
                 <span className="whitespace-nowrap font-medium text-gray-700 dark:text-gray-300">{subject.room}</span>
+                {subject.isOverridden && (
+                  <span 
+                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-700/60"
+                    title={subject.overrideNote || 'Đã cập nhật theo thông báo mới'}
+                  >
+                    Đã đổi phòng
+                  </span>
+                )}
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
