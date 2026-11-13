@@ -20,9 +20,9 @@ import { WeatherWidget } from './components/WeatherWidget';
 import { HeaderMenu } from './components/HeaderMenu';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LoadingScreen } from './components/LoadingScreen';
-import { Subject, Note, UserProfile, Workspace } from './types';
+import { Subject, Note, UserProfile, Workspace, ScheduleOverride } from './types';
 import { Award, Calendar, LayoutGrid, Settings, LogOut, Plus, Users, Download, Image as ImageIcon, Moon, Sun, ChevronDown, RefreshCw, Bell, BellRing, FileText } from 'lucide-react';
-import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from './lib/utils';
+import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects, applyScheduleOverrides } from './lib/utils';
 import { format } from 'date-fns';
 import { Toaster, toast } from 'react-hot-toast';
 import { useClassNotifications } from './hooks/useClassNotifications';
@@ -97,7 +97,22 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [selectedSemesterId, setSelectedSemesterId] = useState<number | string | 'all'>('all');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const { permission, requestPermission } = useClassNotifications(subjects);
+
+  // Dark Mode
+  // Admin & Global Settings
+  const [globalBg, setGlobalBg] = useState<string>('');
+  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>([]);
+  const [adminSubTab, setAdminSubTab] = useState<'admin' | 'personal'>('admin');
+  
+  const isAdmin = Boolean((user as any)?.isAdmin === true || user?.email === 'taikhoanphubg4@gmail.com' || user?.email === 'ngominhthuanbg1612007@gmail.com');
+
+  // Áp dụng quy tắc đổi phòng / lịch toàn hệ thống của Admin lên thời khóa biểu hiển thị
+  const effectiveSubjects = useMemo(() => {
+    const userClass = workspace?.className || (user as any)?.className || '';
+    return applyScheduleOverrides(subjects, scheduleOverrides, userClass);
+  }, [subjects, scheduleOverrides, workspace?.className, (user as any)?.className]);
+
+  const { permission, requestPermission } = useClassNotifications(effectiveSubjects);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -109,17 +124,10 @@ export default function App() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
-  
-  // Dark Mode
-  // Admin & Global Settings
-  const [globalBg, setGlobalBg] = useState<string>('');
-  const [adminSubTab, setAdminSubTab] = useState<'admin' | 'personal'>('admin');
-  
-  const isAdmin = Boolean((user as any)?.isAdmin === true || user?.email === 'taikhoanphubg4@gmail.com' || user?.email === 'ngominhthuanbg1612007@gmail.com');
 
   const semestersList = useMemo(() => {
     const map = new Map<number | string, string>();
-    subjects.forEach(s => {
+    effectiveSubjects.forEach(s => {
       if (s.semesterId && s.semesterName) {
         map.set(s.semesterId, s.semesterName);
       }
@@ -140,7 +148,7 @@ export default function App() {
       return (Number(b.id) || 0) - (Number(a.id) || 0);
     }); // Mới nhất lên đầu
     return arr;
-  }, [subjects]);
+  }, [effectiveSubjects]);
 
   // Tự động gán kỳ mới nhất nếu chưa chọn hoặc cập nhật khi có kỳ mới hơn
   useEffect(() => {
@@ -156,9 +164,9 @@ export default function App() {
   }, [semestersList, selectedSemesterId]);
 
   const filteredSubjects = useMemo(() => {
-    if (selectedSemesterId === 'all') return subjects;
-    return subjects.filter(s => s.semesterId === selectedSemesterId);
-  }, [subjects, selectedSemesterId]);
+    if (selectedSemesterId === 'all') return effectiveSubjects;
+    return effectiveSubjects.filter(s => s.semesterId === selectedSemesterId);
+  }, [effectiveSubjects, selectedSemesterId]);
 
   const currentSemester = useMemo(() => {
     return semestersList.find(s => String(s.id) === String(selectedSemesterId)) || semestersList[0];
@@ -538,9 +546,9 @@ export default function App() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // Listen to global settings
+  // Listen to global settings & global schedule overrides
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'app_settings', 'global'), (docSnap) => {
+    const unsubGlobal = onSnapshot(doc(db, 'app_settings', 'global'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setGlobalBg(data.backgroundImage || '');
@@ -548,7 +556,22 @@ export default function App() {
     }, (error) => {
       console.error("Error fetching global settings:", error);
     });
-    return () => unsub();
+
+    const unsubOverrides = onSnapshot(doc(db, 'app_settings', 'schedule_overrides'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setScheduleOverrides(Array.isArray(data.rules) ? data.rules : []);
+      } else {
+        setScheduleOverrides([]);
+      }
+    }, (error) => {
+      console.error("Error fetching schedule overrides:", error);
+    });
+
+    return () => {
+      unsubGlobal();
+      unsubOverrides();
+    };
   }, []);
 
   useEffect(() => {
