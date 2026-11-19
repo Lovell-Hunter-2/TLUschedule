@@ -4,7 +4,7 @@ import { syncTluWithChunks } from "./lib/tlu-client";
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { WorkspaceScreen } from './components/WorkspaceScreen';
 import { Layout } from './components/Layout';
@@ -85,6 +85,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [isSwitchingWorkspace, setIsSwitchingWorkspace] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoadingDone, setIsLoadingDone] = useState(false);
   const [activeTab, setActiveTab] = useState('daily');
@@ -608,6 +609,7 @@ export default function App() {
       } else {
         setUser(null);
         setWorkspace(null);
+        setIsSwitchingWorkspace(false);
         setSubjects([]);
         setNotes([]);
       }
@@ -658,6 +660,7 @@ export default function App() {
     try {
       localStorage.removeItem('savedWorkspaceId');
       localStorage.removeItem('savedWorkspacePassword');
+      setIsSwitchingWorkspace(false);
       await signOut(auth);
     } catch (error) {
       console.error("Error signing out:", error);
@@ -667,10 +670,16 @@ export default function App() {
   const handleSwitchWorkspace = () => {
     localStorage.removeItem('savedWorkspaceId');
     localStorage.removeItem('savedWorkspacePassword');
+    setIsSwitchingWorkspace(true);
     setWorkspace(null);
     setSubjects([]);
     setNotes([]);
   };
+
+  const handleWorkspaceSelect = useCallback((selectedWorkspace: Workspace) => {
+    setIsSwitchingWorkspace(false);
+    setWorkspace(selectedWorkspace);
+  }, []);
 
   const handleInstallClick = async () => {
     // Check if already in standalone mode
@@ -773,7 +782,13 @@ export default function App() {
   }
 
   if (!workspace) {
-    return <WorkspaceScreen userId={user.uid} onWorkspaceSelect={setWorkspace} />;
+    return (
+      <WorkspaceScreen
+        userId={user.uid}
+        disableAutoSelect={isSwitchingWorkspace}
+        onWorkspaceSelect={handleWorkspaceSelect}
+      />
+    );
   }
 
   return (
