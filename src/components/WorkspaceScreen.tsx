@@ -1,5 +1,5 @@
 import { syncTluWithChunks, fetchTluCaptcha } from "../lib/tlu-client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Card } from './Card';
@@ -12,6 +12,7 @@ import { cn, isInvalidSubject, normalizeSubjectName, deduplicateSubjects } from 
 
 interface WorkspaceScreenProps {
   userId: string;
+  disableAutoSelect?: boolean;
   onWorkspaceSelect: (workspace: Workspace) => void;
 }
 
@@ -85,8 +86,9 @@ const SwipeableWorkspace = ({ workspace, onSelect, onDelete, isSyncing }: any) =
   );
 };
 
-export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenProps) {
+export function WorkspaceScreen({ userId, disableAutoSelect = false, onWorkspaceSelect }: WorkspaceScreenProps) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const hasCheckedAutoSelectRef = useRef(false);
   
   // Form states
   const [portalType, setPortalType] = useState<'sinhvien1' | 'sv_tlu'>('sinhvien1');
@@ -118,6 +120,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
   };
 
   useEffect(() => {
+    hasCheckedAutoSelectRef.current = false;
     const workspacesRef = collection(db, 'users', userId, 'workspaces');
     const unsubscribe = onSnapshot(workspacesRef, (snapshot) => {
       const loadedWorkspaces: Workspace[] = [];
@@ -125,6 +128,15 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
         loadedWorkspaces.push(doc.data() as Workspace);
       });
       setWorkspaces(loadedWorkspaces);
+
+      if (disableAutoSelect || hasCheckedAutoSelectRef.current) {
+        return;
+      }
+
+      // Chờ dữ liệu thật từ server nếu cache đang rỗng; khi có dữ liệu mới kiểm tra auto-select 1 lần duy nhất
+      if (!snapshot.metadata.fromCache || loadedWorkspaces.length > 0) {
+        hasCheckedAutoSelectRef.current = true;
+      }
 
       const savedWorkspaceId = localStorage.getItem('savedWorkspaceId');
 
@@ -135,7 +147,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
           return;
         }
       } else if (loadedWorkspaces.length === 1) {
-        // Auto select if there's exactly 1 workspace and no saved workspace ID
+        // Chỉ tự động chọn lần đầu mở app khi không phải thao tác bấm "Change" đổi tài khoản
         const onlyWorkspace = loadedWorkspaces[0];
         localStorage.setItem('savedWorkspaceId', onlyWorkspace.id);
         onWorkspaceSelect(onlyWorkspace);
@@ -144,7 +156,7 @@ export function WorkspaceScreen({ userId, onWorkspaceSelect }: WorkspaceScreenPr
     });
 
     return () => unsubscribe();
-  }, [userId, onWorkspaceSelect]);
+  }, [userId, disableAutoSelect, onWorkspaceSelect]);
 
   const handleDeleteWorkspace = async (workspace: Workspace) => {
     if (window.confirm(`Bạn có chắc chắn muốn xóa tài khoản ${workspace.name} không?`)) {
